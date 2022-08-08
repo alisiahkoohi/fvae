@@ -13,6 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class GMVAE:
+
     def __init__(self, args):
         self.num_epochs = args.epochs
         self.cuda = args.cuda
@@ -46,7 +47,9 @@ class GMVAE:
         self.min_temp = args.min_temp
         self.decay_temp_rate = args.decay_temp_rate
 
-        self.network = GMVAENet(self.input_size, self.gaussian_size, self.num_classes, args.init_temp, args.hard_gumbel)
+        self.network = GMVAENet(self.input_size, self.gaussian_size,
+                                self.num_classes, args.init_temp,
+                                args.hard_gumbel)
         self.losses = LossFunctions()
         self.metrics = Metrics()
 
@@ -69,7 +72,8 @@ class GMVAE:
         mu, var = out_net['mean'], out_net['var']
 
         # reconstruction loss
-        loss_rec = self.losses.reconstruction_loss(data, data_recon, self.rec_type)
+        loss_rec = self.losses.reconstruction_loss(data, data_recon,
+                                                   self.rec_type)
 
         # gaussian loss
         loss_gauss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
@@ -83,11 +87,13 @@ class GMVAE:
         # obtain predictions
         _, predicted_labels = torch.max(logits, dim=1)
 
-        loss_dic = {'total': loss_total,
-                    'predicted_labels': predicted_labels,
-                    'reconstruction': loss_rec,
-                    'gaussian': loss_gauss,
-                    'categorical': loss_cat}
+        loss_dic = {
+            'total': loss_total,
+            'predicted_labels': predicted_labels,
+            'reconstruction': loss_rec,
+            'gaussian': loss_gauss,
+            'categorical': loss_cat
+        }
         return loss_dic
 
     def train_epoch(self, optimizer, data_loader, epoch):
@@ -146,7 +152,8 @@ class GMVAE:
             num_batches += 1.
 
             if num_batches % 100 == 99:
-                self.writer.add_scalar('train loss', total_loss / num_batches, epoch * len(data_loader) + num_batches)
+                self.writer.add_scalar('train loss', total_loss / num_batches,
+                                       epoch * len(data_loader) + num_batches)
 
             # average per batch
         total_loss /= num_batches
@@ -158,9 +165,11 @@ class GMVAE:
         if self.compute_acc:
             # concat all true and predicted labels
             true_labels = torch.cat(true_labels_list, dim=0).cpu().numpy()
-            predicted_labels = torch.cat(predicted_labels_list, dim=0).cpu().numpy()
+            predicted_labels = torch.cat(predicted_labels_list,
+                                         dim=0).cpu().numpy()
 
-            accuracy = 100.0 * self.metrics.cluster_acc(predicted_labels, true_labels)
+            accuracy = 100.0 * self.metrics.cluster_acc(
+                predicted_labels, true_labels)
             nmi = 100.0 * self.metrics.nmi(predicted_labels, true_labels)
         else:
             accuracy, nmi = -10.0, -10.0
@@ -217,12 +226,14 @@ class GMVAE:
                 num_batches += 1.
 
                 if num_batches % 10 == 9 and epoch is not None:
-                    self.writer.add_scalars('test loss',
-                                            {'rec': recon_loss / num_batches,
-                                             'gauss': gauss_loss / num_batches,
-                                             'cat': cat_loss / num_batches,
-                                             'total': total_loss / num_batches},
-                                            epoch * len(data_loader) + num_batches)
+                    self.writer.add_scalars(
+                        'test loss', {
+                            'rec': recon_loss / num_batches,
+                            'gauss': gauss_loss / num_batches,
+                            'cat': cat_loss / num_batches,
+                            'total': total_loss / num_batches
+                        },
+                        epoch * len(data_loader) + num_batches)
 
         # average per batch
         if return_loss:
@@ -233,16 +244,20 @@ class GMVAE:
 
         # concat all true and predicted labels
         true_labels = torch.cat(true_labels_list, dim=0).cpu().numpy()
-        predicted_labels = torch.cat(predicted_labels_list, dim=0).cpu().numpy()
+        predicted_labels = torch.cat(predicted_labels_list,
+                                     dim=0).cpu().numpy()
 
         if epoch is not None:
-            self.writer.add_scalars('classes',
-                                    {str(i): (predicted_labels == i).mean() for i in range(self.num_classes)},
-                                    epoch)
+            self.writer.add_scalars(
+                'classes', {
+                    str(i): (predicted_labels == i).mean()
+                    for i in range(self.num_classes)
+                }, epoch)
 
         # compute metrics
         if self.compute_acc:
-            accuracy = 100.0 * self.metrics.cluster_acc(predicted_labels, true_labels)
+            accuracy = 100.0 * self.metrics.cluster_acc(
+                predicted_labels, true_labels)
             nmi = 100.0 * self.metrics.nmi(predicted_labels, true_labels)
         else:
             accuracy, nmi = -10.0, -10.0
@@ -262,7 +277,8 @@ class GMVAE:
         Returns:
             output: (dict) contains the history of train/val loss
         """
-        optimizer = optim.Adam(self.network.parameters(), lr=self.learning_rate)
+        optimizer = optim.Adam(self.network.parameters(),
+                               lr=self.learning_rate)
         train_history_acc, val_history_acc = [], []
         train_history_nmi, val_history_nmi = [], []
 
@@ -272,13 +288,17 @@ class GMVAE:
                 self.train_epoch(optimizer, train_loader, epoch)
             t2 = time() - t1
 
-            val_loss, val_rec, val_gauss, val_cat, val_acc, val_nmi = self.test(val_loader, epoch, True)
+            val_loss, val_rec, val_gauss, val_cat, val_acc, val_nmi = self.test(
+                val_loader, epoch, True)
 
             # if verbose then print specific information about training
             if self.verbose:
-                print("(Epoch %d / %d) t: %.1lf" % (epoch, self.num_epochs, t2))
-                print("Train - REC: %.3lf;  Gauss: %.3lf;  Cat: %.3lf;" % (train_rec, train_gauss, train_cat))
-                print("Valid - REC: %.3lf;  Gauss: %.3lf;  Cat: %.3lf;" % (val_rec, val_gauss, val_cat))
+                print("(Epoch %d / %d) t: %.1lf" %
+                      (epoch, self.num_epochs, t2))
+                print("Train - REC: %.3lf;  Gauss: %.3lf;  Cat: %.3lf;" %
+                      (train_rec, train_gauss, train_cat))
+                print("Valid - REC: %.3lf;  Gauss: %.3lf;  Cat: %.3lf;" %
+                      (val_rec, val_gauss, val_cat))
                 print(
                     "Accuracy=Train: %.3lf; Val: %.3lf   NMI=Train: %.3lf; Val: %.3lf   Total Loss=Train: %.3lf; Val: %.3lf" % \
                     (train_acc, val_acc, train_nmi, val_nmi, train_loss, val_loss))
@@ -289,10 +309,12 @@ class GMVAE:
 
             # decay gumbel temperature
             if self.decay_temp == 1:
-                self.network.gumbel_temp = np.maximum(self.init_temp * np.exp(-self.decay_temp_rate * epoch),
-                                                      self.min_temp)
+                self.network.gumbel_temp = np.maximum(
+                    self.init_temp * np.exp(-self.decay_temp_rate * epoch),
+                    self.min_temp)
                 if self.verbose:
-                    print("Gumbel Temperature: %.3lf" % self.network.gumbel_temp)
+                    print("Gumbel Temperature: %.3lf" %
+                          self.network.gumbel_temp)
 
             train_history_acc.append(train_acc)
             val_history_acc.append(val_acc)
@@ -300,14 +322,22 @@ class GMVAE:
             val_history_nmi.append(val_nmi)
 
             if epoch % 10 == 9:
-                torch.save(self.network.cpu(), self.exp_path / 'checkpoints' / f'epoch{epoch}.pth')
-                self.network.cuda()
+                torch.save(self.network.cpu(),
+                           self.exp_path / 'checkpoints' / f'epoch{epoch}.pth')
+                if self.cuda == 1:
+                    self.network.cuda()
 
-        torch.save(self.network.cpu(), self.exp_path / 'checkpoints' / f'final.pth')
-        self.network.cuda()
+        torch.save(self.network.cpu(),
+                   self.exp_path / 'checkpoints' / f'final.pth')
+        if self.cuda == 1:
+            self.network.cuda()
 
-        return {'train_history_nmi': train_history_nmi, 'val_history_nmi': val_history_nmi,
-                'train_history_acc': train_history_acc, 'val_history_acc': val_history_acc}
+        return {
+            'train_history_nmi': train_history_nmi,
+            'val_history_nmi': val_history_nmi,
+            'train_history_acc': train_history_acc,
+            'val_history_acc': val_history_acc
+        }
 
     def latent_features(self, data_loader, return_labels=False):
         """Obtain latent features learnt by the model
@@ -338,7 +368,8 @@ class GMVAE:
                 # return true labels
                 if return_labels:
                     true_labels[start_ind:end_ind] = labels.cpu().numpy()
-                features[start_ind:end_ind] = latent_feat.cpu().detach().numpy()
+                features[start_ind:end_ind] = latent_feat.cpu().detach().numpy(
+                )
                 start_ind += data.size(0)
         if return_labels:
             return features, true_labels
@@ -357,9 +388,13 @@ class GMVAE:
         self.network.eval()
 
         # sample random data from loader
-        indices = np.random.randint(0, len(data_loader.dataset), size=sample_size)
-        test_random_loader = torch.utils.data.DataLoader(data_loader.dataset, batch_size=sample_size,
-                                                         sampler=SubsetRandomSampler(indices))
+        indices = np.random.randint(0,
+                                    len(data_loader.dataset),
+                                    size=sample_size)
+        test_random_loader = torch.utils.data.DataLoader(
+            data_loader.dataset,
+            batch_size=sample_size,
+            sampler=SubsetRandomSampler(indices))
 
         # obtain values
         it = iter(test_random_loader)
@@ -389,8 +424,13 @@ class GMVAE:
 
         # plot only the first 2 dimensions
         fig = plt.figure(figsize=(8, 6))
-        plt.scatter(features[:, 0], features[:, 1], c=labels, marker='o',
-                    edgecolor='none', cmap=plt.cm.get_cmap('jet', 10), s=10)
+        plt.scatter(features[:, 0],
+                    features[:, 1],
+                    c=labels,
+                    marker='o',
+                    edgecolor='none',
+                    cmap=plt.cm.get_cmap('jet', 10),
+                    s=10)
         plt.colorbar()
         if (save):
             fig.savefig('latent_space.png')
@@ -411,7 +451,8 @@ class GMVAE:
             arr = np.hstack([arr, np.ones(num_elements) * i])
         indices = arr.astype(int).tolist()
 
-        categorical = F.one_hot(torch.tensor(indices), self.num_classes).float()
+        categorical = F.one_hot(torch.tensor(indices),
+                                self.num_classes).float()
 
         if self.cuda:
             categorical = categorical.cuda()

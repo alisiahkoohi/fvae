@@ -7,8 +7,9 @@ from torch.utils.data import Dataset
 
 from VAE_fGMM.model.GMVAE import *
 
-DATA_PATH = Path(__file__).parents[0] / 'data'
-CASCADIA_PATH = DATA_PATH / 'cascadia'
+# DATA_PATH = Path(__file__).parents[0] / 'data'
+DATA_PATH = '/home/ali/Codes/factorialVAE/data'
+CASCADIA_PATH = DATA_PATH + '/cascadia'
 
 
 class Cascadia(Dataset):
@@ -61,7 +62,7 @@ def get_args():
     parser.add_argument('--seed', type=int, default=0, help='random seed (default: 0)')
 
     ## GPU
-    parser.add_argument('--cuda', type=int, default=1,
+    parser.add_argument('--cuda', type=int, default=0,
                         help='use of cuda (default: 1)')
     parser.add_argument('--gpu', type=str,
                         help="GPU devices")
