@@ -2,12 +2,12 @@ import numpy as np
 import torch.nn.init as init
 from VAE_fGMM.networks.Layers import *
 
-
 INTER_DIM = 128
 
 
 # Inference Network
 class InferenceNet(nn.Module):
+
     def __init__(self, x_dim, z_dim, y_dim):
         super(InferenceNet, self).__init__()
 
@@ -56,12 +56,19 @@ class InferenceNet(nn.Module):
         # q(z|x,y)
         mu, var, z = self.qzxy(x, y)
 
-        output = {'mean': mu, 'var': var, 'gaussian': z,
-                  'logits': logits, 'prob_cat': prob, 'categorical': y}
+        output = {
+            'mean': mu,
+            'var': var,
+            'gaussian': z,
+            'logits': logits,
+            'prob_cat': prob,
+            'categorical': y
+        }
         return output
 
 
 class Tanh(nn.Module):
+
     def __init__(self, scale=1.0):
         super(Tanh, self).__init__()
         self.scale = scale
@@ -72,6 +79,7 @@ class Tanh(nn.Module):
 
 # Generative Network
 class GenerativeNet(nn.Module):
+
     def __init__(self, x_dim, z_dim, y_dim):
         super(GenerativeNet, self).__init__()
 
@@ -88,7 +96,7 @@ class GenerativeNet(nn.Module):
             nn.Linear(INTER_DIM, x_dim),
             # torch.nn.Sigmoid(),
             # nn.ReLU(),
-            Tanh(scale=2*np.pi),
+            Tanh(scale=2 * np.pi),
         ])
 
     # p(z|y)
@@ -116,6 +124,7 @@ class GenerativeNet(nn.Module):
 
 # GMVAE Network
 class GMVAENet(nn.Module):
+
     def __init__(self, x_dim, z_dim, y_dim, init_temp, hard_gumbel):
         super(GMVAENet, self).__init__()
 
@@ -127,7 +136,8 @@ class GMVAENet(nn.Module):
 
         # weight initialization
         for m in self.modules():
-            if type(m) == nn.Linear or type(m) == nn.Conv2d or type(m) == nn.ConvTranspose2d:
+            if type(m) == nn.Linear or type(m) == nn.Conv2d or type(
+                    m) == nn.ConvTranspose2d:
                 torch.nn.init.xavier_normal_(m.weight)
                 if m.bias.data is not None:
                     init.constant_(m.bias, 0)

@@ -4,6 +4,7 @@ from sklearn.metrics.cluster import normalized_mutual_info_score
 
 
 class Metrics:
+
     def cluster_acc(self, Y_pred, Y):
         Y_pred, Y = np.array(Y_pred), np.array(Y)
         assert Y_pred.size == Y.size
@@ -12,9 +13,12 @@ class Metrics:
         for i in range(Y_pred.size):
             w[Y_pred[i], Y[i]] += 1
         row, col = linear_sum_assignment(w.max() - w)
-        return sum([w[row[i], col[i]] for i in range(row.shape[0])]) * 1.0 / Y_pred.size
+        return sum([w[row[i], col[i]]
+                    for i in range(row.shape[0])]) * 1.0 / Y_pred.size
 
     def nmi(self, Y_pred, Y):
         Y_pred, Y = np.array(Y_pred), np.array(Y)
         assert Y_pred.size == Y.size
-        return normalized_mutual_info_score(Y_pred, Y, average_method='arithmetic')
+        return normalized_mutual_info_score(Y_pred,
+                                            Y,
+                                            average_method='arithmetic')

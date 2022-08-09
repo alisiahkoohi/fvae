@@ -1,0 +1,21 @@
+name: fac-vae
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - pytorch
+  - torchvision
+  - pip
+  - cpuonly
+  - pip:
+    - matplotlib
+    - tensorboard
+    - obspy
+    - mpire
+    - pandas
+    - numpy
+    - scipy
+    - scikit-learn
+    - tqdm

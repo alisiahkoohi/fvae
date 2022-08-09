@@ -57,7 +57,8 @@ class LossFunctions:
         if self.eps > 0.0:
             var = var + self.eps
         return -0.5 * torch.sum(
-            np.log(2.0 * np.pi) + torch.log(var) + torch.pow(x - mu, 2) / var, dim=-1)
+            np.log(2.0 * np.pi) + torch.log(var) + torch.pow(x - mu, 2) / var,
+            dim=-1)
 
     def gaussian_loss(self, z, z_mu, z_var, z_mu_prior, z_var_prior):
         """Variational loss when using labeled data without considering reconstruction loss
@@ -74,7 +75,8 @@ class LossFunctions:
             output: (array/float) depending on average parameters the result will be the mean
                 of all the sample losses or an array with the losses per sample
         """
-        loss = self.log_normal(z, z_mu, z_var) - self.log_normal(z, z_mu_prior, z_var_prior)
+        loss = self.log_normal(z, z_mu, z_var) - self.log_normal(
+            z, z_mu_prior, z_var_prior)
         return loss.mean()
 
     def entropy(self, logits, targets):
