@@ -5,9 +5,9 @@ from tqdm import tqdm
 from pathlib import Path
 from torch import optim
 from torch.utils.data.sampler import SubsetRandomSampler
-from VAE_fGMM.networks.Networks import *
-from VAE_fGMM.losses.LossFunctions import *
-from VAE_fGMM.metrics.Metrics import *
+from facvae.vae.Networks import *
+from facvae.vae.LossFunctions import *
+from facvae.vae.Metrics import *
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 

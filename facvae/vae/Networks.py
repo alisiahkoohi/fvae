@@ -1,6 +1,6 @@
 import numpy as np
 import torch.nn.init as init
-from VAE_fGMM.networks.Layers import *
+from facvae.vae.Layers import *
 
 INTER_DIM = 128
 

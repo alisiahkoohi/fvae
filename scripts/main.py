@@ -5,11 +5,10 @@ from torchvision import datasets, transforms
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data import Dataset
 
-from VAE_fGMM.model.GMVAE import *
+from facvae.vae.GMVAE import *
+from facvae.utils import datadir
 
-# DATA_PATH = Path(__file__).parents[0] / 'data'
-DATA_PATH = '/home/ali/Codes/factorialVAE/data'
-CASCADIA_PATH = DATA_PATH + '/cascadia'
+CASCADIA_PATH = datadir('cascadia')
 
 
 class Cascadia(Dataset):
@@ -209,11 +208,11 @@ if __name__ == "__main__":
     #########################################################
     if args.dataset == "mnist":
         print("Loading mnist dataset...")
-        train_dataset = datasets.MNIST(DATA_PATH,
+        train_dataset = datasets.MNIST(datadir(''),
                                        train=True,
                                        download=True,
                                        transform=transforms.ToTensor())
-        test_dataset = datasets.MNIST(DATA_PATH,
+        test_dataset = datasets.MNIST(datadir(''),
                                       train=False,
                                       transform=transforms.ToTensor())
     if args.dataset == 'cascadia':
