@@ -1,5 +1,9 @@
 """ Performs VAE-fGMM training on scattering covariance dataset. """
 import argparse
+import logging
+import sys
+import os
+from pathlib import Path
 import random
 from torchvision import datasets, transforms
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -8,6 +12,7 @@ from torch.utils.data import Dataset
 from facvae.vae.GMVAE import *
 from facvae.utils import datadir
 
+logging.basicConfig(level=logging.INFO)
 CASCADIA_PATH = datadir('cascadia')
 
 
@@ -17,6 +22,7 @@ class Cascadia(Dataset):
         self.dirname = dirname
         self.transform = transform
         if train:
+            from IPython import embed; embed()
             self.files = list(dirname.iterdir())[:(train_size or 10000)]
         else:
             self.files = list(dirname.iterdir())[-10000:]  # 13675
@@ -216,8 +222,9 @@ if __name__ == "__main__":
                                       train=False,
                                       transform=transforms.ToTensor())
     if args.dataset == 'cascadia':
-        print("Loading cascadia dataset...")
-        SCAT_DATA_SET = CASCADIA_PATH / 'scat_covariances' / 'window_17_phase'
+        logging.info("Loading cascadia dataset...")
+        SCAT_DATA_SET = Path(datadir(
+            os.path.join('cascadia', 'scat_covariances', 'window_17_phase')))
         train_dataset = Cascadia(SCAT_DATA_SET,
                                  train=True,
                                  train_size=20000,

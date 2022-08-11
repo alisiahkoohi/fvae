@@ -1,0 +1,23 @@
+name: fac-vae
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+  - nvidia
+dependencies:
+  - nvidia::cudatoolkit=11.7
+  - python
+  - pytorch::pytorch
+  - pytorch::torchvision
+  - pip
+  - pip:
+    - matplotlib
+    - tensorboard
+    - obspy
+    - mpire
+    - pandas
+    - numpy
+    - scipy
+    - scikit-learn
+    - tqdm
+    - gitpython
