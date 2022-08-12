@@ -5,8 +5,8 @@ channels:
   - defaults
   - nvidia
 dependencies:
-  - nvidia::cudatoolkit=11.7
-  - python
+  - nvidia::cudatoolkit=11.6
+  - python==3.9
   - pytorch::pytorch
   - pytorch::torchvision
   - pip
@@ -21,3 +21,4 @@ dependencies:
     - scikit-learn
     - tqdm
     - gitpython
+    - termcolor

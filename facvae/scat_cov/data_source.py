@@ -6,8 +6,8 @@ from multiprocessing import Pool
 import shutil
 import numpy as np
 
-from stochastic_classical_models import fbm, mrw, skewed_mrw, poisson_mu
-from global_const import *
+from facvae.scat_cov.stochastic_classical_models import fbm, mrw, skewed_mrw, poisson_mu
+from facvae.scat_cov.global_const import *
 
 
 """ TIME SERIES DATA classes
@@ -64,7 +64,7 @@ class TimeSeriesNpzFile(TimeSeriesBase):
 
 
 """
-LOADER classes create and access cached data 
+LOADER classes create and access cached data
 """
 
 

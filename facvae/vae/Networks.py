@@ -2,7 +2,7 @@ import numpy as np
 import torch.nn.init as init
 from facvae.vae.Layers import *
 
-INTER_DIM = 128
+INTER_DIM = 512
 
 
 # Inference Network

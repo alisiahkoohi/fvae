@@ -1,10 +1,12 @@
 """ Generate scattering covariance dataset from cascadia waveforms. """
 import obspy
 from mpire import WorkerPool
+from pathlib import Path
+import numpy as np
+import os
 
-
-from scattering_covariance.frontend import *
-
+from facvae.scat_cov.frontend import analyze, cplx
+from facvae.utils import datadir
 
 def windows(x, w, s, offset):
     """ Separate x into windows on last axis, discard any residual. """
@@ -52,10 +54,10 @@ if __name__ == "__main__":
     n_gpus = len(gpus)
 
     # path to the waveforms
-    CASCADIA_PATH = Path(__file__).parents[0] / 'data' / 'cascadia'
+    CASCADIA_PATH = Path(datadir('cascadia'))
     files = list((CASCADIA_PATH / 'waveform').iterdir())
     files_chunks = np.array_split(files, n_gpus*20)
-    saving_path = CASCADIA_PATH / 'scat_covariances' / dirname
+    saving_path = Path(datadir(os.path.join('cascadia', 'scat_covariances', dirname)))
     saving_path.mkdir(exist_ok=True)
 
     # multiprocessed scattering covariance computation on gpus
