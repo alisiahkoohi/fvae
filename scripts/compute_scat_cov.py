@@ -39,8 +39,9 @@ def worker(files, gpu, saving_path, w, J):
             y[np.abs(y) < 0.001] = 0.0
             scat_covariances = np.angle(y)  # only take the phase
             # scat_covariances = RX.select(n1=r).ravel().detach().numpy()
-            fname = f.stem + f'_w{r}' + '.npy'
-            np.save(saving_path / fname, scat_covariances)
+            if not np.prod(scat_covariances.shape) == 0:
+                fname = f.stem + f'_w{r}' + '.npy'
+                np.save(saving_path / fname, scat_covariances)
 
 
 if __name__ == "__main__":
@@ -49,7 +50,7 @@ if __name__ == "__main__":
     w = 2 ** 17  # 2 ** 17
     J = 8
     gpus = [0]
-    dirname = 'window_17_phase'
+    dirname = 'test_window_17_phase'
 
     n_gpus = len(gpus)
 

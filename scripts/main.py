@@ -22,7 +22,6 @@ class Cascadia(Dataset):
         self.dirname = dirname
         self.transform = transform
         if train:
-            from IPython import embed; embed()
             self.files = list(dirname.iterdir())[:(train_size or 10000)]
         else:
             self.files = list(dirname.iterdir())[-10000:]  # 13675
@@ -42,6 +41,7 @@ class Cascadia(Dataset):
         f = self.files[i]
         x = np.load(f)[None, :]
         x = np.float32(x)
+        x = torch.from_numpy(x)
 
         # x /= self.final_max
         # x = np.abs(x)
@@ -224,14 +224,15 @@ if __name__ == "__main__":
     if args.dataset == 'cascadia':
         logging.info("Loading cascadia dataset...")
         SCAT_DATA_SET = Path(datadir(
-            os.path.join('cascadia', 'scat_covariances', 'window_17_phase')))
+            os.path.join('cascadia', 'scat_covariances', 'test_window_17_phase')))
         train_dataset = Cascadia(SCAT_DATA_SET,
                                  train=True,
                                  train_size=20000,
-                                 transform=transforms.ToTensor())
+                                 transform=None)
         test_dataset = Cascadia(SCAT_DATA_SET,
                                 train=False,
-                                transform=transforms.ToTensor())
+                                transform=None)
+        # from IPython import embed; embed()
 
     #########################################################
     ## Data Partition

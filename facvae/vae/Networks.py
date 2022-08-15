@@ -33,6 +33,8 @@ class InferenceNet(nn.Module):
     def qyx(self, x, temperature, hard):
         num_layers = len(self.inference_qyx)
         for i, layer in enumerate(self.inference_qyx):
+            # print("---------------------------------------layer", i)
+            # from IPython import embed; embed()
             if i == num_layers - 1:
                 # last layer is gumbel softmax
                 x = layer(x, temperature, hard)
