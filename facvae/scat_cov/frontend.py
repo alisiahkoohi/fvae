@@ -18,7 +18,6 @@ from facvae.scat_cov.scattering_network.module_chunk import ModuleChunk, SkipCon
 from facvae.scat_cov.scattering_network.described_tensor import DescribedTensor
 from facvae.scat_cov.scattering_network.loss import MSELossScat
 from facvae.scat_cov.scattering_network.solver import Solver, CheckConvCriterion, SmallEnoughException
-
 """ Notations
 
 Dimension sizes:
@@ -34,10 +33,10 @@ Tensor shapes:
 - RX: output (DescribedTensor), of shape (B, K, T, 2) with K the number of coefficients in the representation
 """
 
-
 ##################
 # DATA LOADING
 ##################
+
 
 def load_data(process_name, B, T, cache_dir=None, **data_param):
     """ Time series data loading function.
@@ -59,7 +58,8 @@ def load_data(process_name, B, T, cache_dir=None, **data_param):
     if process_name == 'snp':
         raise ValueError("S&P data is private, please provide your own data.")
     if process_name == 'heliumjet':
-        raise ValueError("Helium jet data is private, please provide your own data.")
+        raise ValueError(
+            "Helium jet data is private, please provide your own data.")
     if process_name == 'hawkes':
         raise ValueError("Hawkes data is not yet supported.")
     if process_name not in loader.keys():
@@ -78,9 +78,9 @@ def load_data(process_name, B, T, cache_dir=None, **data_param):
 # ANALYSIS
 ##################
 
+
 def init_model(B, N, T, J, Q1, Q2, r_max, wav_type, high_freq, wav_norm,
-               moments, m_types, qs, sigma,
-               chunk_method, nchunks):
+               moments, m_types, qs, sigma, chunk_method, nchunks):
     """ Initialize a scattering covariance model.
 
     :param N: number of in_data channel
@@ -99,7 +99,9 @@ def init_model(B, N, T, J, Q1, Q2, r_max, wav_type, high_freq, wav_norm,
     :return: a torch module
     """
     if B > 0 and moments is None:
-        raise ValueError('A scattering model without moments cannot average on several batches.')
+        raise ValueError(
+            'A scattering model without moments cannot average on several batches.'
+        )
 
     module_list = []
 
@@ -131,18 +133,39 @@ def init_model(B, N, T, J, Q1, Q2, r_max, wav_type, high_freq, wav_norm,
 
 def compute_sigma(X, B, T, J, Q1, Q2, wav_type, high_freq, wav_norm):
     """ Computes power specturm sigma(j)^2 used to normalize scattering coefficients. """
-    marginal_model = init_model(B=B, N=1, T=T, J=J, Q1=Q1, Q2=Q2, r_max=1,
-                                wav_type=wav_type, high_freq=high_freq, wav_norm=wav_norm,
-                                moments='marginal', m_types=None, qs=[2.0], sigma=None,
-                                chunk_method='quotient_n', nchunks=1)
+    marginal_model = init_model(B=B,
+                                N=1,
+                                T=T,
+                                J=J,
+                                Q1=Q1,
+                                Q2=Q2,
+                                r_max=1,
+                                wav_type=wav_type,
+                                high_freq=high_freq,
+                                wav_norm=wav_norm,
+                                moments='marginal',
+                                m_types=None,
+                                qs=[2.0],
+                                sigma=None,
+                                chunk_method='quotient_n',
+                                nchunks=1)
     # sigma = marginal_model(X).mean_batch()
     sigma = marginal_model(X)
 
     return sigma
 
 
-def analyze(X, J=None, Q1=1, Q2=1, wav_type='battle_lemarie', wav_norm='l1', high_freq=0.425,
-            moments='covstat', m_types=None, nchunks=1, cuda=False):
+def analyze(X,
+            J=None,
+            Q1=1,
+            Q2=1,
+            wav_type='battle_lemarie',
+            wav_norm='l1',
+            high_freq=0.425,
+            moments='covstat',
+            m_types=None,
+            nchunks=1,
+            cuda=False):
     """ Compute sigma^2(j).
     :param X: a R x T array
     :param J: number of octaves
@@ -165,13 +188,26 @@ def analyze(X, J=None, Q1=1, Q2=1, wav_type='battle_lemarie', wav_norm='l1', hig
         J = int(np.log2(T)) - 3
 
     # covstat needs a spectrum normalization
-    sigma = compute_sigma(X, B, T, J, Q1, Q2, wav_type, high_freq, wav_norm) if moments == 'covstat' else None
+    sigma = compute_sigma(X, B, T, J, Q1, Q2, wav_type, high_freq,
+                          wav_norm) if moments == 'covstat' else None
 
     # initialize model
-    model = init_model(B=B, N=1, T=T, J=J, Q1=Q1, Q2=Q2, r_max=2, wav_type=wav_type, high_freq=high_freq,
-                       wav_norm=wav_norm, moments=moments,
-                       m_types=m_types or ['m00', 'm10', 'm11'], qs=None, sigma=sigma,
-                       chunk_method='quotient_n', nchunks=nchunks)
+    model = init_model(B=B,
+                       N=1,
+                       T=T,
+                       J=J,
+                       Q1=Q1,
+                       Q2=Q2,
+                       r_max=2,
+                       wav_type=wav_type,
+                       high_freq=high_freq,
+                       wav_norm=wav_norm,
+                       moments=moments,
+                       m_types=m_types or ['m00', 'm10', 'm11'],
+                       qs=None,
+                       sigma=sigma,
+                       chunk_method='quotient_n',
+                       nchunks=nchunks)
 
     # compute
     if cuda:
@@ -187,8 +223,10 @@ def analyze(X, J=None, Q1=1, Q2=1, wav_type='battle_lemarie', wav_norm='l1', hig
 # GENERATION
 ##################
 
+
 class GenDataLoader(ProcessDataLoader):
     """ A data loader for generation. Caches the generated trajectories. """
+
     def __init__(self, *args):
         super(GenDataLoader, self).__init__(*args)
         self.default_kwargs = {}
@@ -199,7 +237,8 @@ class GenDataLoader(ProcessDataLoader):
         model_params = kwargs['model_params']
         N, T, J, Q1, Q2, r_max, wav_type, m_types, moments = \
             (model_params[key] for key in ['N', 'T', 'J', 'Q1', 'Q2', 'r_max', 'wav_type', 'm_types', 'moments'])
-        cut1, cut2, cut3 = kwargs['optim_params']['cutoff1'], kwargs['optim_params']['cutoff2'], kwargs['optim_params']['cutoff3']
+        cut1, cut2, cut3 = kwargs['optim_params']['cutoff1'], kwargs[
+            'optim_params']['cutoff2'], kwargs['optim_params']['cutoff3']
         path_str = f"gen_scat_cov_{wav_type}_B{B_target}_N{N}_T{T}_J{J}_Q1_{Q1}_Q2_{Q2}_rmax{r_max}_mo_{moments}" \
                    + f"{''.join(mtype[0] for mtype in m_types)}" \
                    + f"_tol{str(int(np.log10(kwargs['optim_params']['tol_optim']))).replace('-', '')}" \
@@ -209,7 +248,8 @@ class GenDataLoader(ProcessDataLoader):
                    + (f"_cut3_{cut3}" if cut3 is not None else "")
         return self.dir_name / path_str
 
-    def generate_trajectory(self, X, RX, model_params, optim_params, gpu, dirpath):
+    def generate_trajectory(self, X, RX, model_params, optim_params, gpu,
+                            dirpath):
         """ Performs cached generation. """
         if gpu is not None:
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
@@ -222,9 +262,11 @@ class GenDataLoader(ProcessDataLoader):
 
         # sigma = None
         # if model_params['moments'] == 'covstat':
-        sigma = compute_sigma(X_torch, model_params['B'], model_params['T'], model_params['J'],
-                              model_params['Q1'], model_params['Q2'],
-                              model_params['wav_type'], model_params['high_freq'], model_params['wav_norm'])
+        sigma = compute_sigma(X_torch, model_params['B'], model_params['T'],
+                              model_params['J'], model_params['Q1'],
+                              model_params['Q2'], model_params['wav_type'],
+                              model_params['high_freq'],
+                              model_params['wav_norm'])
         model_params['sigma'] = sigma
 
         # prepare target representation
@@ -232,9 +274,14 @@ class GenDataLoader(ProcessDataLoader):
             print("Preparing target representation")
             X_torch = cplx.from_np(X)
             model_avg = init_model(
-                B=X.shape[0], chunk_method='quotient_n', nchunks=X.shape[0],
-                **{key: value for (key, value) in model_params.items() if key not in ['B', 'chunk_method', 'nchunks']}
-            )
+                B=X.shape[0],
+                chunk_method='quotient_n',
+                nchunks=X.shape[0],
+                **{
+                    key: value
+                    for (key, value) in model_params.items()
+                    if key not in ['B', 'chunk_method', 'nchunks']
+                })
             if gpu is not None:
                 X_torch = X_torch.cuda()
                 model_avg = model_avg.cuda()
@@ -253,7 +300,7 @@ class GenDataLoader(ProcessDataLoader):
             return wn * var + mean
 
         gen_shape = (1, ) + X.shape[1:]
-        x0 = gen_wn(gen_shape, x0_mean, x0_var ** 0.5)
+        x0 = gen_wn(gen_shape, x0_mean, x0_var**0.5)
 
         # init model
         print("Initialize model")
@@ -261,31 +308,41 @@ class GenDataLoader(ProcessDataLoader):
 
         # init loss, solver and convergence criterium
         loss = MSELossScat()
-        solver_fn = Solver(model=model, loss=loss, xf=X[:, None, :, :], Rxf=RX, x0=x0.ravel(),
-                           weights=None, cuda=optim_params['cuda'], relative_optim=optim_params['relative_optim'])
+        solver_fn = Solver(model=model,
+                           loss=loss,
+                           xf=X[:, None, :, :],
+                           Rxf=RX,
+                           x0=x0.ravel(),
+                           weights=None,
+                           cuda=optim_params['cuda'],
+                           relative_optim=optim_params['relative_optim'])
 
-        check_conv_criterion = CheckConvCriterion(solver=solver_fn, tol=optim_params['tol_optim'])
+        check_conv_criterion = CheckConvCriterion(
+            solver=solver_fn, tol=optim_params['tol_optim'])
 
         print('Embedding: uses {} coefficients {}'.format(
-            model.count_coefficients(),
-            ' '.join(
-                ['{}={}'.format(m_type, model.count_coefficients(m_type=m_type))
-                 for m_type in model.m_types])
-        ))
+            model.count_coefficients(), ' '.join([
+                '{}={}'.format(m_type, model.count_coefficients(m_type=m_type))
+                for m_type in model.m_types
+            ])))
 
-        method, maxfun, jac = optim_params['method'], optim_params['maxfun'], optim_params['jac']
+        method, maxfun, jac = optim_params['method'], optim_params[
+            'maxfun'], optim_params['jac']
         relative_optim, it = optim_params['relative_optim'], optim_params['it']
 
         tic = time()
-        if (optim_params['cutoff2'] is not None) or (optim_params['cutoff3'] is not None):
-            lam_cutoff_schedule = 2.0 ** np.arange(10)
+        if (optim_params['cutoff2'] is not None) or (optim_params['cutoff3']
+                                                     is not None):
+            lam_cutoff_schedule = 2.0**np.arange(10)
             for i, lam_cutoff in enumerate(lam_cutoff_schedule):
                 x_start = x0 if i == 0 else x_opt[None, :]
                 solver_fn.loss.lam_cutoff = lam_cutoff * 1e-6
                 if i < lam_cutoff_schedule.size - 1:
                     it = 1000
                 else:
-                    it = max(1000, optim_params['it'] - 1000 * lam_cutoff_schedule.size)
+                    it = max(
+                        1000,
+                        optim_params['it'] - 1000 * lam_cutoff_schedule.size)
 
                 func = solver_fn.joint if jac else solver_fn.function
 
@@ -293,10 +350,19 @@ class GenDataLoader(ProcessDataLoader):
 
                 try:
                     res = scipy.optimize.minimize(
-                        func, x_start, method=method, jac=jac, callback=check_conv_criterion,
-                        options={'ftol': 1e-24, 'gtol': 1e-24, 'maxiter': it, 'maxfun': maxfun}
-                    )
-                    loss_tmp, x_opt, it, msg = res['fun'], res['x'], res['nit'], res['message']
+                        func,
+                        x_start,
+                        method=method,
+                        jac=jac,
+                        callback=check_conv_criterion,
+                        options={
+                            'ftol': 1e-24,
+                            'gtol': 1e-24,
+                            'maxiter': it,
+                            'maxfun': maxfun
+                        })
+                    loss_tmp, x_opt, it, msg = res['fun'], res['x'], res[
+                        'nit'], res['message']
                 except SmallEnoughException:  # raised by check_conv_criterion
                     print('SmallEnoughException')
                     x_opt = check_conv_criterion.result
@@ -306,11 +372,19 @@ class GenDataLoader(ProcessDataLoader):
             # Decide if the function provides gradient or not
             func = solver_fn.joint if jac else solver_fn.function
             try:
-                res = scipy.optimize.minimize(
-                    func, x0, method=method, jac=jac, callback=check_conv_criterion,
-                    options={'ftol': 1e-24, 'gtol': 1e-24, 'maxiter': it, 'maxfun': maxfun}
-                )
-                loss_tmp, x_opt, it, msg = res['fun'], res['x'], res['nit'], res['message']
+                res = scipy.optimize.minimize(func,
+                                              x0,
+                                              method=method,
+                                              jac=jac,
+                                              callback=check_conv_criterion,
+                                              options={
+                                                  'ftol': 1e-24,
+                                                  'gtol': 1e-24,
+                                                  'maxiter': it,
+                                                  'maxfun': maxfun
+                                              })
+                loss_tmp, x_opt, it, msg = res['fun'], res['x'], res[
+                    'nit'], res['message']
             except SmallEnoughException:  # raised by check_conv_criterion
                 print('SmallEnoughException')
                 x_opt = check_conv_criterion.result
@@ -327,7 +401,9 @@ class GenDataLoader(ProcessDataLoader):
             msg = msg.decode("ASCII")
 
         print('Optimization Exit Message : ' + msg)
-        print(f"found parameters in {toc - tic:0.2f}s, {it} iterations -- {it / (toc - tic):0.2f}it/s")
+        print(
+            f"found parameters in {toc - tic:0.2f}s, {it} iterations -- {it / (toc - tic):0.2f}it/s"
+        )
         print(f"    abs sqrt error {flo ** 0.5:.2E}")
         print(f"    relative gradient error {fgr:.2E}")
         print(f"    loss0 {solver_fn.loss0:.2E}")
@@ -352,10 +428,30 @@ class GenDataLoader(ProcessDataLoader):
             return
 
 
-def generate(X, RX=None, S=1, J=None, Q1=1, Q2=1, r_max=2, wav_type='battle_lemarie', wav_norm='l1', high_freq=0.425,
-             moments='cov', mtypes=None, qs=None, nchunks=1, it=10000, tol_optim=5e-4,
-             cutoff1=None, cutoff2=None, cutoff3=None,
-             generated_dir=None, exp_name=None, cuda=False, gpus=None, num_workers=1):
+def generate(X,
+             RX=None,
+             S=1,
+             J=None,
+             Q1=1,
+             Q2=1,
+             r_max=2,
+             wav_type='battle_lemarie',
+             wav_norm='l1',
+             high_freq=0.425,
+             moments='cov',
+             mtypes=None,
+             qs=None,
+             nchunks=1,
+             it=10000,
+             tol_optim=5e-4,
+             cutoff1=None,
+             cutoff2=None,
+             cutoff3=None,
+             generated_dir=None,
+             exp_name=None,
+             cuda=False,
+             gpus=None,
+             num_workers=1):
     """ Generate new realizations of X from a scattering covariance model.
     We first compute the scattering covariance representation of X and then sample it using gradient descent.
     """
@@ -376,16 +472,25 @@ def generate(X, RX=None, S=1, J=None, Q1=1, Q2=1, r_max=2, wav_type='battle_lema
         generated_dir = Path(__file__).parents[0] / 'cached_dir'
 
     # use a GenDataLoader to cache trajectories
-    dtld = GenDataLoader(exp_name or 'scattering_covariance', generated_dir, num_workers)
+    dtld = GenDataLoader(exp_name or 'scattering_covariance', generated_dir,
+                         num_workers)
 
     # MODEL params
     model_params = {
-        'B': 1, 'N': N, 'T': T, 'J': J, 'Q1': Q1, 'Q2': Q2, 'r_max': r_max,
+        'B': 1,
+        'N': N,
+        'T': T,
+        'J': J,
+        'Q1': Q1,
+        'Q2': Q2,
+        'r_max': r_max,
         'wav_type': wav_type,  # 'battle_lemarie' 'morlet' 'shannon'
         'high_freq': high_freq,  # 0.323645 or 0.425,
         'wav_norm': wav_norm,
         'moments': moments,
-        'm_types': mtypes, 'qs': qs, 'sigma': None,
+        'm_types': mtypes,
+        'qs': qs,
+        'sigma': None,
         'chunk_method': 'quotient_n',
         'nchunks': nchunks,
     }
@@ -398,7 +503,8 @@ def generate(X, RX=None, S=1, J=None, Q1=1, Q2=1, r_max=2, wav_type='battle_lema
         'relative_optim': False,
         'maxfun': 2e6,
         'method': 'L-BFGS-B',
-        'jac': True,  # origin of gradient, True: provided by solver, else estimated
+        'jac':
+        True,  # origin of gradient, True: provided by solver, else estimated
         'tol_optim': tol_optim,
         'cutoff1': cutoff1,
         'cutoff2': cutoff2,
@@ -406,7 +512,11 @@ def generate(X, RX=None, S=1, J=None, Q1=1, Q2=1, r_max=2, wav_type='battle_lema
     }
 
     # multi-processed generation
-    X_gen = dtld.load(B=S, X=X, RX=RX, model_params=model_params, optim_params=optim_params).X[:, 0, 0, :]
+    X_gen = dtld.load(B=S,
+                      X=X,
+                      RX=RX,
+                      model_params=model_params,
+                      optim_params=optim_params).X[:, 0, 0, :]
 
     return X_gen
 
@@ -415,21 +525,26 @@ def generate(X, RX=None, S=1, J=None, Q1=1, Q2=1, r_max=2, wav_type='battle_lema
 # VIZUALIZE
 ##################
 
-COLORS = ['skyblue', 'coral', 'lightgreen', 'darkgoldenrod', 'mediumpurple', 'red', 'purple', 'black',
-          'paleturquoise'] + ['orchid'] * 20
+COLORS = [
+    'skyblue', 'coral', 'lightgreen', 'darkgoldenrod', 'mediumpurple', 'red',
+    'purple', 'black', 'paleturquoise'
+] + ['orchid'] * 20
 
 
 def bootstrap_variance_complex(X, n_points, n_samples):
     """ Estimate variance of tensor X along last axis using bootstrap method. """
     # sample data uniformly
-    sampling_idx = np.random.randint(low=0, high=X.shape[-2], size=(n_samples, n_points))
+    sampling_idx = np.random.randint(low=0,
+                                     high=X.shape[-2],
+                                     size=(n_samples, n_points))
     sampled_data = X[..., sampling_idx, :]
 
     # computes mean
     mean = sampled_data.mean(-2).mean(-2)
 
     # computes bootstrap variance
-    var = (cplx.modulus(sampled_data.mean(-2) - mean[..., None, :]).pow(2.0)).sum(-1) / (n_samples - 1)
+    var = (cplx.modulus(sampled_data.mean(-2) -
+                        mean[..., None, :]).pow(2.0)).sum(-1) / (n_samples - 1)
 
     return mean, var
 
@@ -437,7 +552,8 @@ def bootstrap_variance_complex(X, n_points, n_samples):
 def error_arg(z_mod, z_err, eps=1e-12):
     """ Transform an error on |z| into an error on Arg(z). """
     z_mod = np.maximum(z_mod, eps)
-    return np.arctan(z_err / z_mod / np.sqrt(np.clip(1 - z_err ** 2 / z_mod ** 2, 1e-6, 1)))
+    return np.arctan(z_err / z_mod /
+                     np.sqrt(np.clip(1 - z_err**2 / z_mod**2, 1e-6, 1)))
 
 
 def get_variance(z):
@@ -445,11 +561,17 @@ def get_variance(z):
     B = z.shape[0]
     if z.shape[-1] != 2:
         z = cplx.from_real(z)
-    return cplx.modulus(z - z.mean(0, keepdim=True)).pow(2.0).sum(0).div(B-1).div(B)
+    return cplx.modulus(z -
+                        z.mean(0, keepdim=True)).pow(2.0).sum(0).div(B -
+                                                                     1).div(B)
 
 
-def plot_marginal_moments(RXs, estim_bar=False,
-                          axes=None, labels=None, linewidth=3.0, fontsize=30):
+def plot_marginal_moments(RXs,
+                          estim_bar=False,
+                          axes=None,
+                          labels=None,
+                          linewidth=3.0,
+                          fontsize=30):
     """ Plot the marginal moments
         - (wavelet power spectrum) sigma^2(j)
         - (sparsity factors) s^2(j)
@@ -467,13 +589,16 @@ def plot_marginal_moments(RXs, estim_bar=False,
     if labels is not None and len(RXs) != len(labels):
         raise ValueError("Invalid number of labels")
     if axes is not None and axes.size != 2:
-        raise ValueError("The axes provided to plot_marginal_moments should be an array of size 2.")
+        raise ValueError(
+            "The axes provided to plot_marginal_moments should be an array of size 2."
+        )
 
     labels = labels or [''] * len(RXs)
     axes = None if axes is None else axes.ravel()
 
     def get_data(RX, q):
-        WX_nj = cplx.real(RX.select(r=1, m_type='m00', q=q, low=False)[:, :, 0])
+        WX_nj = cplx.real(
+            RX.select(r=1, m_type='m00', q=q, low=False)[:, :, 0])
         logWX_nj = torch.log2(WX_nj)
         return logWX_nj
 
@@ -481,9 +606,19 @@ def plot_marginal_moments(RXs, estim_bar=False,
         plt.sca(ax)
         plt.plot(-js, y, label=label, linewidth=linewidth, color=color)
         if not estim_bar:
-            plt.scatter(-js, y, marker='+', s=200, linewidth=linewidth, color=color)
+            plt.scatter(-js,
+                        y,
+                        marker='+',
+                        s=200,
+                        linewidth=linewidth,
+                        color=color)
         else:
-            eb = plt.errorbar(-js, y, yerr=y_err, capsize=4, color=color, fmt=' ')
+            eb = plt.errorbar(-js,
+                              y,
+                              yerr=y_err,
+                              capsize=4,
+                              color=color,
+                              fmt=' ')
             eb[-1][0].set_linestyle('--')
         plt.yscale('log', base=2)
         a, b = ax.get_ylim()
@@ -504,17 +639,20 @@ def plot_marginal_moments(RXs, estim_bar=False,
         if 'm_type' not in RX.descri.columns:
             raise ValueError("The model output does not have the moments. ")
         columns = RX.descri.columns
-        js = np.unique(RX.descri.reduce(r=1, low=False).j if 'j' in columns else RX.descri.reduce(low=False).j1)
+        js = np.unique(
+            RX.descri.reduce(r=1, low=False).j if 'j' in
+            columns else RX.descri.reduce(low=False).j1)
 
         has_power_spectrum = 2.0 in RX.descri.q.values
         has_sparsity = 1.0 in RX.descri.q.values
 
         if has_power_spectrum:
             logWX2_n = get_data(RX, 2.0)
-            logWX2_err = get_variance(logWX2_n) ** 0.5
+            logWX2_err = get_variance(logWX2_n)**0.5
             logWX2 = logWX2_n.mean(0)
             logWX2 -= logWX2[-1].item()
-            plot_exponent(js, 0, axes[0], lb, COLORS[i_lb], 2.0 ** logWX2, np.log(2) * logWX2_err * 2.0 ** logWX2)
+            plot_exponent(js, 0, axes[0], lb, COLORS[i_lb], 2.0**logWX2,
+                          np.log(2) * logWX2_err * 2.0**logWX2)
             if i_lb == len(labels) - 1 and any([lb != '' for lb in labels]):
                 plt.legend(prop={'size': 15})
             plt.title('Wavelet Spectrum', fontsize=fontsize)
@@ -522,16 +660,25 @@ def plot_marginal_moments(RXs, estim_bar=False,
             if has_sparsity:
                 logWX1_n = get_data(RX, 1.0)
                 logWXs_n = 2 * logWX1_n - logWX2_n
-                logWXs_err = get_variance(logWXs_n) ** 0.5
+                logWXs_err = get_variance(logWXs_n)**0.5
                 logWXs = logWXs_n.mean(0)
-                plot_exponent(js, 1, axes[1], lb, COLORS[i_lb], 2.0 ** logWXs, np.log(2) * logWXs_err * 2.0 ** logWXs)
-                if i_lb == len(labels) - 1 and any([lb != '' for lb in labels]):
+                plot_exponent(js, 1, axes[1], lb, COLORS[i_lb], 2.0**logWXs,
+                              np.log(2) * logWXs_err * 2.0**logWXs)
+                if i_lb == len(labels) - 1 and any([lb != ''
+                                                    for lb in labels]):
                     plt.legend(prop={'size': 15})
                 plt.title('Sparsity factor', fontsize=fontsize)
 
 
-def plot_phase_envelope_spectrum(RXs, estim_bar=False, self_simi_bar=False, theta_threshold=0.005,
-                                 axes=None, labels=None, fontsize=30, single_plot=False, ylim=0.09):
+def plot_phase_envelope_spectrum(RXs,
+                                 estim_bar=False,
+                                 self_simi_bar=False,
+                                 theta_threshold=0.005,
+                                 axes=None,
+                                 labels=None,
+                                 fontsize=30,
+                                 single_plot=False,
+                                 ylim=0.09):
     """ Plot the phase-envelope cross-spectrum C_{W|W|}(a) as two graphs : |C_{W|W|}| and Arg(C_{W|W|}).
 
     :param RXs: DescribedTensor or list of DescribedTensor
@@ -554,9 +701,9 @@ def plot_phase_envelope_spectrum(RXs, estim_bar=False, self_simi_bar=False, thet
     columns = RXs[0].descri.columns
     J = RXs[0].descri.j.max() if 'j' in columns else RXs[0].descri.j1.max()
 
-    c_wmw = torch.zeros(len(labels), J-1, 2)
-    err_estim = torch.zeros(len(labels), J-1)
-    err_self_simi = torch.zeros(len(labels), J-1)
+    c_wmw = torch.zeros(len(labels), J - 1, 2)
+    err_estim = torch.zeros(len(labels), J - 1)
+    err_self_simi = torch.zeros(len(labels), J - 1)
 
     for i_lb, RX in enumerate(RXs):
         # infer model type
@@ -569,29 +716,40 @@ def plot_phase_envelope_spectrum(RXs, estim_bar=False, self_simi_bar=False, thet
 
         B = RX.y.shape[0]
 
-        sigma = cplx.real(RX.select(r=1, q=2, low=False)[:, :, 0, :]).unsqueeze(-1)
+        sigma = cplx.real(RX.select(r=1, q=2, low=False)[:, :,
+                                                         0, :]).unsqueeze(-1)
 
         for a in range(1, J):
             if model_type == 'covstat':
                 c_mwm_n = RX.select(m_type='m10', a=a, low=False)[:, 0, 0, :]
-                c_wmw[i_lb, a-1, :] = c_mwm_n.mean(0)
-                err_estim[i_lb, a-1] = get_variance(c_mwm_n).pow(0.5)
+                c_wmw[i_lb, a - 1, :] = c_mwm_n.mean(0)
+                err_estim[i_lb, a - 1] = get_variance(c_mwm_n).pow(0.5)
             else:
-                c_mwm_nj = torch.zeros(B, J-a, 2)
+                c_mwm_nj = torch.zeros(B, J - a, 2)
                 for j1 in range(a, J):
-                    coeff = RX.select(m_type='m10', j1=j1-a, jp1=j1, low=False)[:, 0, 0, :]
-                    coeff /= sigma[:, j1, ...].pow(0.5) * sigma[:, j1-a, ...].pow(0.5)
+                    coeff = RX.select(m_type='m10',
+                                      j1=j1 - a,
+                                      jp1=j1,
+                                      low=False)[:, 0, 0, :]
+                    coeff /= sigma[:, j1, ...].pow(0.5) * sigma[:, j1 - a,
+                                                                ...].pow(0.5)
                     c_mwm_nj[:, j1 - a, :] = coeff
 
                 # the mean in j of the variance of time estimators
-                c_wmw[i_lb, a-1, :] = c_mwm_nj.mean(0).mean(0)
-                err_self_simi_n = (cplx.modulus(c_mwm_nj).pow(2.0).mean(1) - cplx.modulus(c_mwm_nj.mean(1)).pow(2.0)) / c_mwm_nj.shape[1]
-                err_self_simi[i_lb, a-1] = err_self_simi_n.mean(0).pow(0.5)
-                err_estim[i_lb, a-1] = get_variance(c_mwm_nj.mean(1)).pow(0.5)
+                c_wmw[i_lb, a - 1, :] = c_mwm_nj.mean(0).mean(0)
+                err_self_simi_n = (cplx.modulus(c_mwm_nj).pow(2.0).mean(1) -
+                                   cplx.modulus(c_mwm_nj.mean(1)).pow(2.0)
+                                   ) / c_mwm_nj.shape[1]
+                err_self_simi[i_lb, a - 1] = err_self_simi_n.mean(0).pow(0.5)
+                err_estim[i_lb,
+                          a - 1] = get_variance(c_mwm_nj.mean(1)).pow(0.5)
 
-    c_wmw_mod, cwmw_arg = np.abs(cplx.to_np(c_wmw)), np.angle(cplx.to_np(c_wmw))
+    c_wmw_mod, cwmw_arg = np.abs(cplx.to_np(c_wmw)), np.angle(
+        cplx.to_np(c_wmw))
     err_self_simi, err_estim = to_numpy(err_self_simi), to_numpy(err_estim)
-    err_self_simi_arg, err_estim_arg = error_arg(c_wmw_mod, err_self_simi), error_arg(c_wmw_mod, err_estim)
+    err_self_simi_arg, err_estim_arg = error_arg(c_wmw_mod,
+                                                 err_self_simi), error_arg(
+                                                     c_wmw_mod, err_estim)
 
     # phase instability at z=0
     for z_arg in [cwmw_arg, err_self_simi_arg, err_estim_arg]:
@@ -604,15 +762,26 @@ def plot_phase_envelope_spectrum(RXs, estim_bar=False, self_simi_bar=False, thet
             plt.scatter(a_s, y, color=color or 'green', marker='+')
         if self_simi_bar:
             plot_x_offset = -0.07 if estim_bar else 0.0
-            plt.errorbar(a_s + plot_x_offset, y, yerr=y_err_self_simi, capsize=4, color=color, fmt=' ')
+            plt.errorbar(a_s + plot_x_offset,
+                         y,
+                         yerr=y_err_self_simi,
+                         capsize=4,
+                         color=color,
+                         fmt=' ')
         if estim_bar:
             plot_x_offset = 0.07 if self_simi_bar else 0.0
-            eb = plt.errorbar(a_s + plot_x_offset, y, yerr=y_err_estim, capsize=4, color=color, fmt=' ')
+            eb = plt.errorbar(a_s + plot_x_offset,
+                              y,
+                              yerr=y_err_estim,
+                              capsize=4,
+                              color=color,
+                              fmt=' ')
             eb[-1][0].set_linestyle('--')
         plt.title("Phase-Env spectrum \n (Modulus)", fontsize=fontsize)
         plt.axhline(0.0, linewidth=0.7, color='black')
-        plt.xticks(np.arange(1, J),
-                   [(rf'${j}$' if j % 2 == 1 else '') for j in np.arange(1, J)], fontsize=fontsize)
+        plt.xticks(np.arange(1, J), [(rf'${j}$' if j % 2 == 1 else '')
+                                     for j in np.arange(1, J)],
+                   fontsize=fontsize)
         plt.xlabel(r'$a$', fontsize=fontsize)
         plt.ylim(-0.02, ylim)
         if i_lb == 0:
@@ -627,14 +796,29 @@ def plot_phase_envelope_spectrum(RXs, estim_bar=False, self_simi_bar=False, thet
             plt.scatter(a_s, y, color=color, marker='+')
         if self_simi_bar:
             plot_x_offset = -0.07 if estim_bar else 0.0
-            plt.errorbar(a_s + plot_x_offset, y, yerr=y_err_self_simi, capsize=4, color=color, fmt=' ')
+            plt.errorbar(a_s + plot_x_offset,
+                         y,
+                         yerr=y_err_self_simi,
+                         capsize=4,
+                         color=color,
+                         fmt=' ')
         if estim_bar:
             plot_x_offset = 0.07 if self_simi_bar else 0.0
-            eb = plt.errorbar(a_s + plot_x_offset, y, yerr=y_err_estim, capsize=4, color=color, fmt=' ')
+            eb = plt.errorbar(a_s + plot_x_offset,
+                              y,
+                              yerr=y_err_estim,
+                              capsize=4,
+                              color=color,
+                              fmt=' ')
             eb[-1][0].set_linestyle('--')
-        plt.xticks(np.arange(1, J), [(rf'${j}$' if j % 2 == 1 else '') for j in np.arange(1, J)], fontsize=fontsize)
-        plt.yticks([-np.pi, -0.5 * np.pi, 0.0, 0.5 * np.pi, np.pi],
-                   [r'$-\pi$', r'$-\frac{\pi}{2}$', r'$0$', r'$\frac{\pi}{2}$', r'$\pi$'], fontsize=fontsize)
+        plt.xticks(np.arange(1, J), [(rf'${j}$' if j % 2 == 1 else '')
+                                     for j in np.arange(1, J)],
+                   fontsize=fontsize)
+        plt.yticks([-np.pi, -0.5 * np.pi, 0.0, 0.5 * np.pi, np.pi], [
+            r'$-\pi$', r'$-\frac{\pi}{2}$', r'$0$', r'$\frac{\pi}{2}$',
+            r'$\pi$'
+        ],
+                   fontsize=fontsize)
         plt.axhline(0.0, linewidth=0.7, color='black')
         plt.xlabel(r'$a$', fontsize=fontsize)
         plt.title("Phase-Env spectrum \n (Phase)", fontsize=fontsize)
@@ -642,11 +826,15 @@ def plot_phase_envelope_spectrum(RXs, estim_bar=False, self_simi_bar=False, thet
     if axes is None:
         plt.figure(figsize=(5, 10) if single_plot else (len(labels) * 5, 10))
         ax_mod = plt.subplot2grid((2, 1), (0, 0))
-        ax_mod.yaxis.set_tick_params(which='major', direction='in', width=1.5, length=7)
+        ax_mod.yaxis.set_tick_params(which='major',
+                                     direction='in',
+                                     width=1.5,
+                                     length=7)
     else:
         plt.sca(axes[0])
     for i_lb, lb in enumerate(labels):
-        plot_modulus(i_lb, lb, COLORS[i_lb], c_wmw_mod[i_lb], err_estim[i_lb], err_self_simi[i_lb])
+        plot_modulus(i_lb, lb, COLORS[i_lb], c_wmw_mod[i_lb], err_estim[i_lb],
+                     err_self_simi[i_lb])
         if i_lb == len(labels) - 1 and any([lb != '' for lb in labels]):
             plt.legend(prop={'size': 15})
 
@@ -655,14 +843,22 @@ def plot_phase_envelope_spectrum(RXs, estim_bar=False, self_simi_bar=False, thet
     else:
         plt.sca(axes[1])
     for i_lb, lb in enumerate(labels):
-        plot_phase(lb, COLORS[i_lb], cwmw_arg[i_lb], err_estim_arg[i_lb], err_self_simi_arg[i_lb])
+        plot_phase(lb, COLORS[i_lb], cwmw_arg[i_lb], err_estim_arg[i_lb],
+                   err_self_simi_arg[i_lb])
 
     if axes is None:
         plt.tight_layout()
 
 
-def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstrap=True, theta_threshold=0.01,
-                             axes=None, labels=None, fontsize=40, ylim=2.0):
+def plot_scattering_spectrum(RXs,
+                             estim_bar=False,
+                             self_simi_bar=False,
+                             bootstrap=True,
+                             theta_threshold=0.01,
+                             axes=None,
+                             labels=None,
+                             fontsize=40,
+                             ylim=2.0):
     """ Plot the scattering cross-spectrum C_S(a,b) as two graphs : |C_S| and Arg(C_S).
 
     :param RXs: DescribedTensor or list of DescribedTensor
@@ -680,7 +876,9 @@ def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstra
     if labels is not None and len(RXs) != len(labels):
         raise ValueError("Invalid number of labels.")
     if axes is not None and axes.size != 2 * len(RXs):
-        raise ValueError(f"Existing axes must be provided as an array of size {2 * len(RXs)}")
+        raise ValueError(
+            f"Existing axes must be provided as an array of size {2 * len(RXs)}"
+        )
 
     axes = None if axes is None else axes.reshape(2, len(RXs))
 
@@ -690,9 +888,9 @@ def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstra
     columns = RXs[0].descri.columns
     J = RXs[0].descri.j.max() if 'j' in columns else RXs[0].descri.j1.max()
 
-    cs = torch.zeros(len(labels), J-1, J-1, 2)
+    cs = torch.zeros(len(labels), J - 1, J - 1, 2)
     err_estim = torch.zeros(len(labels), J - 1, J - 1)
-    err_self_simi = torch.zeros(len(labels), J-1, J-1)
+    err_self_simi = torch.zeros(len(labels), J - 1, J - 1)
 
     for i_lb, (RX, lb, color) in enumerate(zip(RXs, labels, COLORS)):
         # infer model type
@@ -704,11 +902,14 @@ def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstra
             continue
 
         if self_simi_bar and model_type == 'covstat':
-            raise ValueError("Impossible to output self-similarity error on covstat model. Use a cov model instead.")
+            raise ValueError(
+                "Impossible to output self-similarity error on covstat model. Use a cov model instead."
+            )
 
         B = RX.y.shape[0]
 
-        sigma = cplx.real(RX.select(r=1, q=2, low=False)[:, :, 0, :]).unsqueeze(-1)  # N x J x 1
+        sigma = cplx.real(RX.select(
+            r=1, q=2, low=False)[:, :, 0, :]).unsqueeze(-1)  # N x J x 1
 
         for (a, b) in product(range(J - 1), range(-J + 1, 0)):
             if a - b >= J:
@@ -716,10 +917,15 @@ def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstra
 
             # prepare covariances
             if model_type == 'cov':
-                cs_nj = torch.zeros(B, J+b-a, 2)
-                for j1 in range(a, J+b):
-                    coeff = RX.select(m_type='m11', j1=j1, jp1=j1-a, j2=j1-b, low=False)[:, 0, 0, :]
-                    coeff /= sigma[:, j1, ...].pow(0.5) * sigma[:, j1 - a, ...].pow(0.5)
+                cs_nj = torch.zeros(B, J + b - a, 2)
+                for j1 in range(a, J + b):
+                    coeff = RX.select(m_type='m11',
+                                      j1=j1,
+                                      jp1=j1 - a,
+                                      j2=j1 - b,
+                                      low=False)[:, 0, 0, :]
+                    coeff /= sigma[:, j1, ...].pow(0.5) * sigma[:, j1 - a,
+                                                                ...].pow(0.5)
                     cs_nj[:, j1 - a, :] = coeff
 
                 cs_j = cs_nj.mean(0)
@@ -732,47 +938,63 @@ def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstra
                 # compute estimation error
                 if bootstrap:
                     # mean, var = bootstrap_variance_complex(cs_nj.transpose(0, 1), cs_nj.shape[0], 20000)
-                    mean, var = bootstrap_variance_complex(cs_nj.mean(1), cs_nj.shape[0], 20000)
+                    mean, var = bootstrap_variance_complex(
+                        cs_nj.mean(1), cs_nj.shape[0], 20000)
                     err_estim[i_lb, a, J - 1 + b] = var.pow(0.5)
                 else:
-                    err_estim[i_lb, a, J - 1 + b] = (cplx.modulus(cs_nj).pow(2.0).mean(0) -
-                                                     cplx.modulus(cs_nj.mean(0)).pow(2.0)) / (B - 1)
+                    err_estim[
+                        i_lb, a, J - 1 +
+                        b] = (cplx.modulus(cs_nj).pow(2.0).mean(0) -
+                              cplx.modulus(cs_nj.mean(0)).pow(2.0)) / (B - 1)
             else:
-                coeff_ab = RX.select(m_type='m11', a=a, b=b, low=False)[:, 0, 0, :]
-                cs[i_lb, a, J-1+b, :] = coeff_ab.mean(0)
+                coeff_ab = RX.select(m_type='m11', a=a, b=b, low=False)[:, 0,
+                                                                        0, :]
+                cs[i_lb, a, J - 1 + b, :] = coeff_ab.mean(0)
 
-    cs, cs_mod, cs_arg = cplx.to_np(cs), np.abs(cplx.to_np(cs)), np.angle(cplx.to_np(cs))
+    cs, cs_mod, cs_arg = cplx.to_np(cs), np.abs(cplx.to_np(cs)), np.angle(
+        cplx.to_np(cs))
     err_self_simi, err_estim = to_numpy(err_self_simi), to_numpy(err_estim)
-    err_self_simi_arg, err_estim_arg = error_arg(cs_mod, err_self_simi), error_arg(cs_mod, err_estim)
+    err_self_simi_arg, err_estim_arg = error_arg(cs_mod,
+                                                 err_self_simi), error_arg(
+                                                     cs_mod, err_estim)
 
     # power spectrum normalization
     bs = np.arange(-J + 1, 0)[None, :]
-    cs_mod /= (2.0 ** bs)
-    err_self_simi /= (2.0 ** bs)
-    err_estim /= (2.0 ** bs)
+    cs_mod /= (2.0**bs)
+    err_self_simi /= (2.0**bs)
+    err_estim /= (2.0**bs)
 
     # phase instability at z=0
     for z_arg in [cs_arg, err_self_simi_arg, err_estim_arg]:
         z_arg[cs_mod < theta_threshold] = 0.0
 
     def plot_modulus(label, y, y_err_estim, y_err_self_simi):
-        for a in range(J-1):
-            bs = np.arange(-J+1+a, 0)
+        for a in range(J - 1):
+            bs = np.arange(-J + 1 + a, 0)
             line = plt.plot(bs, y[a, a:], label=label if a == 0 else '')
             color = line[-1].get_color()
             if not estim_bar and not self_simi_bar:
                 plt.scatter(bs, y[a, a:], marker='+')
             if self_simi_bar:
                 plot_x_offset = -0.07 if self_simi_bar else 0.0
-                plt.errorbar(bs + plot_x_offset, y[a, a:],
-                             yerr=y_err_self_simi[a, a:], capsize=4, color=color, fmt=' ')
+                plt.errorbar(bs + plot_x_offset,
+                             y[a, a:],
+                             yerr=y_err_self_simi[a, a:],
+                             capsize=4,
+                             color=color,
+                             fmt=' ')
             if estim_bar:
                 plot_x_offset = 0.07 if self_simi_bar else 0.0
-                eb = plt.errorbar(bs + plot_x_offset, y[a, a:],
-                                  yerr=y_err_estim[a, a:], capsize=4, color=color, fmt=' ')
+                eb = plt.errorbar(bs + plot_x_offset,
+                                  y[a, a:],
+                                  yerr=y_err_estim[a, a:],
+                                  capsize=4,
+                                  color=color,
+                                  fmt=' ')
                 eb[-1][0].set_linestyle('--')
         plt.axhline(0.0, linewidth=0.7, color='black')
-        plt.xticks(np.arange(-J + 1, 0), [(rf'${b}$' if b % 2 == 1 else '') for b in np.arange(-J+1, 0)],
+        plt.xticks(np.arange(-J + 1, 0), [(rf'${b}$' if b % 2 == 1 else '')
+                                          for b in np.arange(-J + 1, 0)],
                    fontsize=fontsize)
         plt.xlabel(r'$b$', fontsize=fontsize)
         plt.ylim(-0.02, ylim)
@@ -785,25 +1007,36 @@ def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstra
             plt.legend(prop={'size': 15})
 
     def plot_phase(y, y_err_estim, y_err_self_simi):
-        for a in range(J-1):
-            bs = np.arange(-J+1+a, 0)
+        for a in range(J - 1):
+            bs = np.arange(-J + 1 + a, 0)
             line = plt.plot(bs, y[a, a:], label=fr'$a={a}$')
             color = line[-1].get_color()
             if not estim_bar and not self_simi_bar:
                 plt.scatter(bs, y[a, a:], marker='+')
             if self_simi_bar:
                 plot_x_offset = -0.07 if estim_bar else 0.0
-                plt.errorbar(bs + plot_x_offset, y[a, a:],
-                             yerr=y_err_self_simi[a, a:], capsize=4, color=color, fmt=' ')
+                plt.errorbar(bs + plot_x_offset,
+                             y[a, a:],
+                             yerr=y_err_self_simi[a, a:],
+                             capsize=4,
+                             color=color,
+                             fmt=' ')
             if estim_bar:
                 plot_x_offset = 0.07 if self_simi_bar else 0.0
-                eb = plt.errorbar(bs + plot_x_offset, y[a, a:],
-                                  yerr=y_err_estim[a, a:], capsize=4, color=color, fmt=' ')
+                eb = plt.errorbar(bs + plot_x_offset,
+                                  y[a, a:],
+                                  yerr=y_err_estim[a, a:],
+                                  capsize=4,
+                                  color=color,
+                                  fmt=' ')
                 eb[-1][0].set_linestyle('--')
-        plt.xticks(np.arange(-J+1, 0), [(rf'${b}$' if b % 2 == 1 else '') for b in np.arange(-J+1, 0)],
+        plt.xticks(np.arange(-J + 1, 0), [(rf'${b}$' if b % 2 == 1 else '')
+                                          for b in np.arange(-J + 1, 0)],
                    fontsize=fontsize)
-        plt.yticks(np.arange(-2, 3) * np.pi / 8,
-                   [r'$-\frac{\pi}{4}$', r'$-\frac{\pi}{8}$', r'$0$', r'$\frac{\pi}{8}$', r'$\frac{\pi}{4}$'],
+        plt.yticks(np.arange(-2, 3) * np.pi / 8, [
+            r'$-\frac{\pi}{4}$', r'$-\frac{\pi}{8}$', r'$0$',
+            r'$\frac{\pi}{8}$', r'$\frac{\pi}{4}$'
+        ],
                    fontsize=fontsize)
         plt.axhline(0.0, linewidth=0.7, color='black')
         plt.xlabel(r'$b$', fontsize=fontsize)
@@ -816,8 +1049,12 @@ def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstra
             plt.sca(axes[0, i_lb])
             ax_mod = axes[0, i_lb]
         else:
-            ax_mod = plt.subplot2grid((2, np.unique(i_graphs).size), (0, i_graphs[i_lb]))
-        ax_mod.yaxis.set_tick_params(which='major', direction='in', width=1.5, length=7)
+            ax_mod = plt.subplot2grid((2, np.unique(i_graphs).size),
+                                      (0, i_graphs[i_lb]))
+        ax_mod.yaxis.set_tick_params(which='major',
+                                     direction='in',
+                                     width=1.5,
+                                     length=7)
         ax_mod.yaxis.set_label_coords(-0.18, 0.5)
         plot_modulus(lb, cs_mod[i_lb], err_estim[i_lb], err_self_simi[i_lb])
 
@@ -826,21 +1063,38 @@ def plot_scattering_spectrum(RXs, estim_bar=False, self_simi_bar=False, bootstra
             plt.sca(axes[1, i_lb])
             ax_ph = axes[1, i_lb]
         else:
-            ax_ph = plt.subplot2grid((2, np.unique(i_graphs).size), (1, i_graphs[i_lb]))
+            ax_ph = plt.subplot2grid((2, np.unique(i_graphs).size),
+                                     (1, i_graphs[i_lb]))
         plot_phase(cs_arg[i_lb], err_estim_arg[i_lb], err_self_simi_arg[i_lb])
         if i_lb == 0:
-            ax_ph.yaxis.set_tick_params(which='major', direction='in', width=1.5, length=7)
+            ax_ph.yaxis.set_tick_params(which='major',
+                                        direction='in',
+                                        width=1.5,
+                                        length=7)
 
     if axes is None:
         plt.tight_layout()
-        leg = plt.legend(loc='upper center', ncol=1, fontsize=35, handlelength=1.0, labelspacing=1.0,
+        leg = plt.legend(loc='upper center',
+                         ncol=1,
+                         fontsize=35,
+                         handlelength=1.0,
+                         labelspacing=1.0,
                          bbox_to_anchor=(1.3, 2.25, 0, 0))
         for legobj in leg.legendHandles:
             legobj.set_linewidth(5.0)
 
 
-def plot_dashboard(RXs, estim_bar=False, self_simi_bar=False, bootstrap=True, theta_threshold=0.1,
-                   labels=None, linewidth=3.0, fontsize=20, ylim_phase=0.09, ylim_modulus=2.0, figsize=None):
+def plot_dashboard(RXs,
+                   estim_bar=False,
+                   self_simi_bar=False,
+                   bootstrap=True,
+                   theta_threshold=0.1,
+                   labels=None,
+                   linewidth=3.0,
+                   fontsize=20,
+                   ylim_phase=0.09,
+                   ylim_modulus=2.0,
+                   figsize=None):
     """ Plot the scattering covariance dashboard for multi-scale processes composed of:
         - (wavelet power spectrum) sigma^2(j)
         - (sparsity factors) s^2(j)
@@ -862,15 +1116,22 @@ def plot_dashboard(RXs, estim_bar=False, self_simi_bar=False, bootstrap=True, th
     """
     if isinstance(RXs, DescribedTensor):
         RXs = [RXs]
-    fig, axes = plt.subplots(2, 2 + len(RXs), figsize=figsize or (15 + 4 * (len(RXs) - 1), 10))
+    fig, axes = plt.subplots(2,
+                             2 + len(RXs),
+                             figsize=figsize or (15 + 4 * (len(RXs) - 1), 10))
 
     # marginal moments sigma^2 and s^2
-    plot_marginal_moments(RXs, estim_bar, axes[:, 0], labels, linewidth, fontsize)
+    plot_marginal_moments(RXs, estim_bar, axes[:, 0], labels, linewidth,
+                          fontsize)
 
     # phase-envelope cross-spectrum
-    plot_phase_envelope_spectrum(RXs, estim_bar, self_simi_bar, theta_threshold / 50, axes[:, 1], labels, fontsize, False, ylim_phase)
+    plot_phase_envelope_spectrum(RXs, estim_bar, self_simi_bar,
+                                 theta_threshold / 50, axes[:, 1], labels,
+                                 fontsize, False, ylim_phase)
 
     # scattering cross spectrum
-    plot_scattering_spectrum(RXs, estim_bar, self_simi_bar, bootstrap, theta_threshold, axes[:, 2:], labels, fontsize, ylim_modulus)
+    plot_scattering_spectrum(RXs, estim_bar, self_simi_bar, bootstrap,
+                             theta_threshold, axes[:, 2:], labels, fontsize,
+                             ylim_modulus)
 
     plt.tight_layout()

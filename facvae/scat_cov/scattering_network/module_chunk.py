@@ -12,6 +12,7 @@ from facvae.scat_cov.scattering_network.described_tensor import Description, Des
 
 class SubModuleChunk(nn.Module):
     """ A module that can be chunked automatically. """
+
     def __init__(self, init_with_input: bool = False):
         super(SubModuleChunk, self).__init__()
 
@@ -21,7 +22,8 @@ class SubModuleChunk(nn.Module):
         self.descri = None  # List[Description] the output description on each chunk
         self.nchunks = None  # List[Description] the output description on each chunk
 
-    def external_surjection_aux(self, input_descri: NamedTuple) -> List[NamedTuple]:
+    def external_surjection_aux(self,
+                                input_descri: NamedTuple) -> List[NamedTuple]:
         """ Return description that can be computed on input_descri. """
         pass
 
@@ -38,15 +40,20 @@ class SubModuleChunk(nn.Module):
 
         return Description.cat(*output_descri_l)
 
-    def internal_surjection(self, output_descri_row: NamedTuple) -> List[NamedTuple]:
+    def internal_surjection(self,
+                            output_descri_row: NamedTuple) -> List[NamedTuple]:
         """ Return rows that can be computed on output_descri_row. """
         pass
 
-    def init_one_chunk(self, input: DescribedTensor, output_descri: Description, i_chunk: int) -> None:
+    def init_one_chunk(self, input: DescribedTensor,
+                       output_descri: Description, i_chunk: int) -> None:
         """ Init the parameters of the model required to compute output_descri from input. """
         pass
 
-    def set_descri(self, descri: List[Description], previous_descri: Optional[List[Description]] = None) -> None:
+    def set_descri(
+            self,
+            descri: List[Description],
+            previous_descri: Optional[List[Description]] = None) -> None:
         """ Set output_description of the model. """
         self.descri = descri
 
@@ -55,7 +62,12 @@ class SubModuleChunk(nn.Module):
 
     def get_unique(self, col_name):
         """ Get the unique values present in descri across all chunks. """
-        return list(set.union(*[set(chunk.loc[:, chunk.columns.isin([col_name])].values.ravel()) for chunk in self.descri]))
+        return list(
+            set.union(*[
+                set(chunk.loc[:,
+                              chunk.columns.isin([col_name])].values.ravel())
+                for chunk in self.descri
+            ]))
 
     def get_output_space_dim(self):
         """ Return the size of last dimensions of DescribedTensor. """
@@ -63,33 +75,44 @@ class SubModuleChunk(nn.Module):
 
     def count_out_channels(self, **kwargs) -> int:
         """ Returns the number of moments satisfying kwargs. """
-        return sum([descri_chunk.reduce(**kwargs).size() for descri_chunk in self.descri])
+        return sum([
+            descri_chunk.reduce(**kwargs).size()
+            for descri_chunk in self.descri
+        ])
 
     def forward_chunk(self, x: torch.Tensor, i_chunk: int) -> DescribedTensor:
         """ Forward on one chunk. """
         pass
 
-    def forward(self, x: torch.Tensor, i_chunk: Optional[int] = None) -> DescribedTensor:
+    def forward(self,
+                x: torch.Tensor,
+                i_chunk: Optional[int] = None) -> DescribedTensor:
         """ Forward on all chunks. """
         if i_chunk is not None:
             return self.forward_chunk(x, i_chunk)
-        return DescribedTensor.cat(*[self.forward_chunk(x, i_chunk) for i_chunk in range(self.nchunks)]).sort()
+        return DescribedTensor.cat(*[
+            self.forward_chunk(x, i_chunk) for i_chunk in range(self.nchunks)
+        ]).sort()
 
 
 class Modulus(SubModuleChunk):
     """ Pointwise modulus. """
+
     def __init__(self):
         super(Modulus, self).__init__(init_with_input=False)
 
-    def external_surjection_aux(self, input_descri: NamedTuple) -> List[NamedTuple]:
+    def external_surjection_aux(self,
+                                input_descri: NamedTuple) -> List[NamedTuple]:
         """ Return description that can be computed on input_descri. """
         return [input_descri]
 
-    def internal_surjection(self, output_descri_row: NamedTuple) -> List[NamedTuple]:
+    def internal_surjection(self,
+                            output_descri_row: NamedTuple) -> List[NamedTuple]:
         """ Return rows that can be computed on output_descri_row. """
         return []
 
-    def init_one_chunk(self, input: DescribedTensor, output_descri: Description, i_chunk: int) -> None:
+    def init_one_chunk(self, input: DescribedTensor,
+                       output_descri: Description, i_chunk: int) -> None:
         """ Init the parameters of the model required to compute output_descri from input. """
         pass
 
@@ -107,13 +130,16 @@ class Modulus(SubModuleChunk):
 
 class SkipConnection(SubModuleChunk):
     """ Skip connection. """
+
     def __init__(self, sub_module: SubModuleChunk):
         super(SkipConnection, self).__init__(sub_module.init_with_input)
 
         self.sub_module = sub_module
 
-    def external_surjection_aux(self, input_descri: NamedTuple) -> List[NamedTuple]:
+    def external_surjection_aux(self,
+                                input_descri: NamedTuple) -> List[NamedTuple]:
         """ Return description that can be computed on input_descri. """
+
         def add(nt, key, value):
             d = {key: value, **nt._asdict()}
             return namedtuple('Description', d)(**d)
@@ -121,22 +147,31 @@ class SkipConnection(SubModuleChunk):
         out_descri = self.sub_module.external_surjection_aux(input_descri)
 
         # "skip_connection" column only used to sort the description in the order [x, module(X))].
-        return [add(input_descri, 'skip_conn', 0)] + [add(descri, 'skip_conn', 1) for descri in out_descri]
+        return [add(input_descri, 'skip_conn', 0)
+                ] + [add(descri, 'skip_conn', 1) for descri in out_descri]
 
-    def internal_surjection(self, output_descri_row: NamedTuple) -> List[NamedTuple]:
+    def internal_surjection(self,
+                            output_descri_row: NamedTuple) -> List[NamedTuple]:
         """ Return rows that can be computed on output_descri_row. """
         return self.sub_module.internal_surjection(output_descri_row)
 
-    def init_one_chunk(self, input: DescribedTensor, output_descri: Description, i_chunk: int) -> None:
+    def init_one_chunk(self, input: DescribedTensor,
+                       output_descri: Description, i_chunk: int) -> None:
         """ Init the parameters of the model required to compute output_descri from input. """
-        sub_module_out_descri = Description(output_descri.iloc[input.descri.size():])
+        sub_module_out_descri = Description(
+            output_descri.iloc[input.descri.size():])
         self.sub_module.init_one_chunk(input, sub_module_out_descri, i_chunk)
 
-    def set_descri(self, descri: List[Description], previous_descri: Optional[List[Description]] = None) -> None:
+    def set_descri(
+            self,
+            descri: List[Description],
+            previous_descri: Optional[List[Description]] = None) -> None:
         """ Set output_description of the model. """
         self.descri = descri
-        sub_module_descri = [Description(descri.iloc[pre_descri.size():])
-                             for (pre_descri, descri) in zip(previous_descri, descri)]
+        sub_module_descri = [
+            Description(descri.iloc[pre_descri.size():])
+            for (pre_descri, descri) in zip(previous_descri, descri)
+        ]
         self.sub_module.set_descri(sub_module_descri)
 
     def clear_params(self) -> None:
@@ -148,12 +183,16 @@ class SkipConnection(SubModuleChunk):
 
         y = self.sub_module(x, i_chunk).y
 
-        return DescribedTensor(x=None, descri=descri, y=torch.cat([x, y], dim=1))
+        return DescribedTensor(x=None,
+                               descri=descri,
+                               y=torch.cat([x, y], dim=1))
 
 
 class ModuleChunk(nn.Module):
     """ A Module list that can be chunked and whose forward returns a DescribedTensor. """
-    def __init__(self, module_list: List[SubModuleChunk], chunk_method: str, B: int, N: int, nchunks: int):
+
+    def __init__(self, module_list: List[SubModuleChunk], chunk_method: str,
+                 B: int, N: int, nchunks: int):
         super(ModuleChunk, self).__init__()
         if chunk_method not in ['quotient_n', 'graph_optim']:
             raise ValueError("Unkown chunk method.")
@@ -174,10 +213,15 @@ class ModuleChunk(nn.Module):
         self.chunk_method = chunk_method
 
         self.batches, self.descri_chunked = self.get_chunks(nchunks)
-        self.sum_descri = sum([sum([chunk.size() for chunk in descri]) for descri in self.descri_chunked])
+        self.sum_descri = sum([
+            sum([chunk.size() for chunk in descri])
+            for descri in self.descri_chunked
+        ])
 
         # add chunked idx info to modules
-        for module, pre_chunks, chunks in zip(self.module_list, self.descri_chunked[:-1], self.descri_chunked[1:]):
+        for module, pre_chunks, chunks in zip(self.module_list,
+                                              self.descri_chunked[:-1],
+                                              self.descri_chunked[1:]):
             module.set_descri(chunks, pre_chunks)
             module.nchunks = nchunks
 
@@ -185,7 +229,8 @@ class ModuleChunk(nn.Module):
 
     def construct_description_sequence(self) -> List[Description]:
         """ Return the sequence of descriptions of the tensors outputed by the different modules. """
-        start_descri = Description(data=[[n] for n in range(self.N)], columns=['n1'])
+        start_descri = Description(data=[[n] for n in range(self.N)],
+                                   columns=['n1'])
         descri = [start_descri]
         for module in self.module_list:
             input_descri = descri[-1]
@@ -207,17 +252,22 @@ class ModuleChunk(nn.Module):
         memories = []
         for g_chunk in gs:
             for i, module in enumerate(self.module_list):
-                nodes_i = [node[1] for node in g_chunk if node[0] == f'Module:{i + 1}']
+                nodes_i = [
+                    node[1] for node in g_chunk if node[0] == f'Module:{i + 1}'
+                ]
                 memories.append(len(nodes_i) * module.get_output_space_dim())
         return max(memories)
 
-    def get_chunks(self, nchunks) -> Tuple[List[np.ndarray], List[List[Description]]]:
+    def get_chunks(
+            self, nchunks) -> Tuple[List[np.ndarray], List[List[Description]]]:
         """ Obtain description chunks. The model works on 3 dimensions, batch, channels, scales.
         The batch is first chunked and if necessary, the (channels, scales) are chunked within each chunk.
         """
 
         if nchunks > self.B:
-            raise ValueError("Too much chunked required for current method based on batch only.")
+            raise ValueError(
+                "Too much chunked required for current method based on batch only."
+            )
 
         # batch chunks
         batches = np.array_split(np.arange(self.B), nchunks)
@@ -225,28 +275,27 @@ class ModuleChunk(nn.Module):
 
         # (channel, scale) chunks
         descri_l = []
-        start_descri = Description(data=[[n, 0, -1, -1, -1] for n in range(self.N)],
-                                     columns=['n1', 'r', 'sc', 'a', 'low'])
+        start_descri = Description(data=[[n, 0, -1, -1, -1]
+                                         for n in range(self.N)],
+                                   columns=['n1', 'r', 'sc', 'a', 'low'])
         if self.chunk_method == 'quotient_n':
             # prepare description for a unique in_channel
             descri_canonical = [start_descri]
             for module in self.module_list:
                 input_info = descri_canonical[-1]
                 # remove auxillary columns (skip_conn, ..)
-                output_info = module.external_surjection(input_info).sort().drop_col('skip_conn')
+                output_info = module.external_surjection(
+                    input_info).sort().drop_col('skip_conn')
                 descri_canonical.append(output_info)
 
-            module_names = [module.__class__.__name__ for module in self.module_list]
-            descri_l = [
-                [start_descri] +
-                [
-                    descri.tile(['n1', 'n1p'], [(n, n) for n in n_chunk])
-                    if name in ['Cov', 'CovStat'] else
-                    descri.tile(['n1'], n_chunk)
-                    for (descri, name) in zip(descri_canonical[1:], module_names)
-                ]
-                for n_chunk in n_chunks
+            module_names = [
+                module.__class__.__name__ for module in self.module_list
             ]
+            descri_l = [[start_descri] + [
+                descri.tile(['n1', 'n1p'], [(n, n) for n in n_chunk])
+                if name in ['Cov', 'CovStat'] else descri.tile(['n1'], n_chunk)
+                for (descri, name) in zip(descri_canonical[1:], module_names)
+            ] for n_chunk in n_chunks]
 
         description_l = transpose(descri_l)
         return batches, description_l  # since the model is separable in N, the chunks should be independent
@@ -255,10 +304,18 @@ class ModuleChunk(nn.Module):
         """ Initialize chunk dynamic in each module given its output chunks descri_chunked. """
         output_descri = self.descri_chunked[1:]
         for i_chunk in range(self.nchunks):
-            outputs = [DescribedTensor(x=None, y=None, descri=self.descri_chunked[0][i_chunk])]
-            for i_module, (out_descri, module) in enumerate(zip(output_descri, self.module_list)):
-                module.init_one_chunk(outputs[-1], out_descri[i_chunk], i_chunk)
-                outputs.append(DescribedTensor(x=None, y=None, descri=out_descri[i_chunk]))
+            outputs = [
+                DescribedTensor(x=None,
+                                y=None,
+                                descri=self.descri_chunked[0][i_chunk])
+            ]
+            for i_module, (out_descri, module) in enumerate(
+                    zip(output_descri, self.module_list)):
+                module.init_one_chunk(outputs[-1], out_descri[i_chunk],
+                                      i_chunk)
+                outputs.append(
+                    DescribedTensor(x=None, y=None,
+                                    descri=out_descri[i_chunk]))
 
     def clear_params(self) -> None:
         for module in self.module_list:
@@ -268,7 +325,9 @@ class ModuleChunk(nn.Module):
         """ Return the number of coefficients satisfying kwargs. """
         return self.module_list[-1].count_out_channels(**kwargs)
 
-    def forward_chunk(self, y: torch.Tensor, i_chunk: int = None) -> DescribedTensor:
+    def forward_chunk(self,
+                      y: torch.Tensor,
+                      i_chunk: int = None) -> DescribedTensor:
         """ Forward on one chunk. """
         for i, module in enumerate(self.module_list):
             y = module(y, i_chunk)
@@ -276,7 +335,9 @@ class ModuleChunk(nn.Module):
                 y = y.y
         return y
 
-    def forward(self, y: torch.Tensor, i_chunk: Optional[int] = None) -> DescribedTensor:
+    def forward(self,
+                y: torch.Tensor,
+                i_chunk: Optional[int] = None) -> DescribedTensor:
         """ Forward on all chunk. """
         if i_chunk is not None:
             return self.forward_chunk(y, i_chunk)  # no need to sort

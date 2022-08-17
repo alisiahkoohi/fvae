@@ -7,7 +7,6 @@ import torch
 import pandas as pd
 
 from facvae.scat_cov.utils import get_permutation
-
 """
 Tensor shapes:
 - x: input, of shape  (B, N, T)
@@ -19,7 +18,10 @@ class Description(pd.DataFrame):
     """ The description of an output tensor. It is a pandas dataframe with K rows. Each row i contains the description
     of a coefficients.
     """
-    def __init__(self, data: Union[pd.Series, pd.DataFrame, List[Iterable]] = None, columns: List[str] = None):
+
+    def __init__(self,
+                 data: Union[pd.Series, pd.DataFrame, List[Iterable]] = None,
+                 columns: List[str] = None):
         """ Data provides the rows: series, dataframe or list of rows. """
         super(Description, self).__init__(data=data)
         if columns is not None and not self.empty:
@@ -41,7 +43,9 @@ class Description(pd.DataFrame):
         df.loc[self.size()] = row
         self.__init__(data=df)
 
-    def to_array(self, param_list: Optional[Union[str, List[str]]] = None) -> np.ndarray:
+    def to_array(
+            self,
+            param_list: Optional[Union[str, List[str]]] = None) -> np.ndarray:
         """ Return values stored as a 2d array. """
         if param_list is None:
             param_list = self.columns
@@ -58,7 +62,9 @@ class Description(pd.DataFrame):
             masks.append(np.isin(self[key], value))
         return np.logical_and.reduce(masks)
 
-    def reduce(self, mask: Optional[np.ndarray] = None, **kwargs) -> Description:
+    def reduce(self,
+               mask: Optional[np.ndarray] = None,
+               **kwargs) -> Description:
         """ Return the sub Description induced by mask or kwargs. """
         mask = self.where(**kwargs) if mask is None else mask
         df = super(Description, self).copy()
@@ -82,7 +88,8 @@ class Description(pd.DataFrame):
     @staticmethod
     def cat(*descriptions: Description) -> Description:
         """ Concatenates self with descriptions without duplicates. """
-        df_merged = pd.concat(descriptions).drop_duplicates().reset_index(drop=True)
+        df_merged = pd.concat(descriptions).drop_duplicates().reset_index(
+            drop=True)
         return Description(data=df_merged)
 
     def tile(self, col_name: List[str], values: Iterable) -> Description:
@@ -128,9 +135,8 @@ class Description(pd.DataFrame):
 class DescribedTensor:
     """ Contains input tensor x, output tensor y with its description. Each row i in descri is the description of the
      coefficients at place i in tensor y. """
-    def __init__(self,
-                 x: Optional[torch.Tensor],
-                 y: Optional[torch.Tensor],
+
+    def __init__(self, x: Optional[torch.Tensor], y: Optional[torch.Tensor],
                  descri: Description):
         self.x = x
         self.y = y
@@ -140,7 +146,10 @@ class DescribedTensor:
         """ The number of coefficients. """
         return self.descri.size()
 
-    def select(self, mask: Optional[np.ndarray[bool]] = None, pivot: Optional[str] = None, **kwargs) -> torch.tensor:
+    def select(self,
+               mask: Optional[np.ndarray[bool]] = None,
+               pivot: Optional[str] = None,
+               **kwargs) -> torch.tensor:
         """ Select tensor based on its description. """
         if pivot is None:
             mask = self.descri.where(**kwargs) if mask is None else mask
@@ -150,22 +159,30 @@ class DescribedTensor:
         d = OrderedDict({val: [] for val in possible_values})
         for i, val in enumerate(out_non_pivot.descri[pivot]):
             d[val].append(i)
-        return torch.stack([out_non_pivot.y[:, val, ...] for val in d.values()])
+        return torch.stack(
+            [out_non_pivot.y[:, val, ...] for val in d.values()])
 
-    def reduce(self, mask: Optional[np.ndarray[bool]] = None, **kwargs) -> DescribedTensor:
+    def reduce(self,
+               mask: Optional[np.ndarray[bool]] = None,
+               **kwargs) -> DescribedTensor:
         """ Return a subtensor along with its description. """
         mask = self.descri.where(**kwargs) if mask is None else mask
-        return DescribedTensor(self.x, self.y[:, mask, ...], self.descri.reduce(mask))
+        return DescribedTensor(self.x, self.y[:, mask, ...],
+                               self.descri.reduce(mask))
 
-    def apply(self, h: Callable[[torch.Tensor], torch.Tensor]) -> DescribedTensor:
+    def apply(self, h: Callable[[torch.Tensor],
+                                torch.Tensor]) -> DescribedTensor:
         """ Apply an operator h: y -> y. """
         return DescribedTensor(x=self.x, y=h(self.y), descri=self.descri)
 
     def sort(self, by: Optional[List[str]] = None) -> DescribedTensor:
         """ Sort lexicographically based on description. """
         descri_sorted = self.descri.sort(by=by)
-        order = get_permutation(self.descri.index.values, descri_sorted.index.values)
-        return DescribedTensor(x=self.x, y=self.y[:, order, ...], descri=descri_sorted)
+        order = get_permutation(self.descri.index.values,
+                                descri_sorted.index.values)
+        return DescribedTensor(x=self.x,
+                               y=self.y[:, order, ...],
+                               descri=descri_sorted)
 
     # def drop_column(self, columns: List[str]) -> DescribedTensor:
     #     return DescribedTensor(x=self.x, idx_info=self.idx_info.drop(columns=columns), y=self.y).sort()
@@ -174,7 +191,8 @@ class DescribedTensor:
     def cat(*described_tensors: DescribedTensor) -> DescribedTensor:
         """ Concatenates tensors as well as their description. """
         descri_with_dup = pd.concat([out.descri for out in described_tensors])
-        descri = Description(descri_with_dup.drop_duplicates().reset_index(drop=True))
+        descri = Description(
+            descri_with_dup.drop_duplicates().reset_index(drop=True))
         y = torch.cat([out.y for out in described_tensors], dim=1)
         duplicates = descri_with_dup.duplicated().values
         return DescribedTensor(x=None, y=y[:, ~duplicates, ...], descri=descri)
@@ -189,12 +207,20 @@ class DescribedTensor:
     def mean(self, col: str) -> DescribedTensor:
         """ Regroup and mean values y by column. """
         values = np.unique(self.descri[col])
-        y_mean = torch.stack([self.reduce(**{col: val}).y for val in values]).mean(0)
-        return DescribedTensor(x=self.x, y=y_mean, descri=self.reduce(**{col: values[0]}).descri)
+        y_mean = torch.stack([self.reduce(**{
+            col: val
+        }).y for val in values]).mean(0)
+        return DescribedTensor(x=self.x,
+                               y=y_mean,
+                               descri=self.reduce(**{
+                                   col: values[0]
+                               }).descri)
 
     def mean_batch(self) -> DescribedTensor:
         """ Regroup and mean values y by column. """
-        return DescribedTensor(x=self.x, y=self.y.mean(0, keepdim=True), descri=self.descri)
+        return DescribedTensor(x=self.x,
+                               y=self.y.mean(0, keepdim=True),
+                               descri=self.descri)
 
     def save(self, filepath) -> None:
         torch.save({'x': self.x, 'descri': self.descri, 'y': self.y}, filepath)
@@ -205,11 +231,13 @@ class DescribedTensor:
         return DescribedTensor(x=ld['x'], descri=ld['descri'], y=ld['y'])
 
     def cpu(self) -> DescribedTensor:
-        return DescribedTensor(None if self.x is None else self.x.cpu(), self.y.cpu(), self.descri)
+        return DescribedTensor(None if self.x is None else self.x.cpu(),
+                               self.y.cpu(), self.descri)
 
     def cuda(self, device=None) -> DescribedTensor:
-        return DescribedTensor(None if self.x is None else self.x.cuda(device=device), self.y.cuda(device=device),
-                               self.descri)
+        return DescribedTensor(
+            None if self.x is None else self.x.cuda(device=device),
+            self.y.cuda(device=device), self.descri)
 
     def __repr__(self) -> str:
         return self.descri.__repr__()
