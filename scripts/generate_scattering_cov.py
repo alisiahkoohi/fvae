@@ -4,12 +4,14 @@ import obspy
 from pathlib import Path
 import numpy as np
 import os
+from tqdm import tqdm
 
 from facvae.scat_cov.frontend import analyze, cplx
 from facvae.utils import datadir
 
 CASCADIA_PATH = datadir('cascadia')
 MARS_PATH = datadir('mars')
+
 
 def windows(x, window_size, stride, offset):
     """ Separate x into windows on last axis, discard any residual.
@@ -34,59 +36,65 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
         scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_cov'))
         raw_data_files = os.listdir(waveform_path)
 
-    for file in raw_data_files:
-        # Read data into a stream format.
-        data_stream = obspy.read(os.path.join(waveform_path, file))
+    discarded_files = 0
+    with tqdm(raw_data_files,
+              unit='file',
+              colour='#B5F2A9',
+              dynamic_ncols=True) as pb:
+        for i, file in enumerate(pb):
+            # Read data into a stream format.
+            data_stream = obspy.read(os.path.join(waveform_path, file))
 
-        # XB.ELYSE.02.BHU | 2021-02-16T00:00:00.012000Z - 2021-02-16T23:59:59.812000Z | 20.0
-        # Hz, 1727997 samples
-        # XB.ELYSE.02.BHV | 2021-02-16T00:00:00.023000Z - 2021-02-16T23:59:59.823000Z | 20.0
-        # Hz, 1727997 samples
-        # XB.ELYSE.02.BHW | 2021-02-16T00:00:00.023000Z - 2021-02-16T23:59:59.823000Z | 20.0
-        # Hz, 1727997 samples
+            # Only keep files that do not have gaps.
+            if len(data_stream.get_gaps()) == 0:
+                # Merge the two traces in the stream and extract data.
+                trace = data_stream.merge(method=1,
+                                          fill_value="interpolate")[0]
+                # Some preprocessing.
+                # TODO: ask Rudy where do these numbers come from.
+                if dataset == 'cascadia':
+                    trace.filter('highpass', freq=1.0)
+                    trace.filter('lowpass', freq=10.0)
+                    trace.taper(0.01)
+                    trace = trace.data[50000:-50000]
+                else:
+                    trace = trace.data
 
-        # Merge the two traces in the stream and extract data.
-        trace = data_stream.merge(method=1, fill_value="interpolate")[0]
+                # Filter out smaller than `window_size` data.
+                # TODO: Decide on a more concrete way of choosing window size.
+                if trace.size >= window_size:
+                    # Turn the trace to a batch of windowed data with size
+                    # `window_size`.
+                    windowed_trace = windows(trace,
+                                             window_size=window_size,
+                                             stride=window_size // 2,
+                                             offset=0)
+                    # Compute scattering covariance.
+                    RX = analyze(windowed_trace,
+                                 J=num_oct,
+                                 moments='cov',
+                                 cuda=cuda,
+                                 nchunks=windowed_trace.shape[0]
+                                 )  # reduce nchunks to accelerate
+                    # for r in range(windowed_trace.shape[0]):
+                    r = 0
+                    y = cplx.to_np(RX.select(n1=r))
+                    y[np.abs(y) < 0.001] = 0.0
+                    scat_covariances = np.angle(y)  # only take the phase
+                    scat_covariances = scat_covariances.astype(np.float32)
+                    # scat_covariances = RX.select(n1=r).ravel().detach().numpy()
 
-        # Some preprocessing.
-        # TODO: ask Rudy where do these numbers come from.
-        if dataset == 'cascadia':
-            trace.filter('highpass', freq=1.0)
-            trace.filter('lowpass', freq=10.0)
-            trace.taper(0.01)
-            trace = trace.data[50000:-50000]
-        else:
-            trace = trace.data
-
-        # Filter out smaller than `window_size` data.
-        # TODO: Decide on a more concrete way of choosing window size.
-        if trace.size >= window_size:
-            # Turn the trace to a batch of windowed data with size
-            # `window_size`.
-            windowed_trace = windows(trace,
-                                     window_size=window_size,
-                                     stride=window_size // 2,
-                                     offset=0)
-            # Compute scattering covariance.
-            RX = analyze(windowed_trace,
-                         J=num_oct,
-                         moments='cov',
-                         cuda=cuda,
-                         nchunks=windowed_trace.shape[0]
-                         )  # reduce nchunks to accelerate
-
-            # for r in range(windowed_trace.shape[0]):
-            r = 0
-            y = cplx.to_np(RX.select(n1=r))
-            y[np.abs(y) < 0.001] = 0.0
-            scat_covariances = np.angle(y)  # only take the phase
-            # scat_covariances = RX.select(n1=r).ravel().detach().numpy()
-
-            print(r, trace.size, scat_covariances.shape)
-            if not np.prod(scat_covariances.shape) == 0:
-                fname = Path(file).stem + f'_w{r}' + '.npy'
-                np.save(os.path.join(scat_cov_path, fname),
-                        scat_covariances)
+                    fname = Path(file).stem + f'_w{r}' + '.npy'
+                    np.save(os.path.join(scat_cov_path, fname),
+                            scat_covariances)
+                    pb.set_postfix({
+                        'shape':
+                        scat_covariances.shape,
+                        'discarded':
+                        f'{discarded_files/(i + 1):.4f}'
+                    })
+            else:
+                discarded_files += 1
 
 
 def probe_mars_data():
@@ -99,8 +107,6 @@ def probe_mars_data():
         data_stream = obspy.read(os.path.join(waveform_path, file))
         print(file)
         data_stream.print_gaps()
-
-
 
 
 if __name__ == "__main__":
@@ -128,5 +134,5 @@ if __name__ == "__main__":
                         help='cascadia or mars')
     args = parser.parse_args()
 
-    # compute_scat_cov(args.window_size, args.num_oct, args.cuda, args.dataset)
-    probe_mars_data()
+    compute_scat_cov(args.window_size, args.num_oct, args.cuda, args.dataset)
+    # probe_mars_data()
