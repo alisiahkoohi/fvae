@@ -38,6 +38,13 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
         # Read data into a stream format.
         data_stream = obspy.read(os.path.join(waveform_path, file))
 
+        # XB.ELYSE.02.BHU | 2021-02-16T00:00:00.012000Z - 2021-02-16T23:59:59.812000Z | 20.0
+        # Hz, 1727997 samples
+        # XB.ELYSE.02.BHV | 2021-02-16T00:00:00.023000Z - 2021-02-16T23:59:59.823000Z | 20.0
+        # Hz, 1727997 samples
+        # XB.ELYSE.02.BHW | 2021-02-16T00:00:00.023000Z - 2021-02-16T23:59:59.823000Z | 20.0
+        # Hz, 1727997 samples
+
         # Merge the two traces in the stream and extract data.
         trace = data_stream.merge(method=1, fill_value="interpolate")[0]
 
@@ -82,6 +89,20 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                         scat_covariances)
 
 
+def probe_mars_data():
+    waveform_path = datadir(os.path.join(MARS_PATH, 'waveform'))
+    raw_data_files = os.listdir(waveform_path)
+
+    sampling_rates = []
+    for file in raw_data_files:
+        # Read data into a stream format.
+        data_stream = obspy.read(os.path.join(waveform_path, file))
+        print(file)
+        data_stream.print_gaps()
+
+
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='')
@@ -107,4 +128,5 @@ if __name__ == "__main__":
                         help='cascadia or mars')
     args = parser.parse_args()
 
-    compute_scat_cov(args.window_size, args.num_oct, args.cuda, args.dataset)
+    # compute_scat_cov(args.window_size, args.num_oct, args.cuda, args.dataset)
+    probe_mars_data()
