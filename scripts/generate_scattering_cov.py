@@ -47,7 +47,6 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
 
             # Only keep files that do not have gaps.
             if len(data_stream.get_gaps()) == 0:
-                from IPython import embed; embed()
 
                 # The following line although will not do interpolation—because
                 # there are not gaps—but will combine different streams into
@@ -75,6 +74,7 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                                              stride=window_size // 2,
                                              offset=0)
                     # Compute scattering covariance.
+                    from IPython import embed; embed()
                     RX = analyze(windowed_trace,
                                  J=num_oct,
                                  moments='cov',
