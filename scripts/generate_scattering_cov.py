@@ -6,7 +6,9 @@ import numpy as np
 import os
 from tqdm import tqdm
 
-from scripts.frontend import analyze, cplx
+from facvae.scattering_covariance.frontend import analyze
+import facvae.scattering_covariance.utils.complex_utils as cplx
+from facvae.scattering_covariance.utils import to_numpy
 from facvae.utils import datadir
 
 CASCADIA_PATH = datadir('cascadia')
@@ -73,23 +75,39 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                                              window_size=window_size,
                                              stride=window_size // 2,
                                              offset=0)
+
+                    # from IPython import embed; embed()
+
                     # Compute scattering covariance.
-                    from IPython import embed; embed()
-                    RX = analyze(windowed_trace,
+                    # RX is a DescribedTensor.
+                    # RX.y is a tensor of size B x nb_coeff x T x 2
+                    # RX.info is a dataframe with nb_coeff rows that describes each
+                    #       RX.y[:, i_coeff, :, :] for 0 <= i_coeff < nb_coeff
+                    # Here, the batch dimension (1st dimension) corresponds to the different windows
+                    windowed_trace = windowed_trace[:1, :]
+                    RX = analyze(windowed_trace,  # for test only, compute only the first window
                                  J=num_oct,
                                  moments='cov',
                                  cuda=cuda,
                                  nchunks=windowed_trace.shape[0]
                                  )  # reduce nchunks to accelerate
-                    # for r in range(windowed_trace.shape[0]):
-                    r = 0
-                    y = cplx.to_np(RX.select(n1=r))
-                    y[np.abs(y) < 0.001] = 0.0
-                    scat_covariances = np.angle(y)  # only take the phase
-                    scat_covariances = scat_covariances.astype(np.float32)
-                    # scat_covariances = RX.select(n1=r).ravel().detach().numpy()
+                    # for b in range(windowed_trace.shape[0]):
+                    b = 0  # for test only: choose the first window to compute scattering covariance
+                    y = RX.y[b, :, 0, :]
 
-                    fname = Path(file).stem + f'_w{r}' + '.npy'
+                    y_phase = np.angle(y)
+                    y_phase[np.abs(y) < 0.001] = 0.0  # rule phase instability, the threshold must be adapted
+
+                    # CASE 1: keep real and imag parts by considering it as different real coefficients
+                    # scat_covariances = to_numpy(y).ravel()
+                    # CASE 2: only keeps the modulus of the scattering covariance, hence discarding time asymmetry info
+                    # scat_covariances = np.abs(cplx.to_np(y))
+                    # CASE 3: only keep the phase, which looks at time asymmetry in the data
+                    # scat_covariances = y_phase
+
+                    scat_covariances = scat_covariances.astype(np.float32)
+
+                    fname = Path(file).stem + f'_w{b}' + '.npy'
                     np.save(os.path.join(scat_cov_path, fname),
                             scat_covariances)
                     pb.set_postfix({
