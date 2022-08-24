@@ -1,4 +1,4 @@
-name: fac-vae
+name: fac-vae-test
 channels:
   - pytorch
   - conda-forge
@@ -10,6 +10,7 @@ dependencies:
   - pip
   - cpuonly
   - pip:
+    - git+https://github.com/alisiahkoohi/scatcov
     - matplotlib
     - tensorboard
     - obspy

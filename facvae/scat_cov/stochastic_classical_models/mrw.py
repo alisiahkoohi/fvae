@@ -1,5 +1,5 @@
 import numpy as np
-from facvae.scat_cov.stochastic_classical_models.gaussian import gaussian_cme, fbm
+from scatcov.stochastic_classical_models.gaussian import gaussian_cme, fbm
 from numpy.fft import fft, ifft
 
 

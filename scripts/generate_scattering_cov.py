@@ -6,7 +6,7 @@ import numpy as np
 import os
 from tqdm import tqdm
 
-from facvae.scat_cov.frontend import analyze, cplx
+from scatcov.frontend import analyze, cplx
 from facvae.utils import datadir
 
 CASCADIA_PATH = datadir('cascadia')
@@ -47,12 +47,15 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
 
             # Only keep files that do not have gaps.
             if len(data_stream.get_gaps()) == 0:
-                # Merge the two traces in the stream and extract data.
+                from IPython import embed; embed()
+
+                # The following line although will not do interpolation—because
+                # there are not gaps—but will combine different streams into
+                # one.
                 trace = data_stream.merge(method=1,
                                           fill_value="interpolate")[0]
-                # Some preprocessing.
-                # TODO: ask Rudy where do these numbers come from.
                 if dataset == 'cascadia':
+                    # Some preprocessing.
                     trace.filter('highpass', freq=1.0)
                     trace.filter('lowpass', freq=10.0)
                     trace.taper(0.01)
@@ -62,6 +65,8 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
 
                 # Filter out smaller than `window_size` data.
                 # TODO: Decide on a more concrete way of choosing window size.
+                # 2**17 comes from previous experiments. (may want to reduce it
+                # for mars quakes in the range of 30 minutes)
                 if trace.size >= window_size:
                     # Turn the trace to a batch of windowed data with size
                     # `window_size`.

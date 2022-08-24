@@ -6,8 +6,8 @@ from multiprocessing import Pool
 import shutil
 import numpy as np
 
-from facvae.scat_cov.stochastic_classical_models import fbm, mrw, skewed_mrw, poisson_mu
-from facvae.scat_cov.global_const import *
+from scatcov.stochastic_classical_models import fbm, mrw, skewed_mrw, poisson_mu
+from scatcov.global_const import *
 
 
 """ TIME SERIES DATA classes

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import os
 
-from facvae.scat_cov.frontend import analyze, cplx
+from scatcov.frontend import analyze, cplx
 from facvae.utils import datadir
 
 def windows(x, w, s, offset):

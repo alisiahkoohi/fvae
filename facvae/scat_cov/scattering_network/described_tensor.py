@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import pandas as pd
 
-from facvae.scat_cov.utils import get_permutation
+from scatcov.utils import get_permutation
 """
 Tensor shapes:
 - x: input, of shape  (B, N, T)

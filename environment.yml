@@ -11,6 +11,7 @@ dependencies:
   - pytorch::torchvision
   - pip
   - pip:
+    - git+https://github.com/alisiahkoohi/scatcov
     - matplotlib
     - tensorboard
     - obspy
