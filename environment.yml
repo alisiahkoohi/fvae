@@ -11,7 +11,7 @@ dependencies:
   - pytorch::torchvision
   - pip
   - pip:
-    - git+https://github.com/alisiahkoohi/scatcov
+    - git+https://github.com/alisiahkoohi/scattering_covariance
     - matplotlib
     - tensorboard
     - obspy
