@@ -1,4 +1,4 @@
-name: fac-vae-test
+name: fac-vae
 channels:
   - pytorch
   - conda-forge
