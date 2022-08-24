@@ -6,7 +6,7 @@ import numpy as np
 import os
 from tqdm import tqdm
 
-from scatcov.frontend import analyze, cplx
+from scripts.frontend import analyze, cplx
 from facvae.utils import datadir
 
 CASCADIA_PATH = datadir('cascadia')
