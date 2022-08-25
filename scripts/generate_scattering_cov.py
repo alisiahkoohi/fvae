@@ -6,9 +6,8 @@ import numpy as np
 import os
 from tqdm import tqdm
 
-from facvae.scattering_covariance.frontend import analyze
-import facvae.scattering_covariance.utils.complex_utils as cplx
-from facvae.scattering_covariance.utils import to_numpy
+from scatcov.frontend.functions import analyze, cplx
+from scatcov.utils import to_numpy
 from facvae.utils import datadir
 
 CASCADIA_PATH = datadir('cascadia')

@@ -7,7 +7,7 @@ reqs = []
 setuptools.setup(
     name='facvae',
     version='0.1',
-    author='Ali Siahkoohi and Rudy Morel',
+    author='Rudy Morel and Ali Siahkoohi',
     author_email='alisk@rice.edu',
     description='Factorial VAEs for blind source separation',
     long_description=long_description,
