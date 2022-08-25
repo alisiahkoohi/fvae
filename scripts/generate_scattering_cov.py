@@ -83,8 +83,8 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                     # RX.info is a dataframe with nb_coeff rows that describes each
                     #       RX.y[:, i_coeff, :, :] for 0 <= i_coeff < nb_coeff
                     # Here, the batch dimension (1st dimension) corresponds to the different windows
-                    windowed_trace = windowed_trace[:1, :]
-                    RX = analyze(windowed_trace,  # for test only, compute only the first window
+                    windowed_trace = windowed_trace[:1, :]  # for test only, compute only the first window
+                    RX = analyze(windowed_trace,
                                  J=num_oct,
                                  moments='cov',
                                  cuda=cuda,
@@ -98,7 +98,7 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                     y_phase[np.abs(y) < 0.001] = 0.0  # rule phase instability, the threshold must be adapted
 
                     # CASE 1: keep real and imag parts by considering it as different real coefficients
-                    # scat_covariances = to_numpy(y).ravel()
+                    scat_covariances = to_numpy(y).ravel()
                     # CASE 2: only keeps the modulus of the scattering covariance, hence discarding time asymmetry info
                     # scat_covariances = np.abs(cplx.to_np(y))
                     # CASE 3: only keep the phase, which looks at time asymmetry in the data
