@@ -22,3 +22,4 @@ dependencies:
     - tqdm
     - gitpython
     - termcolor
+    - h5py

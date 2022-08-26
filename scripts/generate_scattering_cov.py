@@ -1,5 +1,6 @@
 """ Generate scattering covariance dataset from Cascadia waveforms. """
 import argparse
+import h5py
 import obspy
 from pathlib import Path
 import numpy as np
@@ -26,6 +27,41 @@ def windows(x, window_size, stride, offset):
     return windowed_x
 
 
+def setup_hdf5_file(path):
+    """
+    Setting up an HDF5 file to write scattering covariances.
+    """
+    # Path to the file.
+    file_path = os.path.join(path, 'scattering_covariances.hdf5')
+
+    # Horizons file
+    file = h5py.File(file_path, 'a')
+    file.close()
+
+
+def update_hdf5_file(path, filename, batch, waveform, scat_covariances):
+    """
+    Update the HDF5 file by writing new scattering covariances.
+    """
+    # Path to the file.
+    file_path = os.path.join(path, 'scattering_covariances.hdf5')
+
+    # HDF5 file.
+    file = h5py.File(file_path, 'r+')
+
+    # Group for the given file.
+    file_group = file.create_group(filename + '_' + str(batch))
+
+    # HDF5 dataset for waveform.
+    file_group.create_dataset('waveform', data=waveform, dtype=np.float32)
+
+    # HDF5 dataset for waveform.
+    file_group.create_dataset('scat_cov',
+                              data=scat_covariances,
+                              dtype=np.float32)
+    file.close()
+
+
 def compute_scat_cov(window_size, num_oct, cuda, dataset):
 
     if dataset == 'cascadia':
@@ -37,6 +73,7 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
         scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_cov'))
         raw_data_files = os.listdir(waveform_path)
 
+    setup_hdf5_file(scat_cov_path)
     discarded_files = 0
     with tqdm(raw_data_files,
               unit='file',
@@ -75,46 +112,51 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                                              stride=window_size // 2,
                                              offset=0)
 
-                    # from IPython import embed; embed()
-
-                    # Compute scattering covariance.
-                    # RX is a DescribedTensor.
+                    # Compute scattering covariance. RX is a DescribedTensor.
                     # RX.y is a tensor of size B x nb_coeff x T x 2
-                    # RX.info is a dataframe with nb_coeff rows that describes each
-                    #       RX.y[:, i_coeff, :, :] for 0 <= i_coeff < nb_coeff
-                    # Here, the batch dimension (1st dimension) corresponds to the different windows
-                    windowed_trace = windowed_trace[:1, :]  # for test only, compute only the first window
+
+                    # RX.info is a dataframe with nb_coeff rows that describes
+                    # each RX.y[:, i_coeff, :, :] for 0 <= i_coeff < nb_coeff
+
+                    # Here, the batch dimension (1st dimension) corresponds to
+                    # the different windows
+
                     RX = analyze(windowed_trace,
                                  J=num_oct,
                                  moments='cov',
                                  cuda=cuda,
                                  nchunks=windowed_trace.shape[0]
                                  )  # reduce nchunks to accelerate
-                    # for b in range(windowed_trace.shape[0]):
-                    b = 0  # for test only: choose the first window to compute scattering covariance
-                    y = RX.y[b, :, 0, :]
+                    for b in range(windowed_trace.shape[0]):
 
-                    y_phase = np.angle(y)
-                    y_phase[np.abs(y) < 0.001] = 0.0  # rule phase instability, the threshold must be adapted
+                        # b = 0  # for test only: choose the first window to compute scattering covariance
+                        y = RX.y[b, :, 0, :]
 
-                    # CASE 1: keep real and imag parts by considering it as different real coefficients
-                    scat_covariances = to_numpy(y).ravel()
-                    # CASE 2: only keeps the modulus of the scattering covariance, hence discarding time asymmetry info
-                    # scat_covariances = np.abs(cplx.to_np(y))
-                    # CASE 3: only keep the phase, which looks at time asymmetry in the data
-                    # scat_covariances = y_phase
+                        # y_phase = np.angle(y)
+                        # y_phase[np.abs(y) < 0.001] = 0.0  # rule phase instability, the threshold must be adapted
 
-                    scat_covariances = scat_covariances.astype(np.float32)
+                        # CASE 1: keep real and imag parts by considering it as different real coefficients
+                        scat_covariances = to_numpy(y).ravel()
+                        # from IPython import embed; embed()
+                        # CASE 2: only keeps the modulus of the scattering covariance, hence discarding time asymmetry info
+                        # scat_covariances = np.abs(cplx.to_np(y))
 
-                    fname = Path(file).stem + f'_w{b}' + '.npy'
-                    np.save(os.path.join(scat_cov_path, fname),
-                            scat_covariances)
-                    pb.set_postfix({
-                        'shape':
-                        scat_covariances.shape,
-                        'discarded':
-                        f'{discarded_files/(i + 1):.4f}'
-                    })
+                        # CASE 3: only keep the phase, which looks at time asymmetry in the data
+                        # scat_covariances = y_phase
+
+                        update_hdf5_file(scat_cov_path, file, b,
+                                         windowed_trace[b,
+                                                        ...], scat_covariances)
+                        # fname = Path(file).stem + f'_w{b}' + '.npy'
+                        # np.save(os.path.join(scat_cov_path, fname),
+                        #         scat_covariances)
+                        pb.set_postfix({
+                            'shape':
+                            scat_covariances.shape,
+                            'discarded':
+                            f'{discarded_files/(i + 1):.4f}'
+                        })
+
             else:
                 discarded_files += 1
 
@@ -152,7 +194,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset',
                         dest='dataset',
                         type=str,
-                        default='cascadia',
+                        default='mars',
                         help='cascadia or mars')
     args = parser.parse_args()
 
