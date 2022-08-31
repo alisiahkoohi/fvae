@@ -20,6 +20,6 @@
     "w_categ": 1,
     "w_rec": 1,
     "rec_type": "mse",
-    "verbose": false,
-    "random_search_it": 20
+    "random_search_it": 20,
+    "experiment_name": "mars_pleminary"
 }

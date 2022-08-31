@@ -48,7 +48,7 @@ class Cascadia(Dataset):
 
         if self.transform:
             x = self.transform(x)
-
+        print(x.shape)
         return x, i
 
     def __len__(self):

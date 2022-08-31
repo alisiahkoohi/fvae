@@ -11,13 +11,14 @@ from facvae.vae.Metrics import *
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 
+from facvae.utils import checkpointsdir
+
 
 class GMVAE:
 
     def __init__(self, args):
         self.num_epochs = args.epochs
         self.cuda = args.cuda
-        self.verbose = args.verbose
 
         self.batch_size = args.batch_size
         self.batch_size_val = args.batch_size_val
@@ -28,18 +29,15 @@ class GMVAE:
         self.w_gauss = args.w_gauss
         self.w_rec = args.w_rec
         self.rec_type = args.rec_type
-        self.compute_acc = args.dataset == 'mnist'
 
         self.num_classes = args.num_classes
         self.gaussian_size = args.gaussian_size
         self.input_size = args.input_size
 
-        output_path = Path(__file__).parents[2] / 'output'
         dir_name = datetime.now().strftime("%d_%m_%Y_H%H_M%M")
-        self.exp_path = output_path / dir_name
-        self.exp_path.mkdir(exist_ok=True)
-        (self.exp_path / 'checkpoints').mkdir(exist_ok=True)
-        self.writer = SummaryWriter(log_dir=str(self.exp_path / 'ts_logs'))
+        self.exp_path = checkpointsdir(dir_name)
+        self.writer = SummaryWriter(
+            log_dir=checkpointsdir(os.path.join(dir_name, 'ts_logs')))
 
         # gumbel
         self.init_temp = args.init_temp
@@ -96,7 +94,7 @@ class GMVAE:
         }
         return loss_dic
 
-    def train_epoch(self, optimizer, data_loader, epoch):
+    def train_epoch(self, optimizer, data_loader, epoch, mars_dataset):
         """Train the model for one epoch
 
         Args:
@@ -106,21 +104,21 @@ class GMVAE:
         Returns:
             average of all loss values, accuracy, nmi
         """
+        # TODO: needed?
         self.network.train()
+
         total_loss = 0.
         recon_loss = 0.
         cat_loss = 0.
         gauss_loss = 0.
 
-        accuracy = 0.
-        nmi = 0.
         num_batches = 0.
 
-        true_labels_list = []
         predicted_labels_list = []
 
         # iterate over the dataset
-        for data, labels in tqdm(data_loader):
+        for idx in tqdm(data_loader):
+            data = mars_dataset.sample_data(idx)
             if self.cuda == 1:
                 data = data.cuda()
 
@@ -146,7 +144,6 @@ class GMVAE:
 
             # save predicted and true labels
             predicted = unlab_loss_dic['predicted_labels']
-            true_labels_list.append(labels)
             predicted_labels_list.append(predicted)
 
             num_batches += 1.
@@ -161,22 +158,9 @@ class GMVAE:
         gauss_loss /= num_batches
         cat_loss /= num_batches
 
-        # compute metrics
-        if self.compute_acc:
-            # concat all true and predicted labels
-            true_labels = torch.cat(true_labels_list, dim=0).cpu().numpy()
-            predicted_labels = torch.cat(predicted_labels_list,
-                                         dim=0).cpu().numpy()
+        return total_loss, recon_loss, gauss_loss, cat_loss, None, None
 
-            accuracy = 100.0 * self.metrics.cluster_acc(
-                predicted_labels, true_labels)
-            nmi = 100.0 * self.metrics.nmi(predicted_labels, true_labels)
-        else:
-            accuracy, nmi = -10.0, -10.0
-
-        return total_loss, recon_loss, gauss_loss, cat_loss, accuracy, nmi
-
-    def test(self, data_loader, epoch=None, return_loss=False):
+    def test(self, data_loader, epoch, mars_dataset):
         """Test the model with new data
 
         Args:
@@ -187,21 +171,20 @@ class GMVAE:
             accuracy and nmi for the given test data
 
         """
+        # TODO: needed?
         self.network.eval()
         total_loss = 0.
         recon_loss = 0.
         cat_loss = 0.
         gauss_loss = 0.
 
-        accuracy = 0.
-        nmi = 0.
         num_batches = 0.
 
-        true_labels_list = []
         predicted_labels_list = []
 
         with torch.no_grad():
-            for data, labels in data_loader:
+            for idx in data_loader:
+                data = mars_dataset.sample_data(idx)
                 if self.cuda == 1:
                     data = data.cuda()
 
@@ -220,12 +203,11 @@ class GMVAE:
 
                 # save predicted and true labels
                 predicted = unlab_loss_dic['predicted_labels']
-                true_labels_list.append(labels)
                 predicted_labels_list.append(predicted)
 
                 num_batches += 1.
 
-                if num_batches % 10 == 9 and epoch is not None:
+                if num_batches % 10 == 9:
                     self.writer.add_scalars(
                         'test loss', {
                             'rec': recon_loss / num_batches,
@@ -235,39 +217,16 @@ class GMVAE:
                         },
                         epoch * len(data_loader) + num_batches)
 
-        # average per batch
-        if return_loss:
-            total_loss /= num_batches
-            recon_loss /= num_batches
-            gauss_loss /= num_batches
-            cat_loss /= num_batches
-
-        # concat all true and predicted labels
-        true_labels = torch.cat(true_labels_list, dim=0).cpu().numpy()
         predicted_labels = torch.cat(predicted_labels_list,
                                      dim=0).cpu().numpy()
 
-        if epoch is not None:
-            self.writer.add_scalars(
-                'classes', {
-                    str(i): (predicted_labels == i).mean()
-                    for i in range(self.num_classes)
-                }, epoch)
+        self.writer.add_scalars(
+            'classes', {
+                str(i): (predicted_labels == i).mean()
+                for i in range(self.num_classes)
+            }, epoch)
 
-        # compute metrics
-        if self.compute_acc:
-            accuracy = 100.0 * self.metrics.cluster_acc(
-                predicted_labels, true_labels)
-            nmi = 100.0 * self.metrics.nmi(predicted_labels, true_labels)
-        else:
-            accuracy, nmi = -10.0, -10.0
-
-        if return_loss:
-            return total_loss, recon_loss, gauss_loss, cat_loss, accuracy, nmi
-        else:
-            return accuracy, nmi
-
-    def train(self, train_loader, val_loader):
+    def train(self, args, train_loader, val_loader, mars_dataset):
         """Train the model
 
         Args:
@@ -284,28 +243,18 @@ class GMVAE:
 
         for epoch in range(1, self.num_epochs + 1):
             t1 = time()
-            train_loss, train_rec, train_gauss, train_cat, train_acc, train_nmi = \
-                self.train_epoch(optimizer, train_loader, epoch)
+            (train_loss, train_rec, train_gauss, train_cat, train_acc,
+             train_nmi) = self.train_epoch(optimizer, train_loader, epoch,
+                                           mars_dataset)
             t2 = time() - t1
 
-            val_loss, val_rec, val_gauss, val_cat, val_acc, val_nmi = self.test(
-                val_loader, epoch, True)
+            val_loss, val_rec, val_gauss, val_cat = self.test(
+                val_loader, epoch, mars_dataset)
 
-            # if verbose then print specific information about training
-            if self.verbose:
-                print("(Epoch %d / %d) t: %.1lf" %
-                      (epoch, self.num_epochs, t2))
-                print("Train - REC: %.3lf;  Gauss: %.3lf;  Cat: %.3lf;" %
-                      (train_rec, train_gauss, train_cat))
-                print("Valid - REC: %.3lf;  Gauss: %.3lf;  Cat: %.3lf;" %
-                      (val_rec, val_gauss, val_cat))
-                print(
-                    "Accuracy=Train: %.3lf; Val: %.3lf   NMI=Train: %.3lf; Val: %.3lf   Total Loss=Train: %.3lf; Val: %.3lf" % \
-                    (train_acc, val_acc, train_nmi, val_nmi, train_loss, val_loss))
-            else:
-                print(
-                    '(Epoch %d / %d) t: %.1lf Train_Loss: %.3lf; Val_Loss: %.3lf   Train_ACC: %.3lf; Val_ACC: %.3lf   Train_NMI: %.3lf; Val_NMI: %.3lf' % \
-                    (epoch, self.num_epochs, t2, train_loss, val_loss, train_acc, val_acc, train_nmi, val_nmi))
+
+            print(
+                '(Epoch %d / %d) t: %.1lf Train_Loss: %.3lf; Val_Loss: %.3lf   Train_ACC: %.3lf; Val_ACC: %.3lf   Train_NMI: %.3lf; Val_NMI: %.3lf' % \
+                (epoch, self.num_epochs, t2, train_loss, val_loss, train_acc, val_acc, train_nmi, val_nmi))
 
             # decay gumbel temperature
             if self.decay_temp == 1:
@@ -322,15 +271,12 @@ class GMVAE:
             val_history_nmi.append(val_nmi)
 
             if epoch % 10 == 9:
-                torch.save(self.network.cpu(),
-                           self.exp_path / 'checkpoints' / f'epoch{epoch}.pth')
-                if self.cuda == 1:
-                    self.network.cuda()
+                torch.save(
+                    self.network,
+                    checkpointsdir(
+                        os.path.join(args.experiment, f'epoch{epoch}.pth')))
 
-        torch.save(self.network.cpu(),
-                   self.exp_path / 'checkpoints' / f'final.pth')
-        if self.cuda == 1:
-            self.network.cuda()
+        torch.save(self.network, os.path.join(self.exp_path, 'final.pth'))
 
         return {
             'train_history_nmi': train_history_nmi,
@@ -339,7 +285,7 @@ class GMVAE:
             'val_history_acc': val_history_acc
         }
 
-    def latent_features(self, data_loader, return_labels=False):
+    def latent_features(self, data_loader):
         """Obtain latent features learnt by the model
 
         Args:
@@ -352,8 +298,6 @@ class GMVAE:
         self.network.eval()
         N = len(data_loader.dataset)
         features = np.zeros((N, self.gaussian_size))
-        if return_labels:
-            true_labels = np.zeros(N, dtype=np.int64)
         start_ind = 0
         with torch.no_grad():
             for (data, labels) in data_loader:
@@ -365,14 +309,9 @@ class GMVAE:
                 latent_feat = out['mean']
                 end_ind = min(start_ind + data.size(0), N + 1)
 
-                # return true labels
-                if return_labels:
-                    true_labels[start_ind:end_ind] = labels.cpu().numpy()
                 features[start_ind:end_ind] = latent_feat.cpu().detach().numpy(
                 )
                 start_ind += data.size(0)
-        if return_labels:
-            return features, true_labels
         return features
 
     def reconstruct_data(self, data_loader, sample_size=-1):
