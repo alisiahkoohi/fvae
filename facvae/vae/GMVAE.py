@@ -226,6 +226,8 @@ class GMVAE:
                 for i in range(self.num_classes)
             }, epoch)
 
+        return total_loss / num_batches
+
     def train(self, args, train_loader, val_loader, mars_dataset):
         """Train the model
 
@@ -248,33 +250,25 @@ class GMVAE:
                                            mars_dataset)
             t2 = time() - t1
 
-            val_loss, val_rec, val_gauss, val_cat = self.test(
-                val_loader, epoch, mars_dataset)
-
+            val_loss = self.test(val_loader, epoch, mars_dataset)
 
             print(
-                '(Epoch %d / %d) t: %.1lf Train_Loss: %.3lf; Val_Loss: %.3lf   Train_ACC: %.3lf; Val_ACC: %.3lf   Train_NMI: %.3lf; Val_NMI: %.3lf' % \
-                (epoch, self.num_epochs, t2, train_loss, val_loss, train_acc, val_acc, train_nmi, val_nmi))
+                '(Epoch %d / %d) t: %.1lf Train_Loss: %.3lf; Val_Loss: %.3lf' % \
+                (epoch, self.num_epochs, t2, train_loss, val_loss))
 
             # decay gumbel temperature
             if self.decay_temp == 1:
                 self.network.gumbel_temp = np.maximum(
                     self.init_temp * np.exp(-self.decay_temp_rate * epoch),
                     self.min_temp)
-                if self.verbose:
-                    print("Gumbel Temperature: %.3lf" %
-                          self.network.gumbel_temp)
 
             train_history_acc.append(train_acc)
-            val_history_acc.append(val_acc)
             train_history_nmi.append(train_nmi)
-            val_history_nmi.append(val_nmi)
 
             if epoch % 10 == 9:
                 torch.save(
                     self.network,
-                    checkpointsdir(
-                        os.path.join(args.experiment, f'epoch{epoch}.pth')))
+                    os.path.join(self.exp_path, f'epoch{epoch}.pth'))
 
         torch.save(self.network, os.path.join(self.exp_path, 'final.pth'))
 
@@ -365,7 +359,6 @@ class GMVAE:
         fig = plt.figure(figsize=(8, 6))
         plt.scatter(features[:, 0],
                     features[:, 1],
-                    c=labels,
                     marker='o',
                     edgecolor='none',
                     cmap=plt.cm.get_cmap('jet', 10),

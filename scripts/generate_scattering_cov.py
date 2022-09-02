@@ -2,7 +2,6 @@
 import argparse
 import h5py
 import obspy
-from pathlib import Path
 import numpy as np
 import os
 from tqdm import tqdm
@@ -13,6 +12,7 @@ from facvae.utils import datadir
 
 CASCADIA_PATH = datadir('cascadia')
 MARS_PATH = datadir('mars')
+SCAT_COV_FILENAME = 'scattering_covariances.h5'
 
 
 def windows(x, window_size, stride, offset):
@@ -32,7 +32,7 @@ def setup_hdf5_file(path):
     Setting up an HDF5 file to write scattering covariances.
     """
     # Path to the file.
-    file_path = os.path.join(path, 'scattering_covariances.hdf5')
+    file_path = os.path.join(path, SCAT_COV_FILENAME)
 
     # Horizons file
     file = h5py.File(file_path, 'a')
@@ -44,7 +44,7 @@ def update_hdf5_file(path, filename, batch, waveform, scat_covariances):
     Update the HDF5 file by writing new scattering covariances.
     """
     # Path to the file.
-    file_path = os.path.join(path, 'scattering_covariances.hdf5')
+    file_path = os.path.join(path, SCAT_COV_FILENAME)
 
     # HDF5 file.
     file = h5py.File(file_path, 'r+')
@@ -125,6 +125,7 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                                  J=num_oct,
                                  moments='cov',
                                  cuda=cuda,
+                                 normalize=True,
                                  nchunks=windowed_trace.shape[0]
                                  )  # reduce nchunks to accelerate
                     for b in range(windowed_trace.shape[0]):
