@@ -23,13 +23,12 @@ def gitdir() -> str:
 def datadir(path: str, mkdir: Optional[bool] = True) -> str:
     """The absolute path to the data directory.
 
-    Data directory, located at the GitHub repository root, is for training and
-    testing data. Here the path is created if it does not exist upon call if
-    `mkdir` is True.
+    Data directory is for training and testing data. Here the path is created if
+    it does not exist upon call if `mkdir` is True.
 
     Args:
-        path: A string for directory name located at the data directory.
-        mkdir: An optional boolean for whether to create the directory if it
+        path: A string for directory name located at the data directory. mkdir:
+        An optional boolean for whether to create the directory if it
             does not exist.
     """
     path = os.path.join(gitdir(), 'data/', path)
@@ -41,13 +40,12 @@ def datadir(path: str, mkdir: Optional[bool] = True) -> str:
 def plotsdir(path: str, mkdir: Optional[bool] = True) -> str:
     """The absolute path to the plot directory.
 
-    Plot directory, located at the GitHub repository root, is storing figure of
-    experiment results. Here the path is created if it does not exist upon call
-    if `mkdir` is True.
+    Plot directory stores figure of experiment results. Here the path is created
+    if it does not exist upon call if `mkdir` is True.
 
     Args:
-        path: A string for directory name located at the plot directory.
-        mkdir: An optional boolean for whether to create the directory if it
+        path: A string for directory name located at the plot directory. mkdir:
+        An optional boolean for whether to create the directory if it
             does not exist.
     """
     path = os.path.join(gitdir(), 'plots/', path)
@@ -59,9 +57,9 @@ def plotsdir(path: str, mkdir: Optional[bool] = True) -> str:
 def checkpointsdir(path: str, mkdir: Optional[bool] = True) -> str:
     """The absolute path to the checkpoint directory.
 
-    Checkpoint directory, located at the GitHub repository root, is storing
-    intermediate training checkpoints, e.g., network weights. Here the path is
-    created if it does not exist upon call if `mkdir` is True.
+    Checkpoint directory stores intermediate training checkpoints, e.g., network
+    weights. Here the path is created if it does not exist upon call if `mkdir`
+    is True.
 
     Args:
         path: A string for directory name located at the checkpoint directory.
@@ -74,11 +72,28 @@ def checkpointsdir(path: str, mkdir: Optional[bool] = True) -> str:
     return path
 
 
+def logsdir(path: str, mkdir: Optional[bool] = True) -> str:
+    """The absolute path to the logs directory.
+
+    Logs directory stores Tensorboard logs. Here the path is created if it does
+    not exist upon call if `mkdir` is True.
+
+    Args:
+        path: A string for directory name located at the checkpoint directory.
+        mkdir: An optional boolean for whether to create the directory if it
+            does not exist.
+    """
+    path = os.path.join(datadir('logs'), path)
+    if (not os.path.exists(path)) and mkdir:
+        os.makedirs(path)
+    return path
+
+
 def configsdir(mkdir: Optional[bool] = True) -> str:
     """The absolute path to the configs directory.
 
-    Configurations directory, located at the GitHub repository root, stores the
-    default hyperparameter values for various experiments.
+    Configurations directory, stores the default hyperparameter values for
+    various experiments.
 
     Args:
         mkdir: An optional boolean for whether to create the directory if it

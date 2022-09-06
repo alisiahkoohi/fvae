@@ -26,6 +26,6 @@ def make_experiment_name(args):
     """Make experiment name based on input arguments"""
     experiment_name = args.experiment_name + '_'
     for key, value in vars(args).items():
-        if key not in ['experiment_name', 'cuda']:
+        if key not in ['experiment_name', 'cuda', 'phase']:
             experiment_name += key + '-{}_'.format(value)
-    return experiment_name[:-1]
+    return experiment_name[:-1].replace(' ', '')

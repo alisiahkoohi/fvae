@@ -1,32 +1,34 @@
 import numpy as np
-import torch.nn.init as init
-from facvae.vae.Layers import *
+import torch
+from torch.nn import functional as F
 
-INTER_DIM = 512
+from facvae.vae.layers import GumbelSoftmax, Gaussian
+
+hidden_dim = 512
 
 
 # Inference Network
-class InferenceNet(nn.Module):
+class InferenceNet(torch.nn.Module):
 
-    def __init__(self, x_dim, z_dim, y_dim):
+    def __init__(self, x_dim, z_dim, y_dim, hidden_dim=512):
         super(InferenceNet, self).__init__()
 
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
-            nn.Linear(x_dim, INTER_DIM),
-            nn.ReLU(),
-            nn.Linear(INTER_DIM, INTER_DIM),
-            nn.ReLU(),
-            GumbelSoftmax(INTER_DIM, y_dim)
+            torch.nn.Linear(x_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
+            GumbelSoftmax(hidden_dim, y_dim)
         ])
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
-            nn.Linear(x_dim + y_dim, INTER_DIM),
-            nn.ReLU(),
-            nn.Linear(INTER_DIM, INTER_DIM),
-            nn.ReLU(),
-            Gaussian(INTER_DIM, z_dim)
+            torch.nn.Linear(x_dim + y_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
+            Gaussian(hidden_dim, z_dim)
         ])
 
     # q(y|x)
@@ -69,7 +71,7 @@ class InferenceNet(nn.Module):
         return output
 
 
-class Tanh(nn.Module):
+class Tanh(torch.nn.Module):
 
     def __init__(self, scale=1.0):
         super(Tanh, self).__init__()
@@ -80,22 +82,22 @@ class Tanh(nn.Module):
 
 
 # Generative Network
-class GenerativeNet(nn.Module):
+class GenerativeNet(torch.nn.Module):
 
-    def __init__(self, x_dim, z_dim, y_dim):
+    def __init__(self, x_dim, z_dim, y_dim, hidden_dim=512):
         super(GenerativeNet, self).__init__()
 
         # p(z|y)
-        self.y_mu = nn.Linear(y_dim, z_dim)
-        self.y_var = nn.Linear(y_dim, z_dim)
+        self.y_mu = torch.nn.Linear(y_dim, z_dim)
+        self.y_var = torch.nn.Linear(y_dim, z_dim)
 
         # p(x|z)
         self.generative_pxz = torch.nn.ModuleList([
-            nn.Linear(z_dim, INTER_DIM),
-            nn.ReLU(),
-            nn.Linear(INTER_DIM, INTER_DIM),
-            nn.ReLU(),
-            nn.Linear(INTER_DIM, x_dim),
+            torch.nn.Linear(z_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, x_dim),
             # torch.nn.Sigmoid(),
             # nn.ReLU(),
             Tanh(scale=2 * np.pi),
@@ -125,10 +127,10 @@ class GenerativeNet(nn.Module):
 
 
 # GMVAE Network
-class GMVAENet(nn.Module):
+class GMVAENetwork(torch.nn.Module):
 
     def __init__(self, x_dim, z_dim, y_dim, init_temp, hard_gumbel):
-        super(GMVAENet, self).__init__()
+        super(GMVAENetwork, self).__init__()
 
         self.inference = InferenceNet(x_dim, z_dim, y_dim)
         self.generative = GenerativeNet(x_dim, z_dim, y_dim)
@@ -138,11 +140,12 @@ class GMVAENet(nn.Module):
 
         # weight initialization
         for m in self.modules():
-            if type(m) == nn.Linear or type(m) == nn.Conv2d or type(
-                    m) == nn.ConvTranspose2d:
+            if type(m) == torch.nn.Linear or type(
+                    m) == torch.nn.Conv2d or type(
+                        m) == torch.nn.ConvTranspose2d:
                 torch.nn.init.xavier_normal_(m.weight)
                 if m.bias.data is not None:
-                    init.constant_(m.bias, 0)
+                    torch.nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         x = x.view(x.size(0), -1)

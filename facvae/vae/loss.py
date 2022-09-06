@@ -3,7 +3,9 @@ import numpy as np
 from torch.nn import functional as F
 
 
-class LossFunctions:
+class LossFunctions(object):
+    """Loss functions for the GMVAE."""
+
     eps = 1e-8
 
     def mean_squared_error(self, real, predictions):

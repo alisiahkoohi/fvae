@@ -24,3 +24,4 @@ dependencies:
     - gitpython
     - termcolor
     - h5py
+    - seaborn

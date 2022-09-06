@@ -1,16 +1,15 @@
 import torch
-from torch import nn
 from torch.nn import functional as F
 
 
 # Flatten layer
-class Flatten(nn.Module):
+class Flatten(torch.nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
 
 # Reshape layer
-class Reshape(nn.Module):
+class Reshape(torch.nn.Module):
     def __init__(self, outer_shape):
         super(Reshape, self).__init__()
         self.outer_shape = outer_shape
@@ -20,10 +19,10 @@ class Reshape(nn.Module):
 
 
 # Sample from the Gumbel-Softmax distribution and optionally discretize.
-class GumbelSoftmax(nn.Module):
+class GumbelSoftmax(torch.nn.Module):
     def __init__(self, f_dim, c_dim):
         super(GumbelSoftmax, self).__init__()
-        self.logits = nn.Linear(f_dim, c_dim)
+        self.logits = torch.nn.Linear(f_dim, c_dim)
         self.f_dim = f_dim
         self.c_dim = c_dim
 
@@ -66,11 +65,11 @@ class GumbelSoftmax(nn.Module):
 
 
 # Sample from a Gaussian distribution
-class Gaussian(nn.Module):
+class Gaussian(torch.nn.Module):
     def __init__(self, in_dim, z_dim):
         super(Gaussian, self).__init__()
-        self.mu = nn.Linear(in_dim, z_dim)
-        self.var = nn.Linear(in_dim, z_dim)
+        self.mu = torch.nn.Linear(in_dim, z_dim)
+        self.var = torch.nn.Linear(in_dim, z_dim)
 
     def reparameterize(self, mu, var):
         std = torch.sqrt(var + 1e-10)

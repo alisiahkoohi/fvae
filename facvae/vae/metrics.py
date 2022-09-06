@@ -3,7 +3,11 @@ from scipy.optimize import linear_sum_assignment
 from sklearn.metrics.cluster import normalized_mutual_info_score
 
 
-class Metrics:
+class Metrics(object):
+    """Metrics for the GMVAE."""
+
+    def __init__(self):
+        super(Metrics, self).__init__()
 
     def cluster_acc(self, Y_pred, Y):
         Y_pred, Y = np.array(Y_pred), np.array(Y)
