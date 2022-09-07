@@ -1,9 +1,9 @@
 {
     "cuda": 1,
-    "max_epoch": 100,
-    "batchsize": 64,
+    "max_epoch": 10000,
+    "batchsize": 8192,
     "lr": 0.001,
-    "lr_final": 0.001,
+    "lr_final":0.0005,
     "ncluster": 5,
     "latent_dim": 64,
     "init_temp": 1.0,
@@ -11,13 +11,11 @@
     "hard_gumbel": 0,
     "min_temp": 0.5,
     "temp_decay": 0.013862944,
-    "weights": [
-        1.0,
-        1.0,
-        1.0
-    ],
+    "w_gauss": 1.0,
+    "w_rec": 1.0,
+    "w_cat": 1.0,
     "random_search_it": 20,
-    "experiment_name": "mars_preliminary",
+    "experiment_name": "mars_preliminary_seed12_more_layer",
     "phase": "train",
     "wd": 0.0
 }

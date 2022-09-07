@@ -8,20 +8,6 @@ class LossFunctions(object):
 
     eps = 1e-8
 
-    def mean_squared_error(self, real, predictions):
-        """Mean Squared Error between the true and predicted outputs loss = (1/n)*Σ(real - predicted)^2
-
-        Args:
-            real: (array) corresponding array containing the true labels
-            predictions: (array) corresponding array containing the predicted labels
-
-        Returns:
-            output: (array/float) depending on average parameters the result will be the mean
-                of all the sample losses or an array with the losses per sample
-        """
-        loss = (real - predictions).pow(2)
-        return loss.sum(-1).mean()
-
     def reconstruction_loss(self, real, predicted, rec_type='mse'):
         """Reconstruction loss between the true and predicted outputs
         mse = (1/n)*Σ(real - predicted)^2

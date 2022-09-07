@@ -19,12 +19,16 @@ class InferenceNet(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.ReLU(),
             GumbelSoftmax(hidden_dim, y_dim)
         ])
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
             torch.nn.Linear(x_dim + y_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ReLU(),
@@ -35,8 +39,6 @@ class InferenceNet(torch.nn.Module):
     def qyx(self, x, temperature, hard):
         num_layers = len(self.inference_qyx)
         for i, layer in enumerate(self.inference_qyx):
-            # print("---------------------------------------layer", i)
-            # from IPython import embed; embed()
             if i == num_layers - 1:
                 # last layer is gumbel softmax
                 x = layer(x, temperature, hard)
@@ -94,6 +96,8 @@ class GenerativeNet(torch.nn.Module):
         # p(x|z)
         self.generative_pxz = torch.nn.ModuleList([
             torch.nn.Linear(z_dim, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ReLU(),

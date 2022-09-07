@@ -1,10 +1,11 @@
+from ast import Yield
 import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
 import numpy as np
 import os
+from sklearn.manifold import TSNE
 import torch
-from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -23,17 +24,28 @@ class GaussianMixtureVAE(object):
     """Class training a Gaussian mixture variational autoencoder model.
     """
 
-    def __init__(self, args, mars_dataset):
-        self.w_rec, self.w_gauss, self.w_cat = args.weights
+    def __init__(self, args, mars_dataset, device):
+        self.w_rec = args.w_rec
+        self.w_gauss = args.w_gauss
+        self.w_cat = args.w_cat
         self.mars_dataset = mars_dataset
+        self.device = device
 
         # Network architecture.
         self.network = GMVAENetwork(args.input_size, args.latent_dim,
                                     args.ncluster, args.init_temp,
-                                    args.hard_gumbel).to(args.device)
+                                    args.hard_gumbel).to(self.device)
 
         # Tensorboard writer.
         self.writer = SummaryWriter(log_dir=logsdir(args.experiment))
+
+        self.train_log = {
+            'rec': [],
+            'gauss': [],
+            'cat': [],
+            'vae': [],
+        }
+        self.val_log = {key: [] for key in self.train_log}
 
         # Loss functions and metrics.
         self.losses = LossFunctions()
@@ -55,22 +67,28 @@ class GaussianMixtureVAE(object):
         mu, var = out_net['mean'], out_net['var']
 
         # Reconstruction loss
-        loss_rec = self.losses.reconstruction_loss(data, data_recon, 'mse')
+        rec_loss = self.losses.reconstruction_loss(data, data_recon, 'mse')
 
         # Gaussian loss.
-        loss_gauss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
+        gauss_loss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
 
         # Categorical loss.
-        loss_cat = -self.losses.entropy(logits, prob_cat) - np.log(0.1)
+        cat_loss = -self.losses.entropy(logits, prob_cat) - np.log(0.1)
 
         # Total loss.
-        loss_total = (self.w_rec * loss_rec + self.w_gauss * loss_gauss +
-                      self.w_cat * loss_cat)
+        vae_loss = (self.w_rec * rec_loss + self.w_gauss * gauss_loss +
+                    self.w_cat * cat_loss)
 
         # Obtain predictions.
-        _, predicted_labels = torch.max(logits, dim=1)
+        _, clusters = torch.max(logits, dim=1)
 
-        return loss_total, loss_rec, loss_gauss, loss_cat, predicted_labels
+        return {
+            'vae': vae_loss,
+            'rec': rec_loss,
+            'gauss': gauss_loss,
+            'cat': cat_loss,
+            'clusters': clusters
+        }
 
     def test(self, data_loader, epoch):
         """Test the model with new data
@@ -161,23 +179,12 @@ class GaussianMixtureVAE(object):
         self.steps_per_epoch = len(train_loader)
         print(f'Number of steps per epoch: {self.steps_per_epoch}')
 
-        train_log = {
-            'rec_loss': [],
-            'gauss_loss': [],
-            'cat_loss': [],
-            'vae_loss': [],
-        }
-        # val_log = {key: [] for key in train_log}
-
         # Training loop, run for `args.max_epoch` epochs.
         with tqdm(range(args.max_epoch),
                   unit='epoch',
                   colour='#B5F2A9',
                   dynamic_ncols=True) as pb:
             for epoch in pb:
-                # (train_loss, train_rec, train_gauss, train_cat, train_acc,
-                #  train_nmi) = self.train_epoch(optim, scheduler, train_loader,
-                #                                epoch, mars_dataset)
                 # iterate over the dataset
                 for itr, idx in enumerate(train_loader):
                     # Reset gradient attributes.
@@ -187,26 +194,27 @@ class GaussianMixtureVAE(object):
 
                     # Load data batch.
                     x = self.mars_dataset.sample_data(idx)
-                    x = x.to(args.device)
-                    # Flatten data.
-                    x = x.view(x.size(0), -1)
+                    x = x.to(self.device)
                     # Forward call.
                     y = self.network(x)
                     # Compute loss.
-                    (vae_loss, rec_loss, gauss_loss, cat_loss,
-                     clusters) = self.compute_loss(x, y)
+                    train_loss = self.compute_loss(x, y)
                     # Compute gradients.
-                    vae_loss.backward()
+                    train_loss['vae'].backward()
                     # Update parameters.
                     optim.step()
 
                     # Log progress.
                     if itr % 50 == 0:
-                        self.log_progress(args, pb, epoch, itr, train_log,
-                                          rec_loss, gauss_loss, cat_loss,
-                                          vae_loss, clusters)
+                        with torch.no_grad():
+                            x_val = self.mars_dataset.sample_data(
+                                next(iter(val_loader)))
+                            x_val = x_val.to(self.device)
+                            y_val = self.network(x_val)
+                            val_loss = self.compute_loss(x_val, y_val)
 
-                # val_loss = self.test(val_loader, epoch, mars_dataset)
+                        self.log_progress(args, pb, epoch, itr, train_loss,
+                                          val_loss)
 
                 # Decay gumbel temperature
                 if args.decay_temp == 1:
@@ -221,43 +229,60 @@ class GaussianMixtureVAE(object):
                             'model_state_dict': self.network.state_dict(),
                             'optim_state_dict': optim.state_dict(),
                             'epoch': epoch,
-                            'train_log': train_log
+                            'train_log': self.train_log,
+                            'val_log': self.val_log
                         },
                         os.path.join(checkpointsdir(args.experiment),
                                      f'checkpoint_{epoch}.pth'))
 
-    def log_progress(self, args, pb, epoch, itr, train_log, rec_loss,
-                     gauss_loss, cat_loss, vae_loss, clusters):
+    def log_progress(self, args, pb, epoch, itr, train_loss, val_loss):
         """Log progress of training."""
         # Bookkeeping.
-        train_log['vae_loss'].append(vae_loss.item())
-        train_log['rec_loss'].append(rec_loss.item())
-        train_log['gauss_loss'].append(gauss_loss.item())
-        train_log['cat_loss'].append(cat_loss.item())
+        progress_bar_dict = {'itr': f'{itr + 1:3d}'}
+        for key, item in train_loss.items():
+            if key != 'clusters':
+                self.train_log[key].append(item.item())
+                progress_bar_dict[key] = f'{item.item():2.2f}'
+        for key, item in val_loss.items():
+            if key != 'clusters':
+                self.val_log[key].append(item.item())
 
         # Progress bar.
-        pb.set_postfix({
-            'itr': f'{itr + 1:3d}',
-            'vae_loss': f'{vae_loss.item():2.2f}',
-            'rec_loss': f'{rec_loss.item():2.2f}',
-            'gauss_loss': f'{gauss_loss.item():2.2f}',
-            'cat_loss': f'{cat_loss.item():2.2f}',
-        })
+        pb.set_postfix(progress_bar_dict)
 
         self.writer.add_scalars(
-            'classes', {
-                str(i): (clusters == i).cpu().numpy().astype(float).mean()
+            'classes_train', {
+                str(i): (train_loss['clusters']
+                         == i).cpu().numpy().astype(float).mean()
                 for i in range(args.ncluster)
             }, epoch * self.steps_per_epoch + itr)
 
-        self.writer.add_scalar('vae_loss', vae_loss.item(),
-                               epoch * self.steps_per_epoch + itr)
-        self.writer.add_scalar('rec_loss', rec_loss.item(),
-                               epoch * self.steps_per_epoch + itr)
-        self.writer.add_scalar('gauss_loss', gauss_loss.item(),
-                               epoch * self.steps_per_epoch + itr)
-        self.writer.add_scalar('cat_loss', cat_loss.item(),
-                               epoch * self.steps_per_epoch + itr)
+        self.writer.add_scalars(
+            'classes_val', {
+                str(i):
+                (val_loss['clusters'] == i).cpu().numpy().astype(float).mean()
+                for i in range(args.ncluster)
+            }, epoch * self.steps_per_epoch + itr)
+
+        self.writer.add_scalars('vae_loss', {
+            'train': train_loss['vae'],
+            'val': val_loss['vae']
+        }, epoch * self.steps_per_epoch + itr)
+
+        self.writer.add_scalars('rec_loss', {
+            'train': train_loss['rec'],
+            'val': val_loss['rec']
+        }, epoch * self.steps_per_epoch + itr)
+
+        self.writer.add_scalars('gauss_loss', {
+            'train': train_loss['gauss'],
+            'val': val_loss['gauss']
+        }, epoch * self.steps_per_epoch + itr)
+
+        self.writer.add_scalars('cat_loss', {
+            'train': train_loss['cat'],
+            'val': val_loss['cat']
+        }, epoch * self.steps_per_epoch + itr)
 
     def latent_features(self, args, data_loader):
         """Obtain latent features learnt by the model
@@ -269,12 +294,9 @@ class GaussianMixtureVAE(object):
         Returns:
            features: (array) array containing the features from the data
         """
-        # TODO: necessary?
-        # self.network.eval()
-
         N = len(data_loader.dataset)
-        features = np.zeros((N, args.latent_dim))
-        clusters = np.zeros((N))
+        features = np.zeros([N, args.latent_dim])
+        clusters = np.zeros([N])
         counter = 0
         with torch.no_grad():
             for idx in data_loader:
@@ -292,10 +314,12 @@ class GaussianMixtureVAE(object):
                              ...]
                 clusters[counter:counter + x.size(0)] = cluster_membership.cpu(
                 ).detach().numpy()[...]
+
                 counter += x.shape[0]
+
         return features, clusters
 
-    def reconstruct_data(self, data_loader, sample_size=-1):
+    def reconstruct_data(self, args, data_loader, sample_size=5):
         """Reconstruct Data
 
         Args:
@@ -305,29 +329,32 @@ class GaussianMixtureVAE(object):
         Returns:
             reconstructed: (array) array containing the reconstructed data
         """
-        # TODO: necessary?
-        # self.network.eval()
+        # Sample random data from loader
+        x = self.mars_dataset.sample_data(next(iter(data_loader)))
+        indices = np.random.randint(0, x.shape[0], size=sample_size)
+        x = x[indices, ...]
+        x = x.to(self.device)
 
-        # sample random data from loader
-        indices = np.random.randint(0,
-                                    len(data_loader.dataset),
-                                    size=sample_size)
-        test_random_loader = torch.utils.data.DataLoader(
-            data_loader.dataset,
-            batchsize=sample_size,
-            sampler=torch.utils.data.sampler.SubsetRandomSampler(indices))
+        # Obtain reconstructed data.
+        with torch.no_grad():
+            y = self.network(x)
+            x_rec = y['x_rec']
 
-        # obtain values
-        it = iter(test_random_loader)
-        test_batch_data, _ = it.next()
-        original = test_batch_data.data.numpy()
-        if self.cuda:
-            test_batch_data = test_batch_data.cuda()
-
-            # obtain reconstructed data
-        out = self.network(test_batch_data)
-        reconstructed = out['x_rec']
-        return original, reconstructed.data.cpu().numpy()
+        fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
+        for i in range(sample_size):
+            ax[i].plot(x[i, :], lw=.8, alpha=1, color='k', label='original')
+            ax[i].plot(x_rec[i, :],
+                       lw=.8,
+                       alpha=0.5,
+                       color='r',
+                       label='reconstructed')
+        plt.legend()
+        plt.savefig(os.path.join(plotsdir(args.experiment), 'rec.png'),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
 
     def plot_latent_space(self, args, data_loader, save=False):
         """Plot the latent space learnt by the model
@@ -342,14 +369,16 @@ class GaussianMixtureVAE(object):
         """
         # obtain the latent features
         features, clusters = self.latent_features(args, data_loader)
-
+        features_tsne = TSNE(n_components=2,
+                             learning_rate='auto',
+                             init='random',
+                             perplexity=3).fit_transform(features)
         # plot only the first 2 dimensions
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                  '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        # cmap = plt.cm.get_cmap('hsv', args.ncluster)
         label_colors = {
-            0: 'r',
-            1: 'g',
-            2: 'b',
-            3: 'c',
-            4: 'm',
+            i: colors[i] for i in range(args.ncluster)
         }
         colors = [label_colors[int(i)] for i in clusters]
         fig = plt.figure(figsize=(8, 6))
@@ -360,9 +389,24 @@ class GaussianMixtureVAE(object):
                     edgecolor='none',
                     cmap=plt.cm.get_cmap('jet', 10),
                     s=10)
-        plt.colorbar()
         plt.savefig(os.path.join(plotsdir(args.experiment),
                                  'latent_space.png'),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
+
+        fig = plt.figure(figsize=(8, 6))
+        plt.scatter(features_tsne[:, 0],
+                    features_tsne[:, 1],
+                    marker='o',
+                    c=colors,
+                    edgecolor='none',
+                    cmap=plt.cm.get_cmap('jet', 10),
+                    s=10)
+        plt.savefig(os.path.join(plotsdir(args.experiment),
+                                 'latent_space_tsne.png'),
                     format="png",
                     bbox_inches="tight",
                     dpi=300,
@@ -386,9 +430,10 @@ class GaussianMixtureVAE(object):
             arr = np.hstack([arr, np.ones(num_elements) * i])
         indices = arr.astype(int).tolist()
 
-        categorical = F.one_hot(torch.tensor(indices), args.ncluster).float()
+        categorical = torch.nn.functional.one_hot(torch.tensor(indices),
+                                                  args.ncluster).float()
 
-        categorical = categorical.to(args.device)
+        categorical = categorical.to(self.device)
 
         # infer the gaussian distribution according to the category
         mean, var = self.network.generative.pzy(categorical)
@@ -406,7 +451,8 @@ class GaussianMixtureVAE(object):
             for j in range(num_elements):
                 ax[i].plot(samples[i * num_elements + j, :], lw=.8, alpha=0.3)
             # ax[i].axis('off')
-        plt.savefig(os.path.join(plotsdir(args.experiment), 'error_log.png'),
+        plt.savefig(os.path.join(plotsdir(args.experiment),
+                                 'joint_samples.png'),
                     format="png",
                     bbox_inches="tight",
                     dpi=300,
@@ -417,7 +463,7 @@ class GaussianMixtureVAE(object):
         file_to_load = os.path.join(checkpointsdir(args.experiment),
                                     'checkpoint_' + str(epoch) + '.pth')
         if os.path.isfile(file_to_load):
-            if args.device == torch.device(type='cpu'):
+            if self.device == torch.device(type='cpu'):
                 checkpoint = torch.load(file_to_load, map_location='cpu')
             else:
                 checkpoint = torch.load(file_to_load)

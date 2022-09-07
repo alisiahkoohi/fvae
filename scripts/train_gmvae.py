@@ -5,7 +5,6 @@ Typical usage example:
 python train_gmvae.py --cuda 1
 """
 
-import logging
 import numpy as np
 import os
 import torch
@@ -13,8 +12,6 @@ import torch
 from facvae.vae.gaussian_mixture_vae import GaussianMixtureVAE
 from facvae.utils import (configsdir, datadir, parse_input_args, read_config,
                           make_experiment_name, MarsDataset, upload_results)
-
-logging.basicConfig(level=logging.INFO)
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH = datadir('mars')
@@ -25,7 +22,7 @@ SCAT_COV_FILENAME = 'scattering_covariances.h5'
 MARS_CONFIG_FILE = 'mars.json'
 
 # Random seed.
-SEED = 19
+SEED = 12
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
@@ -39,23 +36,26 @@ if __name__ == "__main__":
     # Setting default device (cpu/cuda) depending on CUDA availability and input
     # arguments.
     if torch.cuda.is_available() and args.cuda:
-        args.device = torch.device('cuda')
+        device = torch.device('cuda')
+        # Read in all the data into CPU memory to avoid slowing down GPU.
+        load_to_memory = True
     else:
-        args.device = torch.device('cpu')
+        device = torch.device('cpu')
+        # Read the data from disk batch by batch.
+        load_to_memory = False
 
     # Read Data
-    logging.info("Loading mars scattering covariance dataset.")
     mars_dataset = MarsDataset(os.path.join(MARS_SCAT_COV_PATH,
                                             SCAT_COV_FILENAME),
                                0.8,
                                transform=None,
-                               load_to_memory=False)
+                               load_to_memory=load_to_memory)
 
     # Create data loaders for train, validation and test datasets
     train_loader = torch.utils.data.DataLoader(mars_dataset.train_idx,
                                                batch_size=args.batchsize,
                                                shuffle=True,
-                                               drop_last=True)
+                                               drop_last=False)
     val_loader = torch.utils.data.DataLoader(mars_dataset.val_idx,
                                              batch_size=args.batchsize,
                                              shuffle=True,
@@ -66,16 +66,17 @@ if __name__ == "__main__":
                                               drop_last=False)
 
     # Get input dimension.
-    args.input_size = np.prod(mars_dataset.sample_data([0]).size())
+    args.input_size = int(np.prod(mars_dataset.sample_data([0]).size()))
 
-    network = GaussianMixtureVAE(args, mars_dataset)
+    network = GaussianMixtureVAE(args, mars_dataset, device)
 
     if args.phase == 'train':
         # Training Phase
         history_loss = network.train(args, train_loader, val_loader)
         upload_results(args, flag='--progress')
     elif args.phase == 'test':
-        network.load(args, args.max_epoch-1)
+        network.load(args, args.max_epoch - 1)
         network.random_generation(args)
-        network.plot_latent_space(args, val_loader)
+        network.plot_latent_space(args, test_loader)
+        network.reconstruct_data(args, test_loader, sample_size=5)
         # network.test(test_loader, 1)
