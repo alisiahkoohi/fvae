@@ -16,22 +16,22 @@ class InferenceNet(torch.nn.Module):
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
             torch.nn.Linear(x_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             GumbelSoftmax(hidden_dim, y_dim)
         ])
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
             torch.nn.Linear(x_dim + y_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             Gaussian(hidden_dim, z_dim)
         ])
 
@@ -96,15 +96,15 @@ class GenerativeNet(torch.nn.Module):
         # p(x|z)
         self.generative_pxz = torch.nn.ModuleList([
             torch.nn.Linear(z_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(hidden_dim, x_dim),
             # torch.nn.Sigmoid(),
-            # nn.ReLU(),
-            Tanh(scale=2 * np.pi),
+            # nn.LeakyReLU(negative_slope=0.2),
+            # Tanh(scale=2 * np.pi),
         ])
 
     # p(z|y)
