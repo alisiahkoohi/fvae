@@ -5,7 +5,7 @@
     "lr": 0.001,
     "lr_final":0.0005,
     "ncluster": 5,
-    "latent_dim": 64,
+    "latent_dim": 16,
     "init_temp": 1.0,
     "decay_temp": 1,
     "hard_gumbel": 0,
@@ -15,7 +15,7 @@
     "w_rec": 1.0,
     "w_cat": 1.0,
     "random_search_it": 20,
-    "experiment_name": "mars_preliminary_seed12_more_layer",
+    "experiment_name": "mars_notanh_leaky",
     "phase": "train",
     "wd": 0.0
 }

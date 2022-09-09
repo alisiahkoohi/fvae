@@ -73,10 +73,10 @@ if __name__ == "__main__":
     if args.phase == 'train':
         # Training Phase
         history_loss = network.train(args, train_loader, val_loader)
-        upload_results(args, flag='--progress')
     elif args.phase == 'test':
         network.load(args, args.max_epoch - 1)
-        network.random_generation(args)
+        network.plot_waveforms(args, test_loader)
+        network.random_generation(args, test_loader)
         network.plot_latent_space(args, test_loader)
         network.reconstruct_data(args, test_loader, sample_size=5)
-        # network.test(test_loader, 1)
+    upload_results(args, flag='--progress')

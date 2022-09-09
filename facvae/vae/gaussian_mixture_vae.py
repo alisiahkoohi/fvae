@@ -5,6 +5,7 @@ import seaborn as sns
 import numpy as np
 import os
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -13,7 +14,7 @@ from facvae.utils import checkpointsdir, CustomLRScheduler, logsdir, plotsdir
 from facvae.vae import GMVAENetwork, LossFunctions, Metrics
 
 sns.set_style("whitegrid")
-font = {'family': 'serif', 'style': 'normal', 'size': 10}
+font = {'family': 'serif', 'style': 'normal', 'size': 12}
 matplotlib.rc('font', **font)
 sfmt = matplotlib.ticker.ScalarFormatter(useMathText=True)
 sfmt.set_powerlimits((0, 0))
@@ -90,73 +91,6 @@ class GaussianMixtureVAE(object):
             'clusters': clusters
         }
 
-    def test(self, data_loader, epoch):
-        """Test the model with new data
-
-        Args:
-            data_loader: (DataLoader) corresponding loader containing the test/validation data
-            return_loss: (boolean) whether to return the average loss values
-
-        Return:
-            accuracy and nmi for the given test data
-
-        """
-        # TODO: needed?
-        self.network.eval()
-        total_loss = 0.
-        recon_loss = 0.
-        cat_loss = 0.
-        gauss_loss = 0.
-
-        num_batches = 0.
-
-        predicted_labels_list = []
-
-        with torch.no_grad():
-            for idx in data_loader:
-                data = self.mars_dataset.sample_data(idx)
-                if self.cuda == 1:
-                    data = data.cuda()
-
-                # flatten data
-                data = data.view(data.size(0), -1)
-
-                # forward call
-                out_net = self.network(data)
-                loss_dict = self.compute_loss(data, out_net)
-
-                # accumulate values
-                total_loss += loss_dict['total'].item()
-                recon_loss += loss_dict['reconstruction'].item()
-                gauss_loss += loss_dict['gaussian'].item()
-                cat_loss += loss_dict['categorical'].item()
-
-                # save predicted and true labels
-                predicted = loss_dict['predicted_labels']
-                predicted_labels_list.append(predicted)
-
-                num_batches += 1.
-
-                if num_batches % 10 == 9:
-                    self.writer.add_scalars(
-                        'test loss', {
-                            'rec': recon_loss / num_batches,
-                            'gauss': gauss_loss / num_batches,
-                            'cat': cat_loss / num_batches,
-                            'total': total_loss / num_batches
-                        },
-                        epoch * len(data_loader) + num_batches)
-
-        predicted_labels = torch.cat(predicted_labels_list,
-                                     dim=0).cpu().numpy()
-
-        self.writer.add_scalars('classes', {
-            str(i): (predicted_labels == i).mean()
-            for i in range(self.ncluster)
-        }, epoch)
-
-        return total_loss / num_batches
-
     def train(self, args, train_loader, val_loader):
         """Train the model
 
@@ -186,7 +120,7 @@ class GaussianMixtureVAE(object):
                   dynamic_ncols=True) as pb:
             for epoch in pb:
                 # iterate over the dataset
-                for itr, idx in enumerate(train_loader):
+                for idx in train_loader:
                     # Reset gradient attributes.
                     optim.zero_grad()
                     # Update learning rate.
@@ -204,17 +138,16 @@ class GaussianMixtureVAE(object):
                     # Update parameters.
                     optim.step()
 
-                    # Log progress.
-                    if itr % 50 == 0:
-                        with torch.no_grad():
-                            x_val = self.mars_dataset.sample_data(
-                                next(iter(val_loader)))
-                            x_val = x_val.to(self.device)
-                            y_val = self.network(x_val)
-                            val_loss = self.compute_loss(x_val, y_val)
+                # Log progress.
+                if epoch % 100 == 0:
+                    with torch.no_grad():
+                        x_val = self.mars_dataset.sample_data(
+                            next(iter(val_loader)))
+                        x_val = x_val.to(self.device)
+                        y_val = self.network(x_val)
+                        val_loss = self.compute_loss(x_val, y_val)
 
-                        self.log_progress(args, pb, epoch, itr, train_loss,
-                                          val_loss)
+                    self.log_progress(args, pb, epoch, train_loss, val_loss)
 
                 # Decay gumbel temperature
                 if args.decay_temp == 1:
@@ -222,23 +155,21 @@ class GaussianMixtureVAE(object):
                         args.init_temp * np.exp(-args.temp_decay * epoch),
                         args.min_temp)
 
-                if epoch % int(args.max_epoch /
-                               5) == 0 or epoch == args.max_epoch - 1:
-                    torch.save(
-                        {
-                            'model_state_dict': self.network.state_dict(),
-                            'optim_state_dict': optim.state_dict(),
-                            'epoch': epoch,
-                            'train_log': self.train_log,
-                            'val_log': self.val_log
-                        },
-                        os.path.join(checkpointsdir(args.experiment),
-                                     f'checkpoint_{epoch}.pth'))
+            torch.save(
+                {
+                    'model_state_dict': self.network.state_dict(),
+                    'optim_state_dict': optim.state_dict(),
+                    'epoch': epoch,
+                    'train_log': self.train_log,
+                    'val_log': self.val_log
+                },
+                os.path.join(checkpointsdir(args.experiment),
+                             f'checkpoint_{epoch}.pth'))
 
-    def log_progress(self, args, pb, epoch, itr, train_loss, val_loss):
+    def log_progress(self, args, pb, epoch, train_loss, val_loss):
         """Log progress of training."""
         # Bookkeeping.
-        progress_bar_dict = {'itr': f'{itr + 1:3d}'}
+        progress_bar_dict = {}
         for key, item in train_loss.items():
             if key != 'clusters':
                 self.train_log[key].append(item.item())
@@ -255,34 +186,34 @@ class GaussianMixtureVAE(object):
                 str(i): (train_loss['clusters']
                          == i).cpu().numpy().astype(float).mean()
                 for i in range(args.ncluster)
-            }, epoch * self.steps_per_epoch + itr)
+            }, epoch)
 
         self.writer.add_scalars(
             'classes_val', {
                 str(i):
                 (val_loss['clusters'] == i).cpu().numpy().astype(float).mean()
                 for i in range(args.ncluster)
-            }, epoch * self.steps_per_epoch + itr)
+            }, epoch)
 
         self.writer.add_scalars('vae_loss', {
             'train': train_loss['vae'],
             'val': val_loss['vae']
-        }, epoch * self.steps_per_epoch + itr)
+        }, epoch)
 
         self.writer.add_scalars('rec_loss', {
             'train': train_loss['rec'],
             'val': val_loss['rec']
-        }, epoch * self.steps_per_epoch + itr)
+        }, epoch)
 
         self.writer.add_scalars('gauss_loss', {
             'train': train_loss['gauss'],
             'val': val_loss['gauss']
-        }, epoch * self.steps_per_epoch + itr)
+        }, epoch)
 
         self.writer.add_scalars('cat_loss', {
             'train': train_loss['cat'],
             'val': val_loss['cat']
-        }, epoch * self.steps_per_epoch + itr)
+        }, epoch)
 
     def latent_features(self, args, data_loader):
         """Obtain latent features learnt by the model
@@ -318,6 +249,65 @@ class GaussianMixtureVAE(object):
                 counter += x.shape[0]
 
         return features, clusters
+
+    def plot_waveforms(self, args, data_loader, sample_size=5):
+        """Plot waveforms.
+        """
+        # Sample random data from loader
+        x = self.mars_dataset.sample_data(range(len(data_loader.dataset)),
+                                          type='scat_cov')
+        x = x.to(self.device)
+
+        # Obtain reconstructed data.
+        with torch.no_grad():
+            y = self.network(x)
+            cluster_membership = y['logits'].argmax(axis=1)
+
+        colors = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
+            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ]
+        fig, ax = plt.subplots(sample_size,
+                               args.ncluster,
+                               figsize=(4 * args.ncluster, 4 * args.ncluster))
+        fig_scat, ax_scat = plt.subplots(sample_size,
+                                         args.ncluster,
+                                         figsize=(4 * args.ncluster,
+                                                  4 * args.ncluster))
+        for i in range(args.ncluster):
+
+            cluster_idxs = np.random.permutation(
+                np.where(cluster_membership == i)[0])[:sample_size, ...]
+
+            waveforms = self.mars_dataset.sample_data(cluster_idxs,
+                                                      type='waveform')
+            x = self.mars_dataset.sample_data(cluster_idxs, type='scat_cov')
+
+            for j in range(sample_size):
+                ax[j, i].plot(waveforms[j, :],
+                              color=colors[i],
+                              lw=1.2,
+                              alpha=0.8)
+                ax[j, i].set_title("Waveform from cluster " + str(i))
+
+                ax_scat[j, i].plot(x[j, :], color=colors[i], lw=1.2, alpha=0.8)
+                ax_scat[j, i].set_title("Scat covs from cluster " + str(i))
+
+        fig.savefig(os.path.join(plotsdir(args.experiment),
+                                 'waveform_samples.png'),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
+
+        fig_scat.savefig(os.path.join(plotsdir(args.experiment),
+                                      'scatcov_samples.png'),
+                         format="png",
+                         bbox_inches="tight",
+                         dpi=300,
+                         pad_inches=.05)
+        plt.close(fig)
 
     def reconstruct_data(self, args, data_loader, sample_size=5):
         """Reconstruct Data
@@ -371,26 +361,29 @@ class GaussianMixtureVAE(object):
         features, clusters = self.latent_features(args, data_loader)
         features_tsne = TSNE(n_components=2,
                              learning_rate='auto',
-                             init='random',
-                             perplexity=3).fit_transform(features)
+                             init='pca',
+                             early_exaggeration=10,
+                             perplexity=200).fit_transform(features)
+        features_pca = PCA(n_components=2).fit_transform(features)
         # plot only the first 2 dimensions
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-                  '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        colors = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
+            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ]
         # cmap = plt.cm.get_cmap('hsv', args.ncluster)
-        label_colors = {
-            i: colors[i] for i in range(args.ncluster)
-        }
+        label_colors = {i: colors[i] for i in range(args.ncluster)}
         colors = [label_colors[int(i)] for i in clusters]
         fig = plt.figure(figsize=(8, 6))
-        plt.scatter(features[:, 0],
-                    features[:, 1],
+        plt.scatter(features_pca[:, 0],
+                    features_pca[:, 1],
                     marker='o',
                     c=colors,
                     edgecolor='none',
                     cmap=plt.cm.get_cmap('jet', 10),
                     s=10)
+        plt.title("Two dimensional PCA of the latent samples")
         plt.savefig(os.path.join(plotsdir(args.experiment),
-                                 'latent_space.png'),
+                                 'pca_latent_space.png'),
                     format="png",
                     bbox_inches="tight",
                     dpi=300,
@@ -405,6 +398,7 @@ class GaussianMixtureVAE(object):
                     edgecolor='none',
                     cmap=plt.cm.get_cmap('jet', 10),
                     s=10)
+        plt.title("T-SNE visualization of the latent samples")
         plt.savefig(os.path.join(plotsdir(args.experiment),
                                  'latent_space_tsne.png'),
                     format="png",
@@ -413,7 +407,7 @@ class GaussianMixtureVAE(object):
                     pad_inches=.05)
         plt.close(fig)
 
-    def random_generation(self, args, num_elements=10):
+    def random_generation(self, args, data_loader, num_elements=3):
         """Random generation for each category
 
         Args:
@@ -445,14 +439,46 @@ class GaussianMixtureVAE(object):
 
         # generate new samples with the given gaussian
         samples = self.network.generative.pxz(gaussian).cpu().detach().numpy()
-
-        fig, ax = plt.subplots(1, args.ncluster, figsize=(25, 5))
+        colors = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
+            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ]
+        fig, ax = plt.subplots(num_elements,
+                               args.ncluster,
+                               figsize=(4 * args.ncluster, 4 * args.ncluster))
         for i in range(args.ncluster):
             for j in range(num_elements):
-                ax[i].plot(samples[i * num_elements + j, :], lw=.8, alpha=0.3)
+                ax[j, i].plot(samples[i * num_elements + j, :],
+                              color=colors[i],
+                              lw=1.2,
+                              alpha=0.8)
+                ax[j, i].set_title("Sample from cluster " + str(i))
             # ax[i].axis('off')
         plt.savefig(os.path.join(plotsdir(args.experiment),
                                  'joint_samples.png'),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
+
+        x = self.mars_dataset.sample_data(next(iter(data_loader)))
+        indices = np.random.randint(0,
+                                    x.shape[0],
+                                    size=args.ncluster * num_elements)
+        x = x[indices, ...]
+
+        fig, ax = plt.subplots(num_elements, num_elements, figsize=(12, 12))
+        for i in range(num_elements):
+            for j in range(num_elements):
+                ax[j, i].plot(x[i * num_elements + j, :],
+                              color="k",
+                              lw=1.2,
+                              alpha=0.7)
+                # ax[i].axis('off')
+                ax[j, i].set_title("Sample from testing dataset")
+        plt.savefig(os.path.join(plotsdir(args.experiment),
+                                 'test_samples.png'),
                     format="png",
                     bbox_inches="tight",
                     dpi=300,

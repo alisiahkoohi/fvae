@@ -1,6 +1,6 @@
 import subprocess
 
-from facvae.utils import checkpointsdir, gitdir, logsdir
+from facvae.utils import checkpointsdir, gitdir, logsdir, plotsdir
 
 
 def upload_results(args, flag=""):
@@ -14,6 +14,10 @@ def upload_results(args, flag=""):
         logsdir(args.experiment, mkdir=False) + " RiceBox:" +
         repo_name +
         logsdir(args.experiment, mkdir=False).replace(gitdir(), ""),
+        "rclone copy " + flag + " " +
+        plotsdir(args.experiment, mkdir=False) + " RiceBox:" +
+        repo_name +
+        plotsdir(args.experiment, mkdir=False).replace(gitdir(), ""),
     ]
 
     for commands in bash_commands:
