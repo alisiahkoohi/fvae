@@ -259,9 +259,11 @@ class GaussianMixtureVAE(object):
         x = x.to(self.device)
 
         # Obtain reconstructed data.
+        cluster_membership = []
         with torch.no_grad():
             y = self.network(x)
-            cluster_membership = y['logits'].argmax(axis=1)
+            confident_idxs = y['prob_cat'].max(axis=-1)[0].sort()[1]
+            cluster_membership = y['logits'][confident_idxs, :].argmax(axis=1)
 
         colors = [
             '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
@@ -270,20 +272,29 @@ class GaussianMixtureVAE(object):
         fig, ax = plt.subplots(sample_size,
                                args.ncluster,
                                figsize=(4 * args.ncluster, 4 * args.ncluster))
+        fig_sp, ax_sp = plt.subplots(sample_size,
+                                     args.ncluster,
+                                     figsize=(4 * args.ncluster,
+                                              4 * args.ncluster))
         fig_scat, ax_scat = plt.subplots(sample_size,
                                          args.ncluster,
                                          figsize=(4 * args.ncluster,
                                                   4 * args.ncluster))
         for i in range(args.ncluster):
 
-            cluster_idxs = np.random.permutation(
-                np.where(cluster_membership == i)[0])[:sample_size, ...]
-
+            cluster_idxs = confident_idxs[np.where(
+                cluster_membership == i)[0]][-sample_size:, ...]
             waveforms = self.mars_dataset.sample_data(cluster_idxs,
                                                       type='waveform')
             x = self.mars_dataset.sample_data(cluster_idxs, type='scat_cov')
 
             for j in range(sample_size):
+                ax_sp[j, i].specgram(waveforms[j, :],
+                                     Fs=20.0,
+                                     mode='magnitude', cmap='inferno')
+                ax_sp[j, i].set_title("Spectogram from cluster " + str(i))
+                ax_sp[j, i].grid(False)
+
                 ax[j, i].plot(waveforms[j, :],
                               color=colors[i],
                               lw=1.2,
@@ -301,13 +312,21 @@ class GaussianMixtureVAE(object):
                     pad_inches=.05)
         plt.close(fig)
 
+        fig_sp.savefig(os.path.join(plotsdir(args.experiment),
+                                    'waveform_spectograms.png'),
+                       format="png",
+                       bbox_inches="tight",
+                       dpi=300,
+                       pad_inches=.05)
+        plt.close(fig_sp)
+
         fig_scat.savefig(os.path.join(plotsdir(args.experiment),
                                       'scatcov_samples.png'),
                          format="png",
                          bbox_inches="tight",
                          dpi=300,
                          pad_inches=.05)
-        plt.close(fig)
+        plt.close(fig_scat)
 
     def reconstruct_data(self, args, data_loader, sample_size=5):
         """Reconstruct Data

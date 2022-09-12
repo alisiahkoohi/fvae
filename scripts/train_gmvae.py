@@ -9,9 +9,9 @@ import numpy as np
 import os
 import torch
 
-from facvae.vae.gaussian_mixture_vae import GaussianMixtureVAE
 from facvae.utils import (configsdir, datadir, parse_input_args, read_config,
                           make_experiment_name, MarsDataset, upload_results)
+from scripts.gaussian_mixture_vae import GaussianMixtureVAE
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH = datadir('mars')
@@ -77,6 +77,6 @@ if __name__ == "__main__":
         network.load(args, args.max_epoch - 1)
         network.plot_waveforms(args, test_loader)
         network.random_generation(args, test_loader)
-        network.plot_latent_space(args, test_loader)
-        network.reconstruct_data(args, test_loader, sample_size=5)
+        network.plot_latent_space(args, val_loader)
+        network.reconstruct_data(args, val_loader, sample_size=5)
     upload_results(args, flag='--progress')

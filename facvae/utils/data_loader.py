@@ -30,13 +30,13 @@ class MarsDataset(torch.utils.data.Dataset):
 
     def split_data(self, train_proportion):
         ntrain = int(train_proportion * len(self.file))
-        nval = int((1 - train_proportion) / 2 * len(self.file))
-        ntest = len(self.file) - ntrain - nval
+        nval = int((1 - train_proportion) * len(self.file))
+        ntest = len(self.file)
 
         idxs = np.random.permutation(len(self.file))
         train_idx = idxs[:ntrain]
         val_idx = idxs[ntrain:ntrain + nval]
-        test_idx = idxs[:ntest]
+        test_idx = idxs
 
         return train_idx, val_idx, test_idx
 
