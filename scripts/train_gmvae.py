@@ -76,7 +76,7 @@ if __name__ == "__main__":
     elif args.phase == 'test':
         network.load(args, args.max_epoch - 1)
         network.plot_waveforms(args, test_loader)
-        network.random_generation(args, test_loader)
+        network.random_generation(args)
         network.plot_latent_space(args, val_loader)
         network.reconstruct_data(args, val_loader, sample_size=5)
     upload_results(args, flag='--progress')

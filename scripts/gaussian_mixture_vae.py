@@ -271,14 +271,14 @@ class GaussianMixtureVAE(object):
         ]
         fig, ax = plt.subplots(sample_size,
                                args.ncluster,
-                               figsize=(4 * args.ncluster, 4 * args.ncluster))
+                               figsize=(8 * args.ncluster, 4 * args.ncluster))
         fig_sp, ax_sp = plt.subplots(sample_size,
                                      args.ncluster,
-                                     figsize=(4 * args.ncluster,
+                                     figsize=(8 * args.ncluster,
                                               4 * args.ncluster))
         fig_scat, ax_scat = plt.subplots(sample_size,
                                          args.ncluster,
-                                         figsize=(4 * args.ncluster,
+                                         figsize=(8 * args.ncluster,
                                                   4 * args.ncluster))
         for i in range(args.ncluster):
 
@@ -426,7 +426,7 @@ class GaussianMixtureVAE(object):
                     pad_inches=.05)
         plt.close(fig)
 
-    def random_generation(self, args, data_loader, num_elements=3):
+    def random_generation(self, args, num_elements=3):
         """Random generation for each category
 
         Args:
@@ -464,7 +464,7 @@ class GaussianMixtureVAE(object):
         ]
         fig, ax = plt.subplots(num_elements,
                                args.ncluster,
-                               figsize=(4 * args.ncluster, 4 * args.ncluster))
+                               figsize=(8 * args.ncluster, 4 * args.ncluster))
         for i in range(args.ncluster):
             for j in range(num_elements):
                 ax[j, i].plot(samples[i * num_elements + j, :],
@@ -475,29 +475,6 @@ class GaussianMixtureVAE(object):
             # ax[i].axis('off')
         plt.savefig(os.path.join(plotsdir(args.experiment),
                                  'joint_samples.png'),
-                    format="png",
-                    bbox_inches="tight",
-                    dpi=300,
-                    pad_inches=.05)
-        plt.close(fig)
-
-        x = self.mars_dataset.sample_data(next(iter(data_loader)))
-        indices = np.random.randint(0,
-                                    x.shape[0],
-                                    size=args.ncluster * num_elements)
-        x = x[indices, ...]
-
-        fig, ax = plt.subplots(num_elements, num_elements, figsize=(12, 12))
-        for i in range(num_elements):
-            for j in range(num_elements):
-                ax[j, i].plot(x[i * num_elements + j, :],
-                              color="k",
-                              lw=1.2,
-                              alpha=0.7)
-                # ax[i].axis('off')
-                ax[j, i].set_title("Sample from testing dataset")
-        plt.savefig(os.path.join(plotsdir(args.experiment),
-                                 'test_samples.png'),
                     format="png",
                     bbox_inches="tight",
                     dpi=300,
