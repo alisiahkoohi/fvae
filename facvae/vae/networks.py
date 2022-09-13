@@ -4,42 +4,40 @@ from torch.nn import functional as F
 
 from facvae.vae.layers import GumbelSoftmax, Gaussian
 
-hidden_dim = 512
-
 
 # Inference Network
 class InferenceNet(torch.nn.Module):
 
-    def __init__(self, x_dim, z_dim, y_dim, hidden_dim=512):
+    def __init__(self, x_dim, z_dim, y_dim, hidden_dim, nlayer):
         super(InferenceNet, self).__init__()
 
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
             torch.nn.Linear(x_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            GumbelSoftmax(hidden_dim, y_dim)
+            torch.nn.LeakyReLU(negative_slope=0.2)
         ])
+        for i in range(1, nlayer):
+            self.inference_qyx.append(torch.nn.Linear(hidden_dim, hidden_dim))
+            self.inference_qyx.append(torch.nn.LeakyReLU(negative_slope=0.2))
+        self.inference_qyx.append(GumbelSoftmax(hidden_dim, y_dim))
+        self.inference_qyx = torch.nn.Sequential(*self.inference_qyx)
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
             torch.nn.Linear(x_dim + y_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            Gaussian(hidden_dim, z_dim)
+            torch.nn.LeakyReLU(negative_slope=0.2)
         ])
+        for i in range(1, nlayer):
+            self.inference_qzyx.append(torch.nn.Linear(hidden_dim, hidden_dim))
+            self.inference_qzyx.append(torch.nn.LeakyReLU(negative_slope=0.2))
+        self.inference_qzyx.append(Gaussian(hidden_dim, z_dim))
+        self.inference_qzyx = torch.nn.Sequential(*self.inference_qzyx)
 
     # q(y|x)
     def qyx(self, x, temperature, hard):
-        num_layers = len(self.inference_qyx)
+        nlayer = len(self.inference_qyx)
         for i, layer in enumerate(self.inference_qyx):
-            if i == num_layers - 1:
+            if i == nlayer - 1:
                 # last layer is gumbel softmax
                 x = layer(x, temperature, hard)
             else:
@@ -86,7 +84,7 @@ class Tanh(torch.nn.Module):
 # Generative Network
 class GenerativeNet(torch.nn.Module):
 
-    def __init__(self, x_dim, z_dim, y_dim, hidden_dim=512):
+    def __init__(self, x_dim, z_dim, y_dim, hidden_dim, nlayer):
         super(GenerativeNet, self).__init__()
 
         # p(z|y)
@@ -94,18 +92,16 @@ class GenerativeNet(torch.nn.Module):
         self.y_var = torch.nn.Linear(y_dim, z_dim)
 
         # p(x|z)
+        # q(y|x)
         self.generative_pxz = torch.nn.ModuleList([
             torch.nn.Linear(z_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            torch.nn.Linear(hidden_dim, x_dim),
-            # torch.nn.Sigmoid(),
-            # nn.LeakyReLU(negative_slope=0.2),
-            # Tanh(scale=2 * np.pi),
+            torch.nn.LeakyReLU(negative_slope=0.2)
         ])
+        for i in range(1, nlayer):
+            self.generative_pxz.append(torch.nn.Linear(hidden_dim, hidden_dim))
+            self.generative_pxz.append(torch.nn.LeakyReLU(negative_slope=0.2))
+        self.generative_pxz.append(torch.nn.Linear(hidden_dim, x_dim))
+        self.generative_pxz = torch.nn.Sequential(*self.generative_pxz)
 
     # p(z|y)
     def pzy(self, y):
@@ -115,9 +111,7 @@ class GenerativeNet(torch.nn.Module):
 
     # p(x|z)
     def pxz(self, z):
-        for layer in self.generative_pxz:
-            z = layer(z)
-        return z
+        return self.generative_pxz(z)
 
     def forward(self, z, y):
         # p(z|y)
@@ -133,11 +127,20 @@ class GenerativeNet(torch.nn.Module):
 # GMVAE Network
 class GMVAENetwork(torch.nn.Module):
 
-    def __init__(self, x_dim, z_dim, y_dim, init_temp, hard_gumbel):
+    def __init__(self,
+                 x_dim,
+                 z_dim,
+                 y_dim,
+                 init_temp,
+                 hard_gumbel=0,
+                 hidden_dim=512,
+                 nlayer=3):
         super(GMVAENetwork, self).__init__()
 
-        self.inference = InferenceNet(x_dim, z_dim, y_dim)
-        self.generative = GenerativeNet(x_dim, z_dim, y_dim)
+        self.inference = InferenceNet(x_dim, z_dim, y_dim, hidden_dim,
+                                      nlayer)
+        self.generative = GenerativeNet(x_dim, z_dim, y_dim, hidden_dim,
+                                        nlayer)
 
         self.gumbel_temp = init_temp
         self.hard_gumbel = hard_gumbel

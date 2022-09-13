@@ -2,6 +2,13 @@ import h5py
 import numpy as np
 import torch
 
+from facvae.utils.toy_datasets import (GaussianDataset, CrescentDataset,
+                                       CrescentCubedDataset, SineWaveDataset,
+                                       AbsDataset, SignDataset,
+                                       FourCirclesDataset, DiamondDataset,
+                                       TwoSpiralsDataset, CheckerboardDataset,
+                                       TwoMoonsDataset)
+
 
 class MarsDataset(torch.utils.data.Dataset):
 
@@ -31,7 +38,6 @@ class MarsDataset(torch.utils.data.Dataset):
     def split_data(self, train_proportion):
         ntrain = int(train_proportion * len(self.file))
         nval = int((1 - train_proportion) * len(self.file))
-        ntest = len(self.file)
 
         idxs = np.random.permutation(len(self.file))
         train_idx = idxs[:ntrain]
@@ -67,3 +73,48 @@ class MarsDataset(torch.utils.data.Dataset):
             return torch.stack(batch_data)
         else:
             return self.data[type][idx, ...]
+
+
+class ToyDataset(torch.utils.data.Dataset):
+
+    def __init__(self, num_points, train_proportion, dataset_name):
+        self.num_points = num_points
+        self.train_proportion = train_proportion
+
+        toy_datasets = {
+            'gaussian': GaussianDataset,
+            'crescent': CrescentDataset,
+            'crescentcubed': CrescentCubedDataset,
+            'sinewave': SineWaveDataset,
+            'abs': AbsDataset,
+            'sign': SignDataset,
+            'fourcircles': FourCirclesDataset,
+            'diamond': DiamondDataset,
+            'twospirals': TwoSpiralsDataset,
+            'checkerboard': CheckerboardDataset,
+            'twomoons': TwoMoonsDataset,
+        }
+
+        if not dataset_name in toy_datasets.keys():
+            raise ValueError('No dataset exists with name ', dataset_name)
+
+        # Create dataset.
+        self.data = toy_datasets[dataset_name](num_points=num_points).data
+
+        # Data split.
+        self.train_idx, self.val_idx, self.test_idx = self.split_data(
+            train_proportion)
+
+    def split_data(self, train_proportion):
+        ntrain = int(train_proportion * self.num_points)
+        nval = int((1 - train_proportion) * self.num_points)
+
+        idxs = np.random.permutation(self.num_points)
+        train_idx = idxs[:ntrain]
+        val_idx = idxs[ntrain:ntrain + nval]
+        test_idx = idxs
+
+        return train_idx, val_idx, test_idx
+
+    def sample_data(self, idx):
+        return self.data[idx, ...]

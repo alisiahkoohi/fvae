@@ -10,8 +10,10 @@ import os
 import torch
 
 from facvae.utils import (configsdir, datadir, parse_input_args, read_config,
-                          make_experiment_name, MarsDataset, upload_results)
+                          make_experiment_name, MarsDataset, upload_results,
+                          ToyDataset)
 from scripts.gaussian_mixture_vae import GaussianMixtureVAE
+from scripts.visualization import Visualization
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH = datadir('mars')
@@ -20,6 +22,7 @@ SCAT_COV_FILENAME = 'scattering_covariances.h5'
 
 # GMVAE training default hyperparameters.
 MARS_CONFIG_FILE = 'mars.json'
+TOY_CONFIG_FILE = 'toy.json'
 
 # Random seed.
 SEED = 12
@@ -29,7 +32,7 @@ torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
     # Command line arguments.
-    args = read_config(os.path.join(configsdir(), MARS_CONFIG_FILE))
+    args = read_config(os.path.join(configsdir(), TOY_CONFIG_FILE))
     args = parse_input_args(args)
     args.experiment = make_experiment_name(args)
 
@@ -45,38 +48,46 @@ if __name__ == "__main__":
         load_to_memory = False
 
     # Read Data
-    mars_dataset = MarsDataset(os.path.join(MARS_SCAT_COV_PATH,
-                                            SCAT_COV_FILENAME),
-                               0.8,
-                               transform=None,
-                               load_to_memory=load_to_memory)
+    if args.dataset == 'mars':
+        dataset = MarsDataset(os.path.join(MARS_SCAT_COV_PATH,
+                                           SCAT_COV_FILENAME),
+                              0.8,
+                              transform=None,
+                              load_to_memory=load_to_memory)
+    else:
+        dataset = ToyDataset(30000, 0.8, dataset_name=args.dataset)
 
     # Create data loaders for train, validation and test datasets
-    train_loader = torch.utils.data.DataLoader(mars_dataset.train_idx,
+    train_loader = torch.utils.data.DataLoader(dataset.train_idx,
                                                batch_size=args.batchsize,
                                                shuffle=True,
                                                drop_last=False)
-    val_loader = torch.utils.data.DataLoader(mars_dataset.val_idx,
+    val_loader = torch.utils.data.DataLoader(dataset.val_idx,
                                              batch_size=args.batchsize,
                                              shuffle=True,
                                              drop_last=False)
-    test_loader = torch.utils.data.DataLoader(mars_dataset.test_idx,
+    test_loader = torch.utils.data.DataLoader(dataset.test_idx,
                                               batch_size=args.batchsize,
                                               shuffle=False,
                                               drop_last=False)
 
     # Get input dimension.
-    args.input_size = int(np.prod(mars_dataset.sample_data([0]).size()))
+    args.input_size = int(np.prod(dataset.sample_data([0]).size()))
 
-    network = GaussianMixtureVAE(args, mars_dataset, device)
+    gmvaw = GaussianMixtureVAE(args, dataset, device)
 
     if args.phase == 'train':
-        # Training Phase
-        history_loss = network.train(args, train_loader, val_loader)
+        # Training Phase.
+        gmvaw.train(args, train_loader, val_loader)
     elif args.phase == 'test':
-        network.load(args, args.max_epoch - 1)
-        network.plot_waveforms(args, test_loader)
-        network.random_generation(args)
-        network.plot_latent_space(args, val_loader)
-        network.reconstruct_data(args, val_loader, sample_size=5)
+        network = gmvaw.load_checkpoint(args, args.max_epoch - 1)
+        vis = Visualization(args, network, dataset)
+        if args.dataset == 'mars':
+            vis.plot_waveforms(args, test_loader)
+            vis.random_generation(args)
+            vis.reconstruct_data(args, val_loader)
+        else:
+            vis.random_generation(args, num_elements=5000)
+            vis.reconstruct_data(args, val_loader, sample_size=5000)
+        vis.plot_latent_space(args, val_loader)
     upload_results(args, flag='--progress')
