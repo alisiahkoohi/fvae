@@ -1,4 +1,4 @@
-""" Generate scattering covariance dataset from Cascadia waveforms. """
+""" Generate scattering covariance dataset from Mars waveforms. """
 import argparse
 import h5py
 import obspy
@@ -10,9 +10,8 @@ from scatcov.frontend.functions import analyze, cplx
 from scatcov.utils import to_numpy
 from facvae.utils import datadir
 
-CASCADIA_PATH = datadir('cascadia')
 MARS_PATH = datadir('mars')
-SCAT_COV_FILENAME = 'scattering_covariances.h5'
+SCAT_COV_FILENAME = 'scat_covs.h5'
 
 
 def windows(x, window_size, stride, offset):
@@ -62,16 +61,11 @@ def update_hdf5_file(path, filename, batch, waveform, scat_covariances):
     file.close()
 
 
-def compute_scat_cov(window_size, num_oct, cuda, dataset):
+def compute_scat_cov(window_size, num_oct, cuda):
 
-    if dataset == 'cascadia':
-        waveform_path = datadir(os.path.join(CASCADIA_PATH, 'waveform'))
-        scat_cov_path = datadir(os.path.join(CASCADIA_PATH, 'scat_cov'))
-        raw_data_files = os.listdir(waveform_path)
-    elif dataset == 'mars':
-        waveform_path = datadir(os.path.join(MARS_PATH, 'waveform'))
-        scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_cov'))
-        raw_data_files = os.listdir(waveform_path)
+    waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms'))
+    scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
+    raw_data_files = os.listdir(waveform_path)
 
     setup_hdf5_file(scat_cov_path)
     discarded_files = 0
@@ -91,14 +85,7 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                 # one.
                 trace = data_stream.merge(method=1,
                                           fill_value="interpolate")[0]
-                if dataset == 'cascadia':
-                    # Some preprocessing.
-                    trace.filter('highpass', freq=1.0)
-                    trace.filter('lowpass', freq=10.0)
-                    trace.taper(0.01)
-                    trace = trace.data[50000:-50000]
-                else:
-                    trace = trace.data
+                trace = trace.data
 
                 # Filter out smaller than `window_size` data.
                 # TODO: Decide on a more concrete way of choosing window size.
@@ -162,18 +149,6 @@ def compute_scat_cov(window_size, num_oct, cuda, dataset):
                 discarded_files += 1
 
 
-def probe_mars_data():
-    waveform_path = datadir(os.path.join(MARS_PATH, 'waveform'))
-    raw_data_files = os.listdir(waveform_path)
-
-    sampling_rates = []
-    for file in raw_data_files:
-        # Read data into a stream format.
-        data_stream = obspy.read(os.path.join(waveform_path, file))
-        print(file)
-        data_stream.print_gaps()
-
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='')
@@ -192,12 +167,6 @@ if __name__ == "__main__":
                         type=int,
                         default=1,
                         help='set to 1 for running on GPU, 0 for CPU')
-    parser.add_argument('--dataset',
-                        dest='dataset',
-                        type=str,
-                        default='mars',
-                        help='cascadia or mars')
     args = parser.parse_args()
 
-    compute_scat_cov(args.window_size, args.num_oct, args.cuda, args.dataset)
-    # probe_mars_data()
+    compute_scat_cov(args.window_size, args.num_oct, args.cuda)

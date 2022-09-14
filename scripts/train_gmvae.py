@@ -32,7 +32,7 @@ torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
     # Command line arguments.
-    args = read_config(os.path.join(configsdir(), TOY_CONFIG_FILE))
+    args = read_config(os.path.join(configsdir(), MARS_CONFIG_FILE))
     args = parse_input_args(args)
     args.experiment = make_experiment_name(args)
 

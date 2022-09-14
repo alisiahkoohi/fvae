@@ -16,6 +16,6 @@
     "phase": "train",
     "wd": 0.0,
     "hidden_dim": 128,
-    "nlayer": 10,
+    "nlayer": 5,
     "dataset": "twomoons"
 }

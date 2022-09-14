@@ -125,7 +125,7 @@ class Visualization(object):
                                     'waveform_spectograms.png'),
                        format="png",
                        bbox_inches="tight",
-                       dpi=300,
+                       dpi=100,
                        pad_inches=.05)
         plt.close(fig_sp)
 
