@@ -1,3 +1,4 @@
+import h5py
 import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
@@ -60,7 +61,7 @@ class Visualization(object):
 
         return features, clusters
 
-    def plot_waveforms(self, args, data_loader, sample_size=5):
+    def plot_waveforms(self, args, data_loader, sample_size=10):
         """Plot waveforms.
         """
         # Sample random data from loader
@@ -80,28 +81,49 @@ class Visualization(object):
         ]
         fig, ax = plt.subplots(sample_size,
                                args.ncluster,
-                               figsize=(8 * args.ncluster, 4 * args.ncluster))
+                               figsize=(8 * args.ncluster, 8 * args.ncluster))
         fig_sp, ax_sp = plt.subplots(sample_size,
                                      args.ncluster,
                                      figsize=(8 * args.ncluster,
-                                              4 * args.ncluster))
+                                              8 * args.ncluster))
         fig_scat, ax_scat = plt.subplots(sample_size,
                                          args.ncluster,
                                          figsize=(8 * args.ncluster,
-                                                  4 * args.ncluster))
+                                                  8 * args.ncluster))
+
+        cluster_idx_file = h5py.File(
+            os.path.join(plotsdir(args.experiment), 'clustered_data.h5'),
+            'a')
         for i in range(args.ncluster):
 
             cluster_idxs = confident_idxs[np.where(
                 cluster_membership == i)[0]][-sample_size:, ...]
+
             waveforms = self.dataset.sample_data(cluster_idxs, type='waveform')
             x = self.dataset.sample_data(cluster_idxs, type='scat_cov')
+
+            wav_filenames = [
+                self.dataset.file_keys[k] for k in cluster_idxs
+            ]
+            cluster_group = cluster_idx_file.require_group(str(i))
+            cluster_group.require_dataset('waveform',
+                                          waveforms.numpy().shape,
+                                          data=waveforms.numpy(),
+                                          dtype=np.float32)
+            cluster_group.require_dataset('scat_cov',
+                                          x.numpy().shape,
+                                          data=x.numpy(),
+                                          dtype=np.float32)
+            cluster_group.require_dataset('filename', (sample_size, ),
+                                          data=wav_filenames,
+                                          dtype=h5py.string_dtype())
 
             for j in range(sample_size):
                 ax_sp[j, i].specgram(waveforms[j, :],
                                      Fs=20.0,
                                      mode='magnitude',
-                                     cmap='inferno')
-                ax_sp[j, i].set_title("Spectogram from cluster " + str(i))
+                                     cmap='jet_r')
+                ax_sp[j, i].set_title("Spectrogram from cluster " + str(i))
                 ax_sp[j, i].grid(False)
 
                 ax[j, i].plot(waveforms[j, :],
@@ -136,6 +158,8 @@ class Visualization(object):
                          dpi=300,
                          pad_inches=.05)
         plt.close(fig_scat)
+
+        cluster_idx_file.close()
 
     def reconstruct_data(self, args, data_loader, sample_size=5):
         """Reconstruct Data

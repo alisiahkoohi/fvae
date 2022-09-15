@@ -17,8 +17,8 @@ from scripts.visualization import Visualization
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH = datadir('mars')
-MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_cov'))
-SCAT_COV_FILENAME = 'scattering_covariances.h5'
+MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
+SCAT_COV_FILENAME = 'scat_covs.h5'
 
 # GMVAE training default hyperparameters.
 MARS_CONFIG_FILE = 'mars.json'

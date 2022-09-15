@@ -130,7 +130,7 @@ class GaussianMixtureVAE(object):
                     optim.step()
 
                 # Log progress.
-                if epoch % 1 == 0:
+                if epoch % 100 == 0:
                     with torch.no_grad():
                         x_val = self.dataset.sample_data(next(
                             iter(val_loader)))
