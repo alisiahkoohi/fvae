@@ -6,12 +6,12 @@ import numpy as np
 import os
 from tqdm import tqdm
 
-from scatcov.frontend.functions import analyze, cplx
+from scatcov.frontend import analyze, cplx
 from scatcov.utils import to_numpy
 from facvae.utils import datadir
 
 MARS_PATH = datadir('mars')
-SCAT_COV_FILENAME = 'scat_covs.h5'
+SCAT_COV_FILENAME = 'scat_covs_UVW_raw_q1-2_q2-4.h5'
 
 
 def windows(x, window_size, stride, offset):
@@ -63,7 +63,7 @@ def update_hdf5_file(path, filename, batch, waveform, scat_covariances):
 
 def compute_scat_cov(window_size, num_oct, cuda):
 
-    waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms'))
+    waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms_UVW_raw'))
     scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
     raw_data_files = os.listdir(waveform_path)
 
@@ -110,10 +110,12 @@ def compute_scat_cov(window_size, num_oct, cuda):
 
                     RX = analyze(windowed_trace,
                                  J=num_oct,
+                                 Q1=2,
+                                 Q2=4,
                                  moments='cov',
                                  cuda=cuda,
                                  normalize=True,
-                                 nchunks=windowed_trace.shape[0]
+                                 nchunks=windowed_trace.shape[0] * 2
                                  )  # reduce nchunks to accelerate
                     for b in range(windowed_trace.shape[0]):
 
