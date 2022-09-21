@@ -74,81 +74,82 @@ def compute_scat_cov(window_size, num_oct, cuda):
               colour='#B5F2A9',
               dynamic_ncols=True) as pb:
         for i, file in enumerate(pb):
-            # Read data into a stream format.
-            data_stream = obspy.read(os.path.join(waveform_path, file))
+            if os.stat(os.path.join(waveform_path, file)).st_size > 0:
+                # Read data into a stream format.
+                data_stream = obspy.read(os.path.join(waveform_path, file))
 
-            # Only keep files that do not have gaps.
-            if len(data_stream.get_gaps()) == 0:
+                # Only keep files that do not have gaps.
+                if len(data_stream.get_gaps()) == 0:
 
-                # The following line although will not do interpolation—because
-                # there are not gaps—but will combine different streams into
-                # one.
-                trace = data_stream.merge(method=1,
-                                          fill_value="interpolate")[0]
-                trace = trace.data
+                    # The following line although will not do interpolation—because
+                    # there are not gaps—but will combine different streams into
+                    # one.
+                    trace = data_stream.merge(method=1,
+                                              fill_value="interpolate")[0]
+                    trace = trace.data
 
-                # Filter out smaller than `window_size` data.
-                # TODO: Decide on a more concrete way of choosing window size.
-                # 2**17 comes from previous experiments. (may want to reduce it
-                # for mars quakes in the range of 30 minutes)
-                if trace.size >= window_size:
-                    # Turn the trace to a batch of windowed data with size
-                    # `window_size`.
-                    windowed_trace = windows(trace,
-                                             window_size=window_size,
-                                             stride=window_size // 2,
-                                             offset=0)
+                    # Filter out smaller than `window_size` data.
+                    # TODO: Decide on a more concrete way of choosing window size.
+                    # 2**17 comes from previous experiments. (may want to reduce it
+                    # for mars quakes in the range of 30 minutes)
+                    if trace.size >= window_size:
+                        # Turn the trace to a batch of windowed data with size
+                        # `window_size`.
+                        windowed_trace = windows(trace,
+                                                 window_size=window_size,
+                                                 stride=window_size // 2,
+                                                 offset=0)
 
-                    # Compute scattering covariance. RX is a DescribedTensor.
-                    # RX.y is a tensor of size B x nb_coeff x T x 2
+                        # Compute scattering covariance. RX is a DescribedTensor.
+                        # RX.y is a tensor of size B x nb_coeff x T x 2
 
-                    # RX.info is a dataframe with nb_coeff rows that describes
-                    # each RX.y[:, i_coeff, :, :] for 0 <= i_coeff < nb_coeff
+                        # RX.info is a dataframe with nb_coeff rows that describes
+                        # each RX.y[:, i_coeff, :, :] for 0 <= i_coeff < nb_coeff
 
-                    # Here, the batch dimension (1st dimension) corresponds to
-                    # the different windows
+                        # Here, the batch dimension (1st dimension) corresponds to
+                        # the different windows
 
-                    RX = analyze(windowed_trace,
-                                 J=num_oct,
-                                 Q1=2,
-                                 Q2=4,
-                                 moments='cov',
-                                 cuda=cuda,
-                                 normalize=True,
-                                 nchunks=windowed_trace.shape[0] * 2
-                                 )  # reduce nchunks to accelerate
-                    for b in range(windowed_trace.shape[0]):
+                        RX = analyze(windowed_trace,
+                                     J=num_oct,
+                                     Q1=2,
+                                     Q2=4,
+                                     moments='cov',
+                                     cuda=cuda,
+                                     normalize=True,
+                                     nchunks=windowed_trace.shape[0] *
+                                     2)  # reduce nchunks to accelerate
+                        for b in range(windowed_trace.shape[0]):
 
-                        # b = 0  # for test only: choose the first window to compute scattering covariance
-                        y = RX.y[b, :, 0, :]
+                            # b = 0  # for test only: choose the first window to compute scattering covariance
+                            y = RX.y[b, :, 0, :]
 
-                        # y_phase = np.angle(y)
-                        # y_phase[np.abs(y) < 0.001] = 0.0  # rule phase instability, the threshold must be adapted
+                            # y_phase = np.angle(y)
+                            # y_phase[np.abs(y) < 0.001] = 0.0  # rule phase instability, the threshold must be adapted
 
-                        # CASE 1: keep real and imag parts by considering it as different real coefficients
-                        scat_covariances = to_numpy(y).ravel()
-                        # from IPython import embed; embed()
-                        # CASE 2: only keeps the modulus of the scattering covariance, hence discarding time asymmetry info
-                        # scat_covariances = np.abs(cplx.to_np(y))
+                            # CASE 1: keep real and imag parts by considering it as different real coefficients
+                            scat_covariances = to_numpy(y).ravel()
+                            # from IPython import embed; embed()
+                            # CASE 2: only keeps the modulus of the scattering covariance, hence discarding time asymmetry info
+                            # scat_covariances = np.abs(cplx.to_np(y))
 
-                        # CASE 3: only keep the phase, which looks at time asymmetry in the data
-                        # scat_covariances = y_phase
+                            # CASE 3: only keep the phase, which looks at time asymmetry in the data
+                            # scat_covariances = y_phase
 
-                        update_hdf5_file(scat_cov_path, file, b,
-                                         windowed_trace[b,
-                                                        ...], scat_covariances)
-                        # fname = Path(file).stem + f'_w{b}' + '.npy'
-                        # np.save(os.path.join(scat_cov_path, fname),
-                        #         scat_covariances)
-                        pb.set_postfix({
-                            'shape':
-                            scat_covariances.shape,
-                            'discarded':
-                            f'{discarded_files/(i + 1):.4f}'
-                        })
+                            update_hdf5_file(scat_cov_path, file, b,
+                                             windowed_trace[b, ...],
+                                             scat_covariances)
+                            # fname = Path(file).stem + f'_w{b}' + '.npy'
+                            # np.save(os.path.join(scat_cov_path, fname),
+                            #         scat_covariances)
+                            pb.set_postfix({
+                                'shape':
+                                scat_covariances.shape,
+                                'discarded':
+                                f'{discarded_files/(i + 1):.4f}'
+                            })
 
-            else:
-                discarded_files += 1
+                else:
+                    discarded_files += 1
 
 
 if __name__ == "__main__":
