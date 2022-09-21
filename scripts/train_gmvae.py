@@ -18,7 +18,7 @@ from scripts.visualization import Visualization
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH = datadir('mars')
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
-SCAT_COV_FILENAME = 'scat_covs.h5'
+SCAT_COV_FILENAME = 'scat_covs_q1-2_q2-4.h5'
 
 # GMVAE training default hyperparameters.
 MARS_CONFIG_FILE = 'mars.json'
@@ -89,5 +89,5 @@ if __name__ == "__main__":
         else:
             vis.random_generation(args, num_elements=5000)
             vis.reconstruct_data(args, val_loader, sample_size=5000)
-        vis.plot_latent_space(args, val_loader)
+        # vis.plot_latent_space(args, val_loader)
     upload_results(args, flag='--progress')

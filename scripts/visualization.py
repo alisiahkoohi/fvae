@@ -92,48 +92,51 @@ class Visualization(object):
                                                   8 * args.ncluster))
 
         cluster_idx_file = h5py.File(
-            os.path.join(plotsdir(args.experiment), 'clustered_data.h5'),
-            'a')
+            os.path.join(plotsdir(args.experiment), 'clustered_data.h5'), 'a')
         for i in range(args.ncluster):
 
             cluster_idxs = confident_idxs[np.where(
                 cluster_membership == i)[0]][-sample_size:, ...]
+            if len(cluster_idxs) > 0:
+                waveforms = self.dataset.sample_data(cluster_idxs,
+                                                     type='waveform')
+                x = self.dataset.sample_data(cluster_idxs, type='scat_cov')
 
-            waveforms = self.dataset.sample_data(cluster_idxs, type='waveform')
-            x = self.dataset.sample_data(cluster_idxs, type='scat_cov')
+                wav_filenames = [
+                    self.dataset.file_keys[k] for k in cluster_idxs
+                ]
+                cluster_group = cluster_idx_file.require_group(str(i))
+                cluster_group.require_dataset('waveform',
+                                              waveforms.numpy().shape,
+                                              data=waveforms.numpy(),
+                                              dtype=np.float32)
+                cluster_group.require_dataset('scat_cov',
+                                              x.numpy().shape,
+                                              data=x.numpy(),
+                                              dtype=np.float32)
+                cluster_group.require_dataset('filename', (sample_size, ),
+                                              data=wav_filenames,
+                                              dtype=h5py.string_dtype())
 
-            wav_filenames = [
-                self.dataset.file_keys[k] for k in cluster_idxs
-            ]
-            cluster_group = cluster_idx_file.require_group(str(i))
-            cluster_group.require_dataset('waveform',
-                                          waveforms.numpy().shape,
-                                          data=waveforms.numpy(),
-                                          dtype=np.float32)
-            cluster_group.require_dataset('scat_cov',
-                                          x.numpy().shape,
-                                          data=x.numpy(),
-                                          dtype=np.float32)
-            cluster_group.require_dataset('filename', (sample_size, ),
-                                          data=wav_filenames,
-                                          dtype=h5py.string_dtype())
+                for j in range(len(cluster_idxs)):
+                    ax_sp[j, i].specgram(waveforms[j, :],
+                                         Fs=20.0,
+                                         mode='magnitude',
+                                         cmap='jet_r')
+                    ax_sp[j, i].set_title("Spectrogram from cluster " + str(i))
+                    ax_sp[j, i].grid(False)
 
-            for j in range(sample_size):
-                ax_sp[j, i].specgram(waveforms[j, :],
-                                     Fs=20.0,
-                                     mode='magnitude',
-                                     cmap='jet_r')
-                ax_sp[j, i].set_title("Spectrogram from cluster " + str(i))
-                ax_sp[j, i].grid(False)
+                    ax[j, i].plot(waveforms[j, :],
+                                  color=colors[i],
+                                  lw=1.2,
+                                  alpha=0.8)
+                    ax[j, i].set_title("Waveform from cluster " + str(i))
 
-                ax[j, i].plot(waveforms[j, :],
-                              color=colors[i],
-                              lw=1.2,
-                              alpha=0.8)
-                ax[j, i].set_title("Waveform from cluster " + str(i))
-
-                ax_scat[j, i].plot(x[j, :], color=colors[i], lw=1.2, alpha=0.8)
-                ax_scat[j, i].set_title("Scat covs from cluster " + str(i))
+                    ax_scat[j, i].plot(x[j, :],
+                                       color=colors[i],
+                                       lw=1.2,
+                                       alpha=0.8)
+                    ax_scat[j, i].set_title("Scat covs from cluster " + str(i))
 
         fig.savefig(os.path.join(plotsdir(args.experiment),
                                  'waveform_samples.png'),
