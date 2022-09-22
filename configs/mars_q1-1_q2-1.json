@@ -1,11 +1,11 @@
 {
     "cuda": 1,
-    "max_epoch": 5000,
+    "max_epoch": 10000,
     "batchsize": 8192,
     "lr": 0.001,
     "lr_final":0.0005,
     "ncluster": 5,
-    "latent_dim": 64,
+    "latent_dim": 16,
     "init_temp": 1.0,
     "min_temp": 0.5,
     "temp_decay": 0.013862944,
@@ -15,7 +15,7 @@
     "experiment_name": "mars_q1-2_q2-4",
     "phase": "train",
     "wd": 0.0,
-    "hidden_dim": 1024,
+    "hidden_dim": 512,
     "nlayer": 3,
     "dataset": "mars"
 }
