@@ -8,10 +8,10 @@ from tqdm import tqdm
 
 from scatcov.frontend import analyze, cplx
 from scatcov.utils import to_numpy
-from facvae.utils import datadir
+from facvae.utils import datadir, is_night_time_event, get_time_interval
 
 MARS_PATH = datadir('mars')
-SCAT_COV_FILENAME = 'scat_covs_UVW_raw_q1-2_q2-4.h5'
+SCAT_COV_FILENAME = 'scat_covs_q1-2_q2-4_nightime.h5'
 
 
 def windows(x, window_size, stride, offset):
@@ -38,7 +38,7 @@ def setup_hdf5_file(path):
     file.close()
 
 
-def update_hdf5_file(path, filename, batch, waveform, scat_covariances):
+def update_hdf5_file(path, filename, waveform, scat_covariances):
     """
     Update the HDF5 file by writing new scattering covariances.
     """
@@ -49,7 +49,7 @@ def update_hdf5_file(path, filename, batch, waveform, scat_covariances):
     file = h5py.File(file_path, 'r+')
 
     # Group for the given file.
-    file_group = file.create_group(filename + '_' + str(batch))
+    file_group = file.create_group(filename)
 
     # HDF5 dataset for waveform.
     file_group.create_dataset('waveform', data=waveform, dtype=np.float32)
@@ -88,9 +88,9 @@ def compute_scat_cov(window_size, num_oct, cuda):
                                               fill_value="interpolate")[0]
                     trace = trace.data
 
-                    # Filter out smaller than `window_size` data.
-                    # TODO: Decide on a more concrete way of choosing window size.
-                    # 2**17 comes from previous experiments. (may want to reduce it
+                    # Filter out smaller than `window_size` data. TODO: Decide
+                    # on a more concrete way of choosing window size. 2**17
+                    # comes from previous experiments. (may want to reduce it
                     # for mars quakes in the range of 30 minutes)
                     if trace.size >= window_size:
                         # Turn the trace to a batch of windowed data with size
@@ -100,14 +100,16 @@ def compute_scat_cov(window_size, num_oct, cuda):
                                                  stride=window_size // 2,
                                                  offset=0)
 
-                        # Compute scattering covariance. RX is a DescribedTensor.
-                        # RX.y is a tensor of size B x nb_coeff x T x 2
+                        # Compute scattering covariance. RX is a
+                        # DescribedTensor. RX.y is a tensor of size B x nb_coeff
+                        # x T x 2
 
-                        # RX.info is a dataframe with nb_coeff rows that describes
-                        # each RX.y[:, i_coeff, :, :] for 0 <= i_coeff < nb_coeff
+                        # RX.info is a dataframe with nb_coeff rows that
+                        # describes each RX.y[:, i_coeff, :, :] for 0 <= i_coeff
+                        # < nb_coeff
 
-                        # Here, the batch dimension (1st dimension) corresponds to
-                        # the different windows
+                        # Here, the batch dimension (1st dimension) corresponds
+                        # to the different windows
 
                         RX = analyze(windowed_trace,
                                      J=num_oct,
@@ -120,33 +122,42 @@ def compute_scat_cov(window_size, num_oct, cuda):
                                      2)  # reduce nchunks to accelerate
                         for b in range(windowed_trace.shape[0]):
 
-                            # b = 0  # for test only: choose the first window to compute scattering covariance
+                            # b = 0  # for test only: choose the first window to
+                            # compute scattering covariance
                             y = RX.y[b, :, 0, :]
 
-                            # y_phase = np.angle(y)
-                            # y_phase[np.abs(y) < 0.001] = 0.0  # rule phase instability, the threshold must be adapted
+                            # y_phase = np.angle(y) y_phase[np.abs(y) < 0.001] =
+                            # 0.0
+                            # rule phase instability, the threshold must be
+                            # adapted
 
-                            # CASE 1: keep real and imag parts by considering it as different real coefficients
+                            # CASE 1: keep real and imag parts by considering it
+                            # as different real coefficients
                             scat_covariances = to_numpy(y).ravel()
-                            # from IPython import embed; embed()
-                            # CASE 2: only keeps the modulus of the scattering covariance, hence discarding time asymmetry info
+
+                            # CASE 2: only keeps the modulus of the scattering
+                            # covariance, hence discarding time asymmetry info
                             # scat_covariances = np.abs(cplx.to_np(y))
 
-                            # CASE 3: only keep the phase, which looks at time asymmetry in the data
+                            # CASE 3: only keep the phase, which looks at time
+                            # asymmetry in the data
                             # scat_covariances = y_phase
 
-                            update_hdf5_file(scat_cov_path, file, b,
-                                             windowed_trace[b, ...],
-                                             scat_covariances)
-                            # fname = Path(file).stem + f'_w{b}' + '.npy'
-                            # np.save(os.path.join(scat_cov_path, fname),
-                            #         scat_covariances)
-                            pb.set_postfix({
-                                'shape':
-                                scat_covariances.shape,
-                                'discarded':
-                                f'{discarded_files/(i + 1):.4f}'
-                            })
+                            filename = file + '_' + str(b)
+                            event_start, event_end = get_time_interval(
+                                filename)
+                            if args.use_day_data or is_night_time_event(
+                                    event_start, event_end):
+
+                                update_hdf5_file(scat_cov_path, filename,
+                                                 windowed_trace[b, ...],
+                                                 scat_covariances)
+                                pb.set_postfix({
+                                    'shape':
+                                    scat_covariances.shape,
+                                    'discarded':
+                                    f'{discarded_files/(i + 1):.4f}'
+                                })
 
                 else:
                     discarded_files += 1
@@ -170,6 +181,11 @@ if __name__ == "__main__":
                         type=int,
                         default=1,
                         help='set to 1 for running on GPU, 0 for CPU')
+    parser.add_argument('--use_day_data',
+                        dest='use_day_data',
+                        type=int,
+                        default=1,
+                        help='set to 0 for extracting only night time data')
     args = parser.parse_args()
 
     compute_scat_cov(args.window_size, args.num_oct, args.cuda)

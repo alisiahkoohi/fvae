@@ -1,5 +1,6 @@
 import datetime
 from obspy.core.utcdatetime import UTCDateTime
+from facvae.marsconverter import MarsConverter
 
 MARS_TO_MONTH_INT_CONVERSION = {
     'JAN': '1',
@@ -75,3 +76,29 @@ def get_time_interval(window_key, window_size=2**17, frequency=20.0):
     str_end_time = str_end_time.__add__(end_time)
 
     return str_start_time, str_end_time
+
+
+def is_night_time_event(event_start, event_end):
+    mars_date = MarsConverter()
+
+    event_start = mars_date.get_utc_2_lmst(utc_date=event_start)
+    event_end = mars_date.get_utc_2_lmst(utc_date=event_end)
+
+    day_start_time = 'T05:00:00.000000'
+    day_end_time = 'T19:00:00.000000'
+
+    event_start_day = event_start.split('T')[0]
+    event_end_day = event_end.split('T')[0]
+
+    if event_start_day == event_end_day:
+        same_day_start = event_start.split('T')[0] + day_start_time
+        same_day_end = event_end_day.split('T')[0] + day_end_time
+        if event_start > same_day_end or event_end < same_day_start:
+            return True
+    else:
+        next_day_start = event_end_day.split('T')[0] + day_start_time
+        same_day_end = event_start_day.split('T')[0] + day_end_time
+        if event_start > same_day_end and event_end < next_day_start:
+            return True
+    return False
+
