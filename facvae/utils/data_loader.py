@@ -75,6 +75,14 @@ class MarsDataset(torch.utils.data.Dataset):
         else:
             return self.data[type][idx, ...]
 
+    def get_labels(self, idx):
+        labels = []
+        for i in idx:
+            group = self.file[self.file_keys[i]]
+            x = group[type][...]
+            labels.append(x)
+        return labels
+
 
 class ToyDataset(torch.utils.data.Dataset):
 
@@ -130,15 +138,11 @@ class CatalogReader(torch.utils.data.Dataset):
             self.df = pickle.load(f)
 
     def get_window_label(self, window_key):
-
         start_time, end_time = get_time_interval(window_key)
-
         label = []
         for _, row in self.df.iterrows():
             if row['eventTime'] >= start_time and row['eventTime'] <= end_time:
                 label.append(row['type'])
-
-
         return label
 
     def add_labels_to_h5_file(self, path_to_h5_file):

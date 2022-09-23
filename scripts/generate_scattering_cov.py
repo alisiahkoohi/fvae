@@ -63,7 +63,7 @@ def update_hdf5_file(path, filename, waveform, scat_covariances):
 
 def compute_scat_cov(window_size, num_oct, cuda):
 
-    waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms_UVW_raw'))
+    waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms'))
     scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
     raw_data_files = os.listdir(waveform_path)
 
@@ -152,12 +152,12 @@ def compute_scat_cov(window_size, num_oct, cuda):
                                 update_hdf5_file(scat_cov_path, filename,
                                                  windowed_trace[b, ...],
                                                  scat_covariances)
-                                pb.set_postfix({
-                                    'shape':
-                                    scat_covariances.shape,
-                                    'discarded':
-                                    f'{discarded_files/(i + 1):.4f}'
-                                })
+                            pb.set_postfix({
+                                'shape':
+                                scat_covariances.shape,
+                                'discarded':
+                                f'{discarded_files/(i + 1):.4f}'
+                            })
 
                 else:
                     discarded_files += 1
