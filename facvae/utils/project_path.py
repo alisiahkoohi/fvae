@@ -103,3 +103,19 @@ def configsdir(mkdir: Optional[bool] = True) -> str:
     if (not os.path.exists(path)) and mkdir:
         os.makedirs(path)
     return path
+
+
+def catalogsdir(path: str, mkdir: Optional[bool] = True) -> str:
+    """The absolute path to the catalogs directory.
+
+    Catalogs directory stores the information regarding different events in the mars dataset. Here the path is created if it does not exist upon call if `mkdir` is True.
+
+    Args:
+        path: A string for directory name located at the checkpoint directory.
+        mkdir: An optional boolean for whether to create the directory if it
+            does not exist.
+    """
+    path = os.path.join(datadir('catalogs'), path)
+    if (not os.path.exists(path)) and mkdir:
+        os.makedirs(path)
+    return path

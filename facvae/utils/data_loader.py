@@ -1,13 +1,14 @@
 import h5py
 import numpy as np
+import os
 import torch
+import pickle
 
-from facvae.utils.toy_datasets import (GaussianDataset, CrescentDataset,
-                                       CrescentCubedDataset, SineWaveDataset,
-                                       AbsDataset, SignDataset,
-                                       FourCirclesDataset, DiamondDataset,
-                                       TwoSpiralsDataset, CheckerboardDataset,
-                                       TwoMoonsDataset)
+from facvae.utils import (GaussianDataset, CrescentDataset,
+                          CrescentCubedDataset, SineWaveDataset, AbsDataset,
+                          SignDataset, FourCirclesDataset, DiamondDataset,
+                          TwoSpiralsDataset, CheckerboardDataset,
+                          TwoMoonsDataset, catalogsdir, get_time_interval)
 
 
 class MarsDataset(torch.utils.data.Dataset):
@@ -118,3 +119,35 @@ class ToyDataset(torch.utils.data.Dataset):
 
     def sample_data(self, idx):
         return self.data[idx, ...]
+
+
+class CatalogReader(torch.utils.data.Dataset):
+
+    def __init__(self,
+                 path_to_catalog=os.path.join(catalogsdir('v11'),
+                                              'events_InSIght.pkl')):
+        with open(path_to_catalog, 'rb') as f:
+            self.df = pickle.load(f)
+
+    def get_window_label(self, window_key):
+
+        start_time, end_time = get_time_interval(window_key)
+
+        label = []
+        for _, row in self.df.iterrows():
+            if row['eventTime'] >= start_time and row['eventTime'] <= end_time:
+                label.append(row['type'])
+
+
+        return label
+
+    def add_labels_to_h5_file(self, path_to_h5_file):
+        file = h5py.File(path_to_h5_file, 'r+')
+        for key in file.keys():
+            label = self.get_window_label(key)
+            print(key, label)
+            file[key].require_dataset('label',
+                                      shape=len(label),
+                                      data=label,
+                                      dtype=h5py.string_dtype())
+        file.close()

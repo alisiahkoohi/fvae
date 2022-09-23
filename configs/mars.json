@@ -3,7 +3,7 @@
     "max_epoch": 5000,
     "batchsize": 8192,
     "lr": 0.001,
-    "lr_final":0.0005,
+    "lr_final": 0.0005,
     "ncluster": 5,
     "latent_dim": 64,
     "init_temp": 1.0,
