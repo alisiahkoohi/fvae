@@ -81,13 +81,13 @@ if __name__ == "__main__":
         gmvaw.train(args, train_loader, val_loader)
     elif args.phase == 'test':
         network = gmvaw.load_checkpoint(args, args.max_epoch - 1)
-        vis = Visualization(args, network, dataset)
+        vis = Visualization(network, dataset, device)
         if args.dataset == 'mars':
             vis.plot_waveforms(args, test_loader)
-            vis.random_generation(args)
-            vis.reconstruct_data(args, val_loader)
-        else:
-            vis.random_generation(args, num_elements=5000)
-            vis.reconstruct_data(args, val_loader, sample_size=5000)
+            # vis.random_generation(args)
+            # vis.reconstruct_data(args, val_loader)
+        # else:
+            # vis.random_generation(args, num_elements=5000)
+            # vis.reconstruct_data(args, val_loader, sample_size=5000)
         # vis.plot_latent_space(args, val_loader)
     upload_results(args, flag='--progress')

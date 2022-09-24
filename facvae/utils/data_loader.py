@@ -79,7 +79,7 @@ class MarsDataset(torch.utils.data.Dataset):
         labels = []
         for i in idx:
             group = self.file[self.file_keys[i]]
-            x = group[type][...]
+            x = group['label'][...].astype(str)
             labels.append(x)
         return labels
 

@@ -11,7 +11,7 @@ from scatcov.utils import to_numpy
 from facvae.utils import datadir, is_night_time_event, get_time_interval
 
 MARS_PATH = datadir('mars')
-SCAT_COV_FILENAME = 'scat_covs_q1-2_q2-4_nightime.h5'
+SCAT_COV_FILENAME = 'scat_covs_q1-2_q2-4_nighttime.h5'
 
 
 def windows(x, window_size, stride, offset):
