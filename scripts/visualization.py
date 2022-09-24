@@ -3,6 +3,7 @@ import matplotlib
 import seaborn as sns
 import numpy as np
 import os
+from collections import Counter
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 import torch
@@ -19,16 +20,26 @@ matplotlib.use("Agg")
 
 
 class Visualization(object):
-    """Class visualizing the resuls of a GMVAE training.
+    """Class visualizing results of a GMVAE training.
     """
 
     def __init__(self, network, dataset, device):
+        # Pretrained GMVAE network.
         self.network = network
+        # The entire dataset.s
         self.dataset = dataset
+        # Device to perform computations on.
         self.device = device
+        # Colors to be used for visualizing different clusters.
         self.colors = [
             '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
             '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ]
+        # All the possible labels that data has. Used for evaluating the
+        # clustering performance.
+        self.labels = [
+            'HIGH_FREQUENCY', 'VERY_HIGH_FREQUENCY', 'LOW_FREQUENCY', '2.4_HZ',
+            'SUPER_HIGH_FREQUENCY', 'BROADBAND'
         ]
 
     def latent_features(self, args, data_loader):
@@ -69,39 +80,60 @@ class Visualization(object):
     def plot_waveforms(self, args, data_loader, sample_size=10):
         """Plot waveforms.
         """
-        # Sample random data from loader
+        # Load all the data to cluster.
         x = self.dataset.sample_data(range(len(data_loader.dataset)),
                                      type='scat_cov')
+        # Move to `device`.
         x = x.to(self.device)
-
-        # Obtain reconstructed data.
+        # Placeholder list for cluster membership for all the data.
         cluster_membership = []
+
+        # Extract cluster memberships.
         with torch.no_grad():
+            # Run the input data through the pretrained GMVAE network.
             y = self.network(x)
+            # Sort indices based on  most confident cluster predictions by the
+            # network (increasing).
             confident_idxs = y['prob_cat'].max(axis=-1)[0].sort()[1]
+            # Extract the predicted cluster memberships.
             cluster_membership = y['logits'][confident_idxs, :].argmax(axis=1)
 
+        # Moving back tensors to CPU for plotting.
         confident_idxs = confident_idxs.cpu()
         cluster_membership = cluster_membership.cpu()
         x = x.cpu()
 
+        # List of figures and `ax`s to plot waveforms, spectrograms, and
+        # scattering covariances for each cluster.
         figs_axs = [
             plt.subplots(sample_size,
                          args.ncluster,
                          figsize=(8 * args.ncluster, 8 * args.ncluster))
             for i in range(3)
         ]
+        # List of file names for each the figures.
         names = ['waveform_samples', 'waveform_spectograms', 'scatcov_samples']
+        # Dictionary containing list of all the labels belonging to each
+        # predicted cluster.
+        cluster_labels = {str(i): [] for i in range(args.ncluster)}
 
+        # Loop through all the clusters.
         for i in tqdm(range(args.ncluster)):
+            labels = self.dataset.get_labels(
+                confident_idxs[np.where(cluster_membership == i)[0]])
+            for label in labels:
+                for v in label:
+                    cluster_labels[str(i)].append(v)
+            # Find the `sample_size` most confident data points belonging to
+            # cluster `i`
             cluster_idxs = confident_idxs[np.where(
                 cluster_membership == i)[0]][-sample_size:, ...]
+            # Loop over most confident data points belonging to cluster `i`.
             if len(cluster_idxs) > 0:
                 waveforms = self.dataset.sample_data(cluster_idxs,
                                                      type='waveform')
                 x = self.dataset.sample_data(cluster_idxs, type='scat_cov')
 
-                from IPython import embed; embed()
                 for j in range(len(cluster_idxs)):
                     figs_axs[0][1][j, i].plot(waveforms[j, :],
                                               color=self.colors[i % 10],
@@ -110,14 +142,14 @@ class Visualization(object):
                     figs_axs[0][1][j, i].set_title("Waveform from cluster " +
                                                    str(i))
 
-                    figs_axs[1][1][j, i].specgram(waveforms[j, :],
-                                                  Fs=20.0,
-                                                  mode='magnitude',
-                                                  cmap='jet_r')
-                    figs_axs[1][1][j,
-                                   i].set_title("Spectrogram from cluster " +
-                                                str(i))
-                    figs_axs[1][1][j, i].grid(False)
+                    # figs_axs[1][1][j, i].specgram(waveforms[j, :],
+                    #                               Fs=20.0,
+                    #                               mode='magnitude',
+                    #                               cmap='jet_r')
+                    # figs_axs[1][1][j,
+                    #                i].set_title("Spectrogram from cluster " +
+                    #                             str(i))
+                    # figs_axs[1][1][j, i].grid(False)
 
                     figs_axs[2][1][j, i].plot(x[j, :],
                                               color=self.colors[i % 10],
@@ -133,6 +165,35 @@ class Visualization(object):
                         dpi=100,
                         pad_inches=.05)
             plt.close(fig)
+
+        label_count_per_cluster = {str(i): {} for i in range(args.ncluster)}
+        for i in range(args.ncluster):
+            for label in self.labels:
+                label_count_per_cluster[str(i)][label] = 0
+            count = dict(Counter(cluster_labels[str(i)]))
+            for key, value in count.items():
+                label_count_per_cluster[str(i)][key] = value
+
+
+        fig = plt.figure(figsize=(8, 6))
+        for j, label in enumerate(self.labels):
+            cluster_per_label = []
+            for i in range(args.ncluster):
+                cluster_per_label.append(label_count_per_cluster[str(i)][label])
+            plt.bar(range(args.ncluster), cluster_per_label, label=label, color=self.colors[j % 10])
+        plt.xlabel('Clusters')
+        plt.ylabel('Event count')
+        plt.title('Event count per cluster')
+        plt.legend(ncol=2)
+        plt.gca().set_xticks(range(10))
+        fig.savefig(os.path.join(plotsdir(args.experiment), 'event_count.png'),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
+
+
 
     def reconstruct_data(self, args, data_loader, sample_size=5):
         """Reconstruct Data
