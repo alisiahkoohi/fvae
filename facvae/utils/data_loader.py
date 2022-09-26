@@ -83,6 +83,9 @@ class MarsDataset(torch.utils.data.Dataset):
             labels.append(x)
         return labels
 
+    def get_waveform_key(self, idx):
+        return [self.file_keys[i] for i in idx]
+
 
 class ToyDataset(torch.utils.data.Dataset):
 

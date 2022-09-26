@@ -9,10 +9,10 @@ from sklearn.decomposition import PCA
 import torch
 from tqdm import tqdm
 
-from facvae.utils import plotsdir
+from facvae.utils import plotsdir, create_lmst_xticks, get_time_interval
 
 sns.set_style("whitegrid")
-font = {'family': 'serif', 'style': 'normal', 'size': 12}
+font = {'family': 'serif', 'style': 'normal', 'size': 18}
 matplotlib.rc('font', **font)
 sfmt = matplotlib.ticker.ScalarFormatter(useMathText=True)
 sfmt.set_powerlimits((0, 0))
@@ -116,29 +116,47 @@ class Visualization(object):
         # Dictionary containing list of all the labels belonging to each
         # predicted cluster.
         cluster_labels = {str(i): [] for i in range(args.ncluster)}
+        confidet_cluster_labels = {str(i): [] for i in range(args.ncluster)}
 
         # Loop through all the clusters.
         for i in tqdm(range(args.ncluster)):
             labels = self.dataset.get_labels(
                 confident_idxs[np.where(cluster_membership == i)[0]])
+            confidet_labels = self.dataset.get_labels(
+                confident_idxs[np.where(cluster_membership == i)[0]][-50:, ...])
             for label in labels:
                 for v in label:
                     cluster_labels[str(i)].append(v)
+            for label in confidet_labels:
+                for v in label:
+                    confidet_cluster_labels[str(i)].append(v)
             # Find the `sample_size` most confident data points belonging to
             # cluster `i`
             cluster_idxs = confident_idxs[np.where(
                 cluster_membership == i)[0]][-sample_size:, ...]
+
             # Loop over most confident data points belonging to cluster `i`.
             if len(cluster_idxs) > 0:
                 waveforms = self.dataset.sample_data(cluster_idxs,
                                                      type='waveform')
                 x = self.dataset.sample_data(cluster_idxs, type='scat_cov')
+                waveform_keys = self.dataset.get_waveform_key(cluster_idxs)
 
                 for j in range(len(cluster_idxs)):
-                    figs_axs[0][1][j, i].plot(waveforms[j, :],
-                                              color=self.colors[i % 10],
-                                              lw=1.2,
-                                              alpha=0.8)
+                    figs_axs[0][1][j, i].plot_date(
+                        create_lmst_xticks(*get_time_interval(
+                            waveform_keys[j], time_zone='LMST')),
+                        waveforms[j, :],
+                        xdate=True,
+                        color=self.colors[i % 10],
+                        lw=1.2,
+                        alpha=0.8,
+                        fmt='')
+                    figs_axs[0][1][j, i].xaxis.set_major_locator(
+                        matplotlib.dates.MinuteLocator(interval=30))
+                    figs_axs[0][1][j, i].xaxis.set_major_formatter(
+                        matplotlib.dates.DateFormatter('%H:%M'))
+                    figs_axs[0][1][j, i].set_ylim([-2.5e-6, 2.5e-6])
                     figs_axs[0][1][j, i].set_title("Waveform from cluster " +
                                                    str(i))
 
@@ -174,19 +192,52 @@ class Visualization(object):
             for key, value in count.items():
                 label_count_per_cluster[str(i)][key] = value
 
+        fig = plt.figure(figsize=(8, 6))
+        for j, label in enumerate(self.labels):
+            cluster_per_label = []
+            for i in range(args.ncluster):
+                cluster_per_label.append(
+                    label_count_per_cluster[str(i)][label])
+            plt.bar(range(args.ncluster),
+                    cluster_per_label,
+                    label=label,
+                    color=self.colors[j % 10])
+        plt.xlabel('Clusters')
+        plt.ylabel('Event count')
+        plt.title('Event count per cluster')
+        plt.legend(ncol=2, fontsize=12)
+        plt.gca().set_xticks(range(10))
+        fig.savefig(os.path.join(plotsdir(args.experiment), 'event_count.png'),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
+
+        label_count_per_cluster = {str(i): {} for i in range(args.ncluster)}
+        for i in range(args.ncluster):
+            for label in self.labels:
+                label_count_per_cluster[str(i)][label] = 0
+            count = dict(Counter(confidet_cluster_labels[str(i)]))
+            for key, value in count.items():
+                label_count_per_cluster[str(i)][key] = value
 
         fig = plt.figure(figsize=(8, 6))
         for j, label in enumerate(self.labels):
             cluster_per_label = []
             for i in range(args.ncluster):
-                cluster_per_label.append(label_count_per_cluster[str(i)][label])
-            plt.bar(range(args.ncluster), cluster_per_label, label=label, color=self.colors[j % 10])
+                cluster_per_label.append(
+                    label_count_per_cluster[str(i)][label])
+            plt.bar(range(args.ncluster),
+                    cluster_per_label,
+                    label=label,
+                    color=self.colors[j % 10])
         plt.xlabel('Clusters')
         plt.ylabel('Event count')
-        plt.title('Event count per cluster')
-        plt.legend(ncol=2)
+        plt.title('Event count per cluster (confident)')
+        plt.legend(ncol=2, fontsize=12)
         plt.gca().set_xticks(range(10))
-        fig.savefig(os.path.join(plotsdir(args.experiment), 'event_count.png'),
+        fig.savefig(os.path.join(plotsdir(args.experiment), 'confident_event_count.png'),
                     format="png",
                     bbox_inches="tight",
                     dpi=300,
