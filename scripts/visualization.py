@@ -313,7 +313,7 @@ class Visualization(object):
         features_pca = PCA(n_components=2).fit_transform(features)
         # plot only the first 2 dimensions
         # cmap = plt.cm.get_cmap('hsv', args.ncluster)
-        label_colors = {i: self.colors[i%10] for i in range(args.ncluster)}
+        label_colors = {i: self.colors[i % 10] for i in range(args.ncluster)}
         colors = [label_colors[int(i)] for i in clusters]
         fig = plt.figure(figsize=(8, 6))
         plt.scatter(features_pca[:, 0],

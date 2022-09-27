@@ -69,7 +69,7 @@ class GaussianMixtureVAE(object):
         cat_loss = -self.losses.entropy(logits, prob_cat)
         # Categorical prior.
         cat_loss_prior = self.losses.entropy(
-            logits, F.softmax(torch.ones_like(prob_cat), dim=-1))
+            torch.ones_like(prob_cat), prob_cat)
 
         # Total loss.
         vae_loss = (self.w_rec * rec_loss + self.w_gauss * gauss_loss +
@@ -82,7 +82,7 @@ class GaussianMixtureVAE(object):
             'vae': vae_loss,
             'rec': rec_loss,
             'gauss': gauss_loss,
-            'cat': cat_loss,
+            'cat': cat_loss + cat_loss_prior,
             'clusters': clusters
         }
 
