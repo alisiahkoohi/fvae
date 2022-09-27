@@ -70,7 +70,10 @@ class GaussianMixtureVAE(object):
         # Categorical loss (posterior)
         cat_loss = -self.losses.entropy(logits, prob_cat)
         # Categorical prior.
-        cat_loss_prior = self.losses.entropy(torch.ones_like(prob_cat),
+        pi = torch.ones_like(prob_cat)
+        pi[:, 0] = 0.1
+        pi[:, 1] = 0.1
+        cat_loss_prior = self.losses.entropy(pi,
                                              prob_cat)
 
         # Total loss.
