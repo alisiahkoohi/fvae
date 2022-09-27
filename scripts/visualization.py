@@ -116,20 +116,13 @@ class Visualization(object):
         # Dictionary containing list of all the labels belonging to each
         # predicted cluster.
         cluster_labels = {str(i): [] for i in range(args.ncluster)}
-        confidet_cluster_labels = {str(i): [] for i in range(args.ncluster)}
-
         # Loop through all the clusters.
         for i in tqdm(range(args.ncluster)):
             labels = self.dataset.get_labels(
                 confident_idxs[np.where(cluster_membership == i)[0]])
-            confidet_labels = self.dataset.get_labels(
-                confident_idxs[np.where(cluster_membership == i)[0]][-50:, ...])
             for label in labels:
                 for v in label:
                     cluster_labels[str(i)].append(v)
-            for label in confidet_labels:
-                for v in label:
-                    confidet_cluster_labels[str(i)].append(v)
             # Find the `sample_size` most confident data points belonging to
             # cluster `i`
             cluster_idxs = confident_idxs[np.where(
@@ -192,6 +185,29 @@ class Visualization(object):
             for key, value in count.items():
                 label_count_per_cluster[str(i)][key] = value
 
+        for j, label in enumerate(self.labels):
+            fig = plt.figure(figsize=(8, 6))
+            cluster_per_label = []
+            for i in range(args.ncluster):
+                cluster_per_label.append(
+                    label_count_per_cluster[str(i)][label])
+            plt.bar(range(args.ncluster),
+                    cluster_per_label,
+                    label=label,
+                    color=self.colors[j % 10])
+            plt.xlabel('Clusters')
+            plt.ylabel('Event count')
+            plt.title('Event count per cluster')
+            plt.legend(ncol=2, fontsize=12)
+            plt.gca().set_xticks(range(args.ncluster))
+            fig.savefig(os.path.join(plotsdir(args.experiment),
+                                     'event_count' + label + '.png'),
+                        format="png",
+                        bbox_inches="tight",
+                        dpi=300,
+                        pad_inches=.05)
+            plt.close(fig)
+
         fig = plt.figure(figsize=(8, 6))
         for j, label in enumerate(self.labels):
             cluster_per_label = []
@@ -206,45 +222,13 @@ class Visualization(object):
         plt.ylabel('Event count')
         plt.title('Event count per cluster')
         plt.legend(ncol=2, fontsize=12)
-        plt.gca().set_xticks(range(10))
+        plt.gca().set_xticks(range(args.ncluster))
         fig.savefig(os.path.join(plotsdir(args.experiment), 'event_count.png'),
                     format="png",
                     bbox_inches="tight",
                     dpi=300,
                     pad_inches=.05)
         plt.close(fig)
-
-        label_count_per_cluster = {str(i): {} for i in range(args.ncluster)}
-        for i in range(args.ncluster):
-            for label in self.labels:
-                label_count_per_cluster[str(i)][label] = 0
-            count = dict(Counter(confidet_cluster_labels[str(i)]))
-            for key, value in count.items():
-                label_count_per_cluster[str(i)][key] = value
-
-        fig = plt.figure(figsize=(8, 6))
-        for j, label in enumerate(self.labels):
-            cluster_per_label = []
-            for i in range(args.ncluster):
-                cluster_per_label.append(
-                    label_count_per_cluster[str(i)][label])
-            plt.bar(range(args.ncluster),
-                    cluster_per_label,
-                    label=label,
-                    color=self.colors[j % 10])
-        plt.xlabel('Clusters')
-        plt.ylabel('Event count')
-        plt.title('Event count per cluster (confident)')
-        plt.legend(ncol=2, fontsize=12)
-        plt.gca().set_xticks(range(10))
-        fig.savefig(os.path.join(plotsdir(args.experiment), 'confident_event_count.png'),
-                    format="png",
-                    bbox_inches="tight",
-                    dpi=300,
-                    pad_inches=.05)
-        plt.close(fig)
-
-
 
     def reconstruct_data(self, args, data_loader, sample_size=5):
         """Reconstruct Data
@@ -329,7 +313,7 @@ class Visualization(object):
         features_pca = PCA(n_components=2).fit_transform(features)
         # plot only the first 2 dimensions
         # cmap = plt.cm.get_cmap('hsv', args.ncluster)
-        label_colors = {i: self.colors[i] for i in range(args.ncluster)}
+        label_colors = {i: self.colors[i%10] for i in range(args.ncluster)}
         colors = [label_colors[int(i)] for i in clusters]
         fig = plt.figure(figsize=(8, 6))
         plt.scatter(features_pca[:, 0],

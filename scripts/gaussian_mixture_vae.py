@@ -2,6 +2,7 @@ import numpy as np
 import os
 import torch
 from torch.utils.tensorboard import SummaryWriter
+from torch.nn import functional as F
 from tqdm import tqdm
 
 from facvae.utils import checkpointsdir, CustomLRScheduler, logsdir
@@ -64,12 +65,15 @@ class GaussianMixtureVAE(object):
         # Gaussian loss.
         gauss_loss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
 
-        # Categorical loss.
-        cat_loss = -self.losses.entropy(logits, prob_cat) - np.log(0.1)
+        # Categorical loss (posterior)
+        cat_loss = -self.losses.entropy(logits, prob_cat)
+        # Categorical prior.
+        cat_loss_prior = self.losses.entropy(
+            logits, F.softmax(torch.ones_like(prob_cat), dim=-1))
 
         # Total loss.
         vae_loss = (self.w_rec * rec_loss + self.w_gauss * gauss_loss +
-                    self.w_cat * cat_loss)
+                    self.w_cat * (cat_loss + cat_loss_prior))
 
         # Obtain predictions.
         _, clusters = torch.max(logits, dim=1)
