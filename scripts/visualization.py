@@ -230,6 +230,46 @@ class Visualization(object):
                     pad_inches=.05)
         plt.close(fig)
 
+    def plot_clusters(self, args, data_loader):
+        """Plot predicted clusters.
+        """
+        # Load all the data to cluster.
+        x = self.dataset.sample_data(range(len(data_loader.dataset)))
+        # Move to `device`.
+        x = x.to(self.device)
+        # Placeholder list for cluster membership for all the data.
+        cluster_membership = []
+
+        # Extract cluster memberships.
+        with torch.no_grad():
+            # Run the input data through the pretrained GMVAE network.
+            y = self.network(x)
+            # Extract the predicted cluster memberships.
+            cluster_membership = y['logits'].argmax(axis=1)
+
+        # Moving back tensors to CPU for plotting.
+        cluster_membership = cluster_membership.cpu()
+        x = x.cpu()
+        num_elements = x.shape[0]
+
+        fig = plt.figure(figsize=(8, 6))
+        for i in range(args.ncluster):
+            cluster_idxs = np.where(cluster_membership == i)[0]
+            plt.scatter(x[cluster_idxs, 0],
+                        x[cluster_idxs, 1],
+                        color=self.colors[i % 10],
+                        s=2,
+                        alpha=0.5)
+        plt.title('Predicted cluster membership')
+        # ax[i].axis('off')
+        plt.savefig(os.path.join(plotsdir(args.experiment),
+                                 'clustered_samples.png'),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
+
     def reconstruct_data(self, args, data_loader, sample_size=5):
         """Reconstruct Data
 

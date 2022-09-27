@@ -63,13 +63,15 @@ class GaussianMixtureVAE(object):
         rec_loss = self.losses.reconstruction_loss(data, data_recon, 'mse')
 
         # Gaussian loss.
-        gauss_loss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
+        # gauss_loss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
+        gauss_loss = self.losses.gaussian_closed_form_loss(
+            mu, var, y_mu, y_var)
 
         # Categorical loss (posterior)
         cat_loss = -self.losses.entropy(logits, prob_cat)
         # Categorical prior.
-        cat_loss_prior = self.losses.entropy(
-            torch.ones_like(prob_cat), prob_cat)
+        cat_loss_prior = self.losses.entropy(torch.ones_like(prob_cat),
+                                             prob_cat)
 
         # Total loss.
         vae_loss = (self.w_rec * rec_loss + self.w_gauss * gauss_loss +

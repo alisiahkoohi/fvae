@@ -86,15 +86,7 @@ class GenerativeNet(torch.nn.Module):
         super(GenerativeNet, self).__init__()
 
         # p(z|y)
-        self.generative_pzy = torch.nn.ModuleList([
-            torch.nn.Linear(y_dim, hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2)
-        ])
-        for i in range(1, nlayer):
-            self.generative_pzy.append(torch.nn.Linear(hidden_dim, hidden_dim))
-            self.generative_pzy.append(torch.nn.LeakyReLU(negative_slope=0.2))
-        self.generative_pzy.append(Gaussian(hidden_dim, z_dim))
-        self.generative_pzy = torch.nn.Sequential(*self.generative_pzy)
+        self.generative_pzy = torch.nn.Sequential(Gaussian(y_dim, z_dim))
 
         # p(x|z)
         self.generative_pxz = torch.nn.ModuleList([
