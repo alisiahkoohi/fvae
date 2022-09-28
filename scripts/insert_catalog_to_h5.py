@@ -12,10 +12,15 @@ if __name__ == "__main__":
     parser.add_argument('--h5_filename',
                         dest='h5_filename',
                         type=str,
-                        default='scat_covs_UVW_raw_q1-2_q2-4_nightime.h5',
+                        default='scat_covs_w-size-2e15_q1-2_q2-4_nighttime.h5',
                         help='h5 file to add events to')
+    parser.add_argument('--window_size',
+                        dest='window_size',
+                        type=int,
+                        default=2**15,
+                        help='Window size of raw waveforms')
     args = parser.parse_args()
 
-    catalog = CatalogReader()
+    catalog = CatalogReader(window_size=args.window_size)
     catalog.add_labels_to_h5_file(
         os.path.join(MARS_SCAT_COV_PATH, args.h5_filename))

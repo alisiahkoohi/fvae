@@ -136,12 +136,20 @@ class CatalogReader(torch.utils.data.Dataset):
 
     def __init__(self,
                  path_to_catalog=os.path.join(catalogsdir('v11'),
-                                              'events_InSIght.pkl')):
+                                              'events_InSIght.pkl'),
+                 window_size=2**17,
+                 frequency=20.0):
+
+        self.window_size = window_size
+        self.frequency = frequency
+
         with open(path_to_catalog, 'rb') as f:
             self.df = pickle.load(f)
 
     def get_window_label(self, window_key):
-        start_time, end_time = get_time_interval(window_key)
+        start_time, end_time = get_time_interval(window_key,
+                                                 window_size=self.window_size,
+                                                 frequency=self.frequency)
         label = []
         for _, row in self.df.iterrows():
             if row['eventTime'] >= start_time and row['eventTime'] <= end_time:

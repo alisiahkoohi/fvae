@@ -58,7 +58,10 @@ def yyyy_mm_dd_to_datetime(yyyy_mm_dd):
                                       '%Y-%m-%d').strftime("%Y-%b-%d")
 
 
-def get_time_interval(window_key, window_size=2**17, frequency=20.0, time_zone='UTC'):
+def get_time_interval(window_key,
+                      window_size=2**17,
+                      frequency=20.0,
+                      time_zone='UTC'):
     batch = window_key.split('_')[-1]
     year, month, day = window_key.split('-')
 
@@ -68,8 +71,8 @@ def get_time_interval(window_key, window_size=2**17, frequency=20.0, time_zone='
     batch = int(batch)
 
     dt = 1 / frequency
-    start_time = (batch /2) * dt * window_size
-    end_time = ((batch/2) + 1) * dt * (window_size - 1)
+    start_time = (batch / 2) * dt * window_size
+    end_time = ((batch / 2) + 1) * dt * (window_size - 1)
 
     str_start_time = UTCDateTime(year + '-' + str(month) + '-' + day)
     str_start_time = str_start_time.__add__(start_time)
@@ -86,7 +89,6 @@ def get_time_interval(window_key, window_size=2**17, frequency=20.0, time_zone='
         return str_start_time, str_end_time
     else:
         raise NotImplementedError('Time zone not implemented')
-
 
 
 def is_night_time_event(event_start, event_end):
@@ -114,7 +116,10 @@ def is_night_time_event(event_start, event_end):
     return False
 
 
-def create_lmst_xticks(start_time, end_time, window_size=2**17, frequency=20.0):
+def create_lmst_xticks(start_time,
+                       end_time,
+                       window_size=2**17,
+                       frequency=20.0):
 
     start_day = start_time.split('T')[0]
     end_day = end_time.split('T')[0]
@@ -130,8 +135,9 @@ def create_lmst_xticks(start_time, end_time, window_size=2**17, frequency=20.0):
 
     dt = 1 / frequency
     times = np.arange(
-        np.datetime64(start_time),
-        np.datetime64(end_time),
-        np.timedelta64((np.datetime64(end_time) - np.datetime64(start_time) )/2**17, 'us')).astype('datetime64[s]')[:window_size]
+        np.datetime64(start_time), np.datetime64(end_time),
+        np.timedelta64(
+            (np.datetime64(end_time) - np.datetime64(start_time)) / 2**17,
+            'us')).astype('datetime64[s]')[:window_size]
 
     return times

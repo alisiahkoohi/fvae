@@ -23,11 +23,13 @@ class Visualization(object):
     """Class visualizing results of a GMVAE training.
     """
 
-    def __init__(self, network, dataset, device):
+    def __init__(self, network, dataset, window_size, device):
         # Pretrained GMVAE network.
         self.network = network
         # The entire dataset.s
         self.dataset = dataset
+        # Window size of the dataset.
+        self.window_size = window_size
         # Device to perform computations on.
         self.device = device
         # Colors to be used for visualizing different clusters.
@@ -136,15 +138,15 @@ class Visualization(object):
                 waveform_keys = self.dataset.get_waveform_key(cluster_idxs)
 
                 for j in range(len(cluster_idxs)):
-                    figs_axs[0][1][j, i].plot_date(
-                        create_lmst_xticks(*get_time_interval(
-                            waveform_keys[j], time_zone='LMST')),
-                        waveforms[j, :],
-                        xdate=True,
-                        color=self.colors[i % 10],
-                        lw=1.2,
-                        alpha=0.8,
-                        fmt='')
+                    figs_axs[0][1][j, i].plot_date(create_lmst_xticks(
+                        *get_time_interval(waveform_keys[j], time_zone='LMST'),
+                        window_size=self.window_size),
+                                                   waveforms[j, :],
+                                                   xdate=True,
+                                                   color=self.colors[i % 10],
+                                                   lw=1.2,
+                                                   alpha=0.8,
+                                                   fmt='')
                     figs_axs[0][1][j, i].xaxis.set_major_locator(
                         matplotlib.dates.MinuteLocator(interval=30))
                     figs_axs[0][1][j, i].xaxis.set_major_formatter(
