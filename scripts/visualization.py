@@ -138,8 +138,10 @@ class Visualization(object):
                 waveform_keys = self.dataset.get_waveform_key(cluster_idxs)
 
                 for j in range(len(cluster_idxs)):
+
                     figs_axs[0][1][j, i].plot_date(create_lmst_xticks(
-                        *get_time_interval(waveform_keys[j], time_zone='LMST'),
+                        waveform_keys[j],
+                        time_zone='LMST',
                         window_size=self.window_size),
                                                    waveforms[j, :],
                                                    xdate=True,
@@ -148,7 +150,7 @@ class Visualization(object):
                                                    alpha=0.8,
                                                    fmt='')
                     figs_axs[0][1][j, i].xaxis.set_major_locator(
-                        matplotlib.dates.MinuteLocator(interval=30))
+                        matplotlib.dates.MinuteLocator(interval=10))
                     figs_axs[0][1][j, i].xaxis.set_major_formatter(
                         matplotlib.dates.DateFormatter('%H:%M'))
                     figs_axs[0][1][j, i].set_ylim([-2.5e-6, 2.5e-6])

@@ -229,4 +229,6 @@ class GaussianMixtureVAE(object):
             if not epoch == checkpoint["epoch"]:
                 raise ValueError(
                     'Inconsistent filename and loaded checkpoint.')
+        else:
+            raise ValueError('Checkpoint does not exist.')
         return self.network

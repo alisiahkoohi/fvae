@@ -11,7 +11,7 @@ from scatcov.utils import to_numpy
 from facvae.utils import datadir, is_night_time_event, get_time_interval
 
 MARS_PATH = datadir('mars')
-SCAT_COV_FILENAME = 'scat_covs_w-size-2e15_q1-2_q2-4_nighttime.h5'
+SCAT_COV_FILENAME = 'scat_covs_w-size-2e14_q1-2_q2-4_nighttime.h5'
 
 
 def windows(x, window_size, stride, offset):
@@ -145,7 +145,7 @@ def compute_scat_cov(window_size, num_oct, cuda):
 
                             filename = file + '_' + str(b)
                             event_start, event_end = get_time_interval(
-                                filename)
+                                filename, window_size=window_size)
                             if args.use_day_data or is_night_time_event(
                                     event_start, event_end):
 

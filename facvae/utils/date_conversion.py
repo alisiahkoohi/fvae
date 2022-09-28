@@ -116,10 +116,15 @@ def is_night_time_event(event_start, event_end):
     return False
 
 
-def create_lmst_xticks(start_time,
-                       end_time,
+def create_lmst_xticks(window_key,
                        window_size=2**17,
-                       frequency=20.0):
+                       frequency=20.0,
+                       time_zone='LMST'):
+
+    start_time, end_time = get_time_interval(window_key,
+                                             window_size=window_size,
+                                             frequency=frequency,
+                                             time_zone=time_zone)
 
     start_day = start_time.split('T')[0]
     end_day = end_time.split('T')[0]
