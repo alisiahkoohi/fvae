@@ -119,7 +119,10 @@ def compute_scat_cov(window_size, num_oct, cuda):
                                      cuda=cuda,
                                      normalize=True,
                                      nchunks=windowed_trace.shape[0] *
-                                     2)  # reduce nchunks to accelerate
+                                     2) # reduce nchunks to accelerate
+                        mask_power_spectrum = RX.descri.where(q=2, r=1) # where is the power spectrum
+                        RX = RX.reduce(mask=~mask_power_spectrum) # select everything except the power spectrum
+
                         for b in range(windowed_trace.shape[0]):
 
                             # b = 0  # for test only: choose the first window to
