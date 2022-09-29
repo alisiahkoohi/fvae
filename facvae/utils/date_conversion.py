@@ -142,7 +142,7 @@ def create_lmst_xticks(window_key,
     times = np.arange(
         np.datetime64(start_time), np.datetime64(end_time),
         np.timedelta64(
-            (np.datetime64(end_time) - np.datetime64(start_time)) / 2**17,
+            (np.datetime64(end_time) - np.datetime64(start_time)) / window_size,
             'us')).astype('datetime64[s]')[:window_size]
 
     return times

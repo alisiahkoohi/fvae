@@ -11,7 +11,6 @@ from scatcov.utils import to_numpy
 from facvae.utils import datadir, is_night_time_event, get_time_interval
 
 MARS_PATH = datadir('mars')
-SCAT_COV_FILENAME = 'scat_covs_w-size-2e14_q1-2_q2-4_nighttime.h5'
 
 
 def windows(x, window_size, stride, offset):
@@ -26,24 +25,25 @@ def windows(x, window_size, stride, offset):
     return windowed_x
 
 
-def setup_hdf5_file(path):
+def setup_hdf5_file(path, scat_cov_filename):
     """
     Setting up an HDF5 file to write scattering covariances.
     """
     # Path to the file.
-    file_path = os.path.join(path, SCAT_COV_FILENAME)
+    file_path = os.path.join(path, scat_cov_filename)
 
     # Horizons file
     file = h5py.File(file_path, 'a')
     file.close()
 
 
-def update_hdf5_file(path, filename, waveform, scat_covariances):
+def update_hdf5_file(path, scat_cov_filename, filename, waveform,
+                     scat_covariances):
     """
     Update the HDF5 file by writing new scattering covariances.
     """
     # Path to the file.
-    file_path = os.path.join(path, SCAT_COV_FILENAME)
+    file_path = os.path.join(path, scat_cov_filename)
 
     # HDF5 file.
     file = h5py.File(file_path, 'r+')
@@ -61,13 +61,13 @@ def update_hdf5_file(path, filename, waveform, scat_covariances):
     file.close()
 
 
-def compute_scat_cov(window_size, num_oct, cuda):
+def compute_scat_cov(args):
 
     waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms'))
     scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
     raw_data_files = os.listdir(waveform_path)
 
-    setup_hdf5_file(scat_cov_path)
+    setup_hdf5_file(scat_cov_path, args.scat_cov_filename)
     discarded_files = 0
     with tqdm(raw_data_files,
               unit='file',
@@ -92,12 +92,12 @@ def compute_scat_cov(window_size, num_oct, cuda):
                     # on a more concrete way of choosing window size. 2**17
                     # comes from previous experiments. (may want to reduce it
                     # for mars quakes in the range of 30 minutes)
-                    if trace.size >= window_size:
+                    if trace.size >= args.window_size:
                         # Turn the trace to a batch of windowed data with size
                         # `window_size`.
                         windowed_trace = windows(trace,
-                                                 window_size=window_size,
-                                                 stride=window_size // 2,
+                                                 window_size=args.window_size,
+                                                 stride=args.window_size // 2,
                                                  offset=0)
 
                         # Compute scattering covariance. RX is a
@@ -111,17 +111,23 @@ def compute_scat_cov(window_size, num_oct, cuda):
                         # Here, the batch dimension (1st dimension) corresponds
                         # to the different windows
 
-                        RX = analyze(windowed_trace,
-                                     J=num_oct,
-                                     Q1=2,
-                                     Q2=4,
-                                     moments='cov',
-                                     cuda=cuda,
-                                     normalize=True,
-                                     nchunks=windowed_trace.shape[0] *
-                                     2) # reduce nchunks to accelerate
-                        mask_power_spectrum = RX.descri.where(q=2, r=1) # where is the power spectrum
-                        RX = RX.reduce(mask=~mask_power_spectrum) # select everything except the power spectrum
+                        # Reduce nchunks to accelerate.
+                        RX = analyze(
+                            windowed_trace,
+                            J=args.num_oct,
+                            Q1=args.q1,
+                            Q2=args.q2,
+                            moments='cov',
+                            cuda=args.cuda,
+                            normalize=True,
+                            nchunks=windowed_trace.shape[0] * 2
+                        )  #.reduce(m_type=['m10','m11']) # this removing the power spectrum and sparsity factor.
+                        if not args.use_power_spectrum:
+                            mask_power_spectrum = RX.descri.where(
+                                q=2, r=1)  # where is the power spectrum
+                            RX = RX.reduce(
+                                mask=~mask_power_spectrum
+                            )  # select everything except the power spectrum
 
                         for b in range(windowed_trace.shape[0]):
 
@@ -148,12 +154,14 @@ def compute_scat_cov(window_size, num_oct, cuda):
 
                             filename = file + '_' + str(b)
                             event_start, event_end = get_time_interval(
-                                filename, window_size=window_size)
+                                filename, window_size=args.window_size)
                             if args.use_day_data or is_night_time_event(
                                     event_start, event_end):
 
-                                update_hdf5_file(scat_cov_path, filename,
-                                                 windowed_trace[b, ...],
+                                update_hdf5_file(scat_cov_path,
+                                                 args.scat_cov_filename,
+                                                 filename, windowed_trace[b,
+                                                                          ...],
                                                  scat_covariances)
                             pb.set_postfix({
                                 'shape':
@@ -179,6 +187,14 @@ if __name__ == "__main__":
                         type=int,
                         default=8,
                         help='Number of octaves in the scattering transform')
+    parser.add_argument('--q1',
+                        dest='q1',
+                        type=int,
+                        default=2)
+    parser.add_argument('--q2',
+                        dest='q2',
+                        type=int,
+                        default=4)
     parser.add_argument('--cuda',
                         dest='cuda',
                         type=int,
@@ -189,6 +205,16 @@ if __name__ == "__main__":
                         type=int,
                         default=1,
                         help='set to 0 for extracting only night time data')
+    parser.add_argument('--use_power_spectrum',
+                        dest='use_power_spectrum',
+                        type=int,
+                        default=1,
+                        help='set to 0 for extracting only night time data')
+    parser.add_argument('--scat_cov_filename',
+                        dest='scat_cov_filename',
+                        type=str,
+                        default='scat_covs_w-size-2e14_q1-2_q2-4_nighttime.h5',
+                        help='filname to be created')
     args = parser.parse_args()
 
-    compute_scat_cov(args.window_size, args.num_oct, args.cuda)
+    compute_scat_cov(args)

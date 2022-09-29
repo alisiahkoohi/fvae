@@ -47,7 +47,7 @@ class InferenceNet(torch.nn.Module):
     # q(z|x,y)
     def qzxy(self, x, y):
         concat = torch.cat((x, y), dim=1)
-        return  self.inference_qzyx(concat)
+        return self.inference_qzyx(concat)
 
     def forward(self, x, temperature=1.0, hard=0):
         # x = Flatten(x)
@@ -129,13 +129,18 @@ class GMVAENetwork(torch.nn.Module):
                  init_temp,
                  hard_gumbel=0,
                  hidden_dim=512,
-                 nlayer=3):
+                 nlayer=3,
+                 batchnorm=0):
         super(GMVAENetwork, self).__init__()
 
-        self.inference = InferenceNet(x_dim, z_dim, y_dim, hidden_dim,
-                                      nlayer)
+        self.inference = InferenceNet(x_dim, z_dim, y_dim, hidden_dim, nlayer)
         self.generative = GenerativeNet(x_dim, z_dim, y_dim, hidden_dim,
                                         nlayer)
+        if batchnorm:
+            self.bn = torch.nn.BatchNorm1d(x_dim,
+                                           affine=False,
+                                           track_running_stats=False,
+                                           eps=1e-3)
 
         self.gumbel_temp = init_temp
         self.hard_gumbel = hard_gumbel
@@ -146,11 +151,13 @@ class GMVAENetwork(torch.nn.Module):
                     m) == torch.nn.Conv2d or type(
                         m) == torch.nn.ConvTranspose2d:
                 torch.nn.init.xavier_normal_(m.weight)
-                if m.bias.data is not None:
+                if m.bias is not None:
                     torch.nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         x = x.view(x.size(0), -1)
+        with torch.no_grad():
+            x = self.bn(x) if hasattr(self, 'bn') else x
         out_inf = self.inference(x, self.gumbel_temp, self.hard_gumbel)
         z, y = out_inf['gaussian'], out_inf['categorical']
         out_gen = self.generative(z, y)

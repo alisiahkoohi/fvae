@@ -2,6 +2,7 @@ import torch
 from torch.nn import functional as F
 
 
+
 # Flatten layer
 class Flatten(torch.nn.Module):
     def forward(self, x):
@@ -68,8 +69,8 @@ class GumbelSoftmax(torch.nn.Module):
 class Gaussian(torch.nn.Module):
     def __init__(self, in_dim, z_dim):
         super(Gaussian, self).__init__()
-        self.mu = torch.nn.Linear(in_dim, z_dim)
-        self.var = torch.nn.Linear(in_dim, z_dim)
+        self.mu = torch.nn.Linear(in_dim, z_dim, bias=False)
+        self.var = torch.nn.Linear(in_dim, z_dim, bias=False)
 
     def reparameterize(self, mu, var):
         std = torch.sqrt(var + 1e-10)
@@ -82,3 +83,42 @@ class Gaussian(torch.nn.Module):
         var = F.softplus(self.var(x))
         z = self.reparameterize(mu, var)
         return mu, var, z
+
+
+class ResidualUnit(torch.nn.Module):
+    def __init__(self, n_channels, dilation=1):
+        super().__init__()
+
+        self.dilation = dilation
+
+        self.layers = torch.nn.Sequential(
+            torch.nn.Conv1d(in_channels=n_channels, out_channels=n_channels,
+                      kernel_size=21, dilation=dilation, padding='same', padding_mode='reflect'),
+            torch.nn.ELU(),
+            torch.nn.Conv1d(in_channels=n_channels, out_channels=n_channels,
+                      kernel_size=1, padding='same', padding_mode='reflect')
+        )
+
+    def forward(self, x):
+        return x + self.layers(x)
+
+
+class EncoderBlock(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, stride):
+        super().__init__()
+
+        self.layers = torch.nn.Sequential(
+            torch.nn.Conv1d(in_channels=in_channels, out_channels=hidden_channels,
+                      kernel_size=21, stride=stride),
+            ResidualUnit(hidden_channels),
+            torch.nn.ELU(),
+            ResidualUnit(hidden_channels),
+            torch.nn.ELU(),
+            ResidualUnit(hidden_channels),
+            torch.nn.ELU(),
+            torch.nn.Conv1d(in_channels=hidden_channels, out_channels=out_channels,
+                      kernel_size=2*stride, stride=stride)
+        )
+
+    def forward(self, x):
+        return self.layers(x)

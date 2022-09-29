@@ -2,7 +2,6 @@ import numpy as np
 import os
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from torch.nn import functional as F
 from tqdm import tqdm
 
 from facvae.utils import checkpointsdir, CustomLRScheduler, logsdir
@@ -26,7 +25,8 @@ class GaussianMixtureVAE(object):
                                     args.ncluster,
                                     args.init_temp,
                                     hidden_dim=args.hidden_dim,
-                                    nlayer=args.nlayer).to(self.device)
+                                    nlayer=args.nlayer,
+                                    batchnorm=args.bn).to(self.device)
 
         # Tensorboard writer.
         if args.phase == 'train':
@@ -73,8 +73,7 @@ class GaussianMixtureVAE(object):
         pi = torch.ones_like(prob_cat)
         # pi[:, 0] = 0.1
         # pi[:, 1] = 0.1
-        cat_loss_prior = self.losses.entropy(pi,
-                                             prob_cat)
+        cat_loss_prior = self.losses.entropy(pi, prob_cat)
 
         # Total loss.
         vae_loss = (self.w_rec * rec_loss + self.w_gauss * gauss_loss +
