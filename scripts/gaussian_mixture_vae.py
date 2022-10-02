@@ -149,8 +149,7 @@ class GaussianMixtureVAE(object):
                         x_val = x_val.to(self.device)
                         y_val = self.network(x_val)
                         val_loss = self.compute_loss(x_val, y_val)
-                        self.log_progress(args, pb, epoch, train_loss,
-                                          val_loss)
+                        self.log_progress(args, epoch, train_loss, val_loss)
 
                 self.progress_bar(pb, train_loss)
 
@@ -160,16 +159,17 @@ class GaussianMixtureVAE(object):
                         args.init_temp * np.exp(-args.temp_decay * epoch),
                         args.min_temp)
 
-            torch.save(
-                {
-                    'model_state_dict': self.network.state_dict(),
-                    'optim_state_dict': optim.state_dict(),
-                    'epoch': epoch,
-                    'train_log': self.train_log,
-                    'val_log': self.val_log
-                },
-                os.path.join(checkpointsdir(args.experiment),
-                             f'checkpoint_{epoch}.pth'))
+                if epoch % 1000 == 0 or epoch == args.max_epoch - 1:
+                    torch.save(
+                        {
+                            'model_state_dict': self.network.state_dict(),
+                            'optim_state_dict': optim.state_dict(),
+                            'epoch': epoch,
+                            'train_log': self.train_log,
+                            'val_log': self.val_log
+                        },
+                        os.path.join(checkpointsdir(args.experiment),
+                                    f'checkpoint_{epoch}.pth'))
 
     def progress_bar(self, pb, train_loss):
         progress_bar_dict = {}

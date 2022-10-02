@@ -1,7 +1,7 @@
 {
     "cuda": 1,
     "max_epoch": 5000,
-    "batchsize": 4096,
+    "batchsize": 32768,
     "lr": 0.0005,
     "lr_final": 0.0001,
     "ncluster": 10,
@@ -18,5 +18,5 @@
     "hidden_dim": 512,
     "nlayer": 3,
     "dataset": "mars",
-    "bn": 0
+    "bn": 1
 }
