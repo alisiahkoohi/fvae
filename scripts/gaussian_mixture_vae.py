@@ -63,9 +63,9 @@ class GaussianMixtureVAE(object):
         rec_loss = self.losses.reconstruction_loss(data, data_recon, 'mse')
 
         # Gaussian loss.
-        # gauss_loss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
-        gauss_loss = self.losses.gaussian_closed_form_loss(
-            mu, var, y_mu, y_var)
+        gauss_loss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
+        # gauss_loss = self.losses.gaussian_closed_form_loss(
+        #     mu, var, y_mu, y_var)
 
         # Categorical loss (posterior)
         cat_loss = -self.losses.entropy(logits, prob_cat)
@@ -134,19 +134,25 @@ class GaussianMixtureVAE(object):
                     train_loss = self.compute_loss(x, y)
                     # Compute gradients.
                     train_loss['vae'].backward()
+
+                    for p in self.network.parameters():
+                        if p.requires_grad:
+                            p.grad.clamp_(-5, 5)
                     # Update parameters.
                     optim.step()
 
                 # Log progress.
-                if epoch % 10 == 0:
+                if epoch % 100 == 0:
                     with torch.no_grad():
                         x_val = self.dataset.sample_data(next(
                             iter(val_loader)))
                         x_val = x_val.to(self.device)
                         y_val = self.network(x_val)
                         val_loss = self.compute_loss(x_val, y_val)
+                        self.log_progress(args, pb, epoch, train_loss,
+                                          val_loss)
 
-                self.log_progress(args, pb, epoch, train_loss, val_loss)
+                self.progress_bar(pb, train_loss)
 
                 # Decay gumbel temperature
                 if args.temp_decay > 0:
@@ -165,20 +171,23 @@ class GaussianMixtureVAE(object):
                 os.path.join(checkpointsdir(args.experiment),
                              f'checkpoint_{epoch}.pth'))
 
-    def log_progress(self, args, pb, epoch, train_loss, val_loss):
-        """Log progress of training."""
-        # Bookkeeping.
+    def progress_bar(self, pb, train_loss):
         progress_bar_dict = {}
         for key, item in train_loss.items():
             if key != 'clusters':
-                self.train_log[key].append(item.item())
                 progress_bar_dict[key] = f'{item.item():2.2f}'
+        # Progress bar.
+        pb.set_postfix(progress_bar_dict)
+
+    def log_progress(self, args, epoch, train_loss, val_loss):
+        """Log progress of training."""
+        # Bookkeeping.
+        for key, item in train_loss.items():
+            if key != 'clusters':
+                self.train_log[key].append(item.item())
         for key, item in val_loss.items():
             if key != 'clusters':
                 self.val_log[key].append(item.item())
-
-        # Progress bar.
-        pb.set_postfix(progress_bar_dict)
 
         self.writer.add_scalars(
             'classes_train', {

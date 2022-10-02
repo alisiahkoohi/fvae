@@ -72,17 +72,6 @@ class InferenceNet(torch.nn.Module):
         }
         return output
 
-
-class Tanh(torch.nn.Module):
-
-    def __init__(self, scale=1.0):
-        super(Tanh, self).__init__()
-        self.scale = scale
-
-    def forward(self, x):
-        return self.scale * torch.tanh(x)
-
-
 # Generative Network
 class GenerativeNet(torch.nn.Module):
 
@@ -90,7 +79,9 @@ class GenerativeNet(torch.nn.Module):
         super(GenerativeNet, self).__init__()
 
         # p(z|y)
-        self.generative_pzy = torch.nn.Sequential(Gaussian(y_dim, z_dim))
+        self.y_mu = torch.nn.Linear(y_dim, z_dim)
+        self.y_var = torch.nn.Linear(y_dim, z_dim)
+
 
         # p(x|z)
         self.generative_pxz = torch.nn.ModuleList([
@@ -107,7 +98,8 @@ class GenerativeNet(torch.nn.Module):
 
     # p(z|y)
     def pzy(self, y):
-        y_mu, y_var = self.generative_pzy(y)[:2]
+        y_mu = self.y_mu(y)
+        y_var = F.softplus(self.y_var(y))
         return y_mu, y_var
 
     # p(x|z)
@@ -144,9 +136,9 @@ class GMVAENetwork(torch.nn.Module):
                                         nlayer)
         if batchnorm:
             self.bn = torch.nn.BatchNorm1d(x_dim,
-                                           affine=False,
-                                           track_running_stats=False,
-                                           eps=1e-3)
+                                           affine=True,
+                                           track_running_stats=True,
+                                           eps=1e-5)
 
         self.gumbel_temp = init_temp
         self.hard_gumbel = hard_gumbel
@@ -162,8 +154,8 @@ class GMVAENetwork(torch.nn.Module):
 
     def forward(self, x):
         x = x.view(x.size(0), -1)
-        with torch.no_grad():
-            x = self.bn(x) if hasattr(self, 'bn') else x
+        # with torch.no_grad():
+        x = self.bn(x) if hasattr(self, 'bn') else x
         out_inf = self.inference(x, self.gumbel_temp, self.hard_gumbel)
         z, y = out_inf['gaussian'], out_inf['categorical']
         out_gen = self.generative(z, y)

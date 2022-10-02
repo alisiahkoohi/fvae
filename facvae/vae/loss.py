@@ -91,10 +91,9 @@ class LossFunctions(object):
         loss = -0.5 * mu_q.shape[-1]
         loss += 0.5 * (torch.sum(torch.log(var_p), dim=-1) -
                        torch.sum(torch.log(var_q), dim=-1))
-        loss += 0.5 * torch.sum(var_q / var_p, dim=-1)
-        loss += 0.5 * torch.sum(torch.pow(mu_p - mu_q, 2) / var_p, dim=-1)
+        loss += 0.5 * torch.sum(
+            (var_q + torch.pow(mu_p - mu_q, 2)) / var_p, dim=-1)
         return loss.mean()
-
 
     def entropy(self, logits, targets):
         """Entropy loss
