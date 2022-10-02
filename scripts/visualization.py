@@ -26,7 +26,8 @@ class Visualization(object):
     def __init__(self, network, dataset, window_size, device):
         # Pretrained GMVAE network.
         self.network = network
-        # The entire dataset.s
+        self.network.eval()
+        # The entire dataset.
         self.dataset = dataset
         # Window size of the dataset.
         self.window_size = window_size
@@ -353,7 +354,7 @@ class Visualization(object):
                              learning_rate='auto',
                              init='pca',
                              early_exaggeration=10,
-                             perplexity=200).fit_transform(features)
+                             perplexity=50).fit_transform(features)
         features_pca = PCA(n_components=2).fit_transform(features)
         # plot only the first 2 dimensions
         # cmap = plt.cm.get_cmap('hsv', args.ncluster)
