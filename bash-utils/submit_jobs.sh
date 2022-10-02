@@ -1,35 +1,43 @@
 #!/bin/bash -l
 
-set -e
+# set -e
 
-nohup python scripts/train_gmvae.py --latent_dim 2 > logs/train_gmvae_2.log &
-
-wait
-
-nohup python scripts/train_gmvae.py --latent_dim 2 --phase test --cuda 0 > logs/train_gmvae_2_test.log &
-nohup python scripts/train_gmvae.py --latent_dim 4 > logs/train_gmvae_4.log &
+python scripts/train_gmvae.py --latent_dim 2 --bn 0 --ncluster 5 &
+python scripts/train_gmvae.py --latent_dim 4 --bn 0 --ncluster 5 &
+python scripts/train_gmvae.py --latent_dim 8 --bn 0 --ncluster 5 &
 
 wait
 
-nohup python scripts/train_gmvae.py --latent_dim 4 --phase test --cuda 0 > logs/train_gmvae_4_test.log &
-nohup python scripts/train_gmvae.py --latent_dim 64 > logs/train_gmvae_64.log &
+nohup python scripts/train_gmvae.py --latent_dim 2 --bn 0 --ncluster 5 --phase test --cuda 0 &
+nohup python scripts/train_gmvae.py --latent_dim 4 --bn 0 --ncluster 5 --phase test --cuda 0 &
+nohup python scripts/train_gmvae.py --latent_dim 8 --bn 0 --ncluster 5 --phase test --cuda 0 &
+
+python scripts/train_gmvae.py --latent_dim 4 --bn 0 --ncluster 5 &
+python scripts/train_gmvae.py --latent_dim 4 --bn 0 --ncluster 10 &
+python scripts/train_gmvae.py --latent_dim 4 --bn 0 --ncluster 15 &
 
 wait
 
-nohup python scripts/train_gmvae.py --latent_dim 64 --phase test --cuda 0 > logs/train_gmvae_64_test.log &
-nohup python scripts/train_gmvae.py --latent_dim 4 --ncluster 5 > logs/train_gmvae_4_5.log &
+python scripts/train_gmvae.py --latent_dim 4 --bn 0 --ncluster 5  --phase test --cuda 0 &
+python scripts/train_gmvae.py --latent_dim 4 --bn 0 --ncluster 10 --phase test --cuda 0 &
+python scripts/train_gmvae.py --latent_dim 4 --bn 0 --ncluster 15 --phase test --cuda 0 &
+
+python scripts/train_gmvae.py --latent_dim 16 --bn 0 --ncluster 5 &
+python scripts/train_gmvae.py --latent_dim 32 --bn 0 --ncluster 5 &
+python scripts/train_gmvae.py --latent_dim 64 --bn 0 --ncluster 5 &
 
 wait
 
-nohup python scripts/train_gmvae.py --latent_dim 4 --ncluster 5 --phase test --cuda 0 > logs/train_gmvae_4_5_test.log &
-nohup python scripts/train_gmvae.py --latent_dim 4 --ncluster 20 > logs/train_gmvae_4_20.log &
+python scripts/train_gmvae.py --latent_dim 16 --bn 0 --ncluster 5 --phase test --cuda 0 &
+python scripts/train_gmvae.py --latent_dim 32 --bn 0 --ncluster 5 --phase test --cuda 0 &
+python scripts/train_gmvae.py --latent_dim 64 --bn 0 --ncluster 5 --phase test --cuda 0 &
+
+python scripts/train_gmvae.py --latent_dim 16 --bn 0 --ncluster 10 &
+python scripts/train_gmvae.py --latent_dim 32 --bn 0 --ncluster 10 &
+python scripts/train_gmvae.py --latent_dim 64 --bn 0 --ncluster 10 &
 
 wait
 
-nohup python scripts/train_gmvae.py --latent_dim 4 --ncluster 20 --phase test --cuda 0 > logs/train_gmvae_4_20_test.log &
-nohup python scripts/train_gmvae.py --latent_dim 4 --hidden_dim 1024 > logs/train_gmvae_4_1024.log &
-
-wait
-
-nohup python scripts/train_gmvae.py --latent_dim 4 --hidden_dim 1024 --phase test --cuda 0 > logs/train_gmvae_4_1024_test.log &
-nohup python scripts/train_gmvae.py --latent_dim 4 --hidden_dim 64 > logs/train_gmvae_4_64.log &
+python scripts/train_gmvae.py --latent_dim 16 --bn 0 --ncluster 10  --phase test --cuda 0 &
+python scripts/train_gmvae.py --latent_dim 32 --bn 0 --ncluster 10 --phase test --cuda 0 &
+python scripts/train_gmvae.py --latent_dim 64 --bn 0 --ncluster 10 --phase test --cuda 0 &

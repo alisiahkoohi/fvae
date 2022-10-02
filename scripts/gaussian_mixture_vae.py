@@ -138,7 +138,7 @@ class GaussianMixtureVAE(object):
                     optim.step()
 
                 # Log progress.
-                if epoch % 100 == 0:
+                if epoch % 10 == 0:
                     with torch.no_grad():
                         x_val = self.dataset.sample_data(next(
                             iter(val_loader)))
@@ -146,7 +146,7 @@ class GaussianMixtureVAE(object):
                         y_val = self.network(x_val)
                         val_loss = self.compute_loss(x_val, y_val)
 
-                    self.log_progress(args, pb, epoch, train_loss, val_loss)
+                self.log_progress(args, pb, epoch, train_loss, val_loss)
 
                 # Decay gumbel temperature
                 if args.temp_decay > 0:
