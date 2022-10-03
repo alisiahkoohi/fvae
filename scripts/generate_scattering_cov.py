@@ -2,12 +2,12 @@
 import argparse
 import h5py
 import obspy
+import torch
 import numpy as np
 import os
 from tqdm import tqdm
 
-from scatcov.frontend import analyze, cplx
-from scatcov.utils import to_numpy
+from scatcov.frontend import analyze
 from facvae.utils import datadir, is_night_time_event, get_time_interval
 
 MARS_PATH = datadir('mars')
@@ -120,29 +120,14 @@ def compute_scat_cov(args):
                             moments='cov',
                             cuda=args.cuda,
                             normalize=True,
-                            nchunks=16
-                        )  #.reduce(m_type=['m10','m11']) # this removing the power spectrum and sparsity factor.
-                        if not args.use_power_spectrum:
-                            mask_power_spectrum = RX.descri.where(
-                                q=2, r=1)  # where is the power spectrum
-                            RX = RX.reduce(
-                                mask=~mask_power_spectrum
-                            )  # select everything except the power spectrum
+                            nchunks=16  # increase it to reduce memory usage
+                        )
 
                         for b in range(windowed_trace.shape[0]):
 
-                            # b = 0  # for test only: choose the first window to
-                            # compute scattering covariance
-                            y = RX.y[b, :, 0, :]
-
-                            # y_phase = np.angle(y) y_phase[np.abs(y) < 0.001] =
-                            # 0.0
-                            # rule phase instability, the threshold must be
-                            # adapted
-
                             # CASE 1: keep real and imag parts by considering it
                             # as different real coefficients
-                            scat_covariances = to_numpy(y).ravel()
+                            scat_covariances = torch.cat([RX.y[b, :, 0].real, RX.y[b, :, 0].imag]).numpy()
 
                             # CASE 2: only keeps the modulus of the scattering
                             # covariance, hence discarding time asymmetry info
@@ -150,6 +135,9 @@ def compute_scat_cov(args):
 
                             # CASE 3: only keep the phase, which looks at time
                             # asymmetry in the data
+                            # y = RX.reduce(m_type=['m01', 'm11'], re=False).y[0, :, 0].numpy()
+                            # y_phase = np.angle(y)
+                            # y_phase[np.abs(y) < 1e-2] = 0.0  # rules phase instability
                             # scat_covariances = y_phase
 
                             filename = file + '_' + str(b)
