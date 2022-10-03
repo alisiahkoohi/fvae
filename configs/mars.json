@@ -5,7 +5,7 @@
     "lr": 0.0005,
     "lr_final": 0.0001,
     "ncluster": 10,
-    "latent_dim": 2,
+    "latent_dim": 8,
     "init_temp": 1.0,
     "min_temp": 0.5,
     "temp_decay": 0.013862944,
