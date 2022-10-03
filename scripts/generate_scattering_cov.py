@@ -120,7 +120,7 @@ def compute_scat_cov(args):
                             moments='cov',
                             cuda=args.cuda,
                             normalize=True,
-                            nchunks=windowed_trace.shape[0] * 2
+                            nchunks=16
                         )  #.reduce(m_type=['m10','m11']) # this removing the power spectrum and sparsity factor.
                         if not args.use_power_spectrum:
                             mask_power_spectrum = RX.descri.where(
