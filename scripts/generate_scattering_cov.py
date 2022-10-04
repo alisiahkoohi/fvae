@@ -8,7 +8,7 @@ import os
 from tqdm import tqdm
 
 from scatcov.frontend import analyze
-from facvae.utils import datadir, is_night_time_event, get_time_interval
+from facvae.utils import datadir, is_night_time_event
 
 MARS_PATH = datadir('mars')
 
@@ -38,7 +38,7 @@ def setup_hdf5_file(path, scat_cov_filename):
 
 
 def update_hdf5_file(path, scat_cov_filename, filename, waveform,
-                     scat_covariances):
+                     scat_covariances, window_times):
     """
     Update the HDF5 file by writing new scattering covariances.
     """
@@ -58,6 +58,9 @@ def update_hdf5_file(path, scat_cov_filename, filename, waveform,
     file_group.create_dataset('scat_cov',
                               data=scat_covariances,
                               dtype=np.float32)
+    file_group.create_dataset('window_times',
+                              data=window_times,
+                              dtype=h5py.string_dtype())
     file.close()
 
 
@@ -81,55 +84,68 @@ def compute_scat_cov(args):
                 # Only keep files that do not have gaps.
                 if len(data_stream.get_gaps()) == 0:
 
-                    # The following line although will not do
-                    # interpolation—because there are not gaps—but will combine
-                    # different streams into one.
-                    trace = data_stream.merge(method=1,
-                                              fill_value="interpolate")[0]
-                    trace = trace.data
+                    # The following line although will not do interpolation —
+                    # because there are not gaps — but will combine different
+                    # streams into one.
+                    data_stream = data_stream.merge(method=1,
+                                                    fill_value="interpolate")
 
-                    # Filter out smaller than `window_size` data. TODO: Decide
-                    # on a more concrete way of choosing window size. 2**17
-                    # comes from previous experiments. (may want to reduce it
-                    # for mars quakes in the range of 30 minutes)
-                    if trace.size >= args.window_size:
-                        # Turn the trace to a batch of windowed data with size
-                        # `window_size`.
-                        windowed_trace = windows(trace,
-                                                 window_size=args.window_size,
-                                                 stride=args.window_size // 2,
-                                                 offset=0)
+                    # Trimming all the components to the same length.
+                    data_stream = data_stream.trim(
+                        starttime=max(
+                            [tr.meta.starttime for tr in data_stream]),
+                        endtime=min([tr.meta.endtime for tr in data_stream]))
 
-                        # Compute scattering covariance. RX is a
-                        # DescribedTensor. RX.y is a tensor of size B x
-                        # nb_coeff x T x 2
+                    # Turn the trace to a batch of windowed data with size
+                    # `window_size`.
+                    windowed_data = list(
+                        data_stream.slide(
+                            (args.window_size - 1) /
+                            data_stream[0].meta.sampling_rate,
+                            args.window_size /
+                            data_stream[0].meta.sampling_rate // 2,
+                            offset=0))
 
-                        # RX.info is a dataframe with nb_coeff rows that
-                        # describes each RX.y[:, i_coeff, :, :] for 0 <=
-                        # i_coeff < nb_coeff
+                    window_times = []
+                    batched_window = []
+                    for window in windowed_data:
+                        window_times.append(
+                            (window[0].meta.starttime, window[0].meta.endtime))
+                        batched_window.append(
+                            np.stack([tr.data for tr in window]))
+                    batched_window = np.stack(batched_window)
 
-                        # Here, the batch dimension (1st dimension) corresponds
-                        # to the different windows
+                    # Compute scattering covariance. RX is a
+                    # DescribedTensor.
+                    # RX.y is a tensor of size B x nb_coeff x T x 2
 
-                        # Reduce nchunks to accelerate.
-                        RX = analyze(
-                            windowed_trace,
-                            J=args.num_oct,
-                            Q1=args.q1,
-                            Q2=args.q2,
-                            moments='cov',
-                            cuda=args.cuda,
-                            normalize=True,
-                            nchunks=16  # increase it to reduce memory usage
-                        )
+                    # RX.info is a dataframe with nb_coeff rows that
+                    # describes each RX.y[:, i_coeff, :, :] for 0 <=
+                    # i_coeff < nb_coeff
+                    RX = []
+                    for c in range(3):
+                        RX.append(
+                            analyze(batched_window[:, c, :],
+                                    J=args.num_oct,
+                                    Q1=args.q1,
+                                    Q2=args.q2,
+                                    moments='cov',
+                                    cuda=args.cuda,
+                                    normalize=True,
+                                    nchunks=batched_window.shape[0] * 2))  # 16
 
-                        for b in range(windowed_trace.shape[0]):
+                        for b in range(batched_window.shape[0]):
 
                             # CASE 1: keep real and imag parts by considering
                             # it as different real coefficients
-                            scat_covariances = torch.cat(
-                                [RX.y[b, :, 0].real, RX.y[b, :,
-                                                          0].imag]).numpy()
+                            scat_covariances = [
+                                torch.cat([
+                                    RX[i].y[b, :, 0].real, RX[i].y[b, :,
+                                                                   0].imag
+                                ]).numpy() for i in range(3)
+                            ]
+                            scat_covariances = np.transpose(
+                                np.stack(scat_covariances), (1, 0, 2))
 
                             # CASE 2: only keeps the modulus of the scattering
                             # covariance, hence discarding time asymmetry info
@@ -143,22 +159,22 @@ def compute_scat_cov(args):
                             # instability scat_covariances = y_phase
 
                             filename = file + '_' + str(b)
-                            event_start, event_end = get_time_interval(
-                                filename, window_size=args.window_size)
+                            event_start, event_end = window_times[b]
                             if args.use_day_data or is_night_time_event(
                                     event_start, event_end):
 
                                 update_hdf5_file(scat_cov_path,
                                                  args.scat_cov_filename,
-                                                 filename, windowed_trace[b,
+                                                 filename, batched_window[b,
                                                                           ...],
-                                                 scat_covariances)
-                            pb.set_postfix({
-                                'shape':
-                                scat_covariances.shape,
-                                'discarded':
-                                f'{discarded_files/(i + 1):.4f}'
-                            })
+                                                 scat_covariances,
+                                                 window_times[b])
+                        pb.set_postfix({
+                            'shape':
+                            scat_covariances.shape,
+                            'discarded':
+                            f'{discarded_files/(i + 1):.4f}'
+                        })
 
                 else:
                     discarded_files += 1
@@ -186,11 +202,6 @@ if __name__ == "__main__":
                         help='set to 1 for running on GPU, 0 for CPU')
     parser.add_argument('--use_day_data',
                         dest='use_day_data',
-                        type=int,
-                        default=1,
-                        help='set to 0 for extracting only night time data')
-    parser.add_argument('--use_power_spectrum',
-                        dest='use_power_spectrum',
                         type=int,
                         default=1,
                         help='set to 0 for extracting only night time data')
