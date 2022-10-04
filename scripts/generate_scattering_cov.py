@@ -81,9 +81,9 @@ def compute_scat_cov(args):
                 # Only keep files that do not have gaps.
                 if len(data_stream.get_gaps()) == 0:
 
-                    # The following line although will not do interpolation—because
-                    # there are not gaps—but will combine different streams into
-                    # one.
+                    # The following line although will not do
+                    # interpolation—because there are not gaps—but will combine
+                    # different streams into one.
                     trace = data_stream.merge(method=1,
                                               fill_value="interpolate")[0]
                     trace = trace.data
@@ -101,12 +101,12 @@ def compute_scat_cov(args):
                                                  offset=0)
 
                         # Compute scattering covariance. RX is a
-                        # DescribedTensor. RX.y is a tensor of size B x nb_coeff
-                        # x T x 2
+                        # DescribedTensor. RX.y is a tensor of size B x
+                        # nb_coeff x T x 2
 
                         # RX.info is a dataframe with nb_coeff rows that
-                        # describes each RX.y[:, i_coeff, :, :] for 0 <= i_coeff
-                        # < nb_coeff
+                        # describes each RX.y[:, i_coeff, :, :] for 0 <=
+                        # i_coeff < nb_coeff
 
                         # Here, the batch dimension (1st dimension) corresponds
                         # to the different windows
@@ -125,20 +125,22 @@ def compute_scat_cov(args):
 
                         for b in range(windowed_trace.shape[0]):
 
-                            # CASE 1: keep real and imag parts by considering it
-                            # as different real coefficients
-                            scat_covariances = torch.cat([RX.y[b, :, 0].real, RX.y[b, :, 0].imag]).numpy()
+                            # CASE 1: keep real and imag parts by considering
+                            # it as different real coefficients
+                            scat_covariances = torch.cat(
+                                [RX.y[b, :, 0].real, RX.y[b, :,
+                                                          0].imag]).numpy()
 
                             # CASE 2: only keeps the modulus of the scattering
                             # covariance, hence discarding time asymmetry info
                             # scat_covariances = np.abs(cplx.to_np(y))
 
                             # CASE 3: only keep the phase, which looks at time
-                            # asymmetry in the data
-                            # y = RX.reduce(m_type=['m01', 'm11'], re=False).y[0, :, 0].numpy()
-                            # y_phase = np.angle(y)
-                            # y_phase[np.abs(y) < 1e-2] = 0.0  # rules phase instability
-                            # scat_covariances = y_phase
+                            # asymmetry in the data y =
+                            # RX.reduce(m_type=['m01', 'm11'], re=False).y[0,
+                            # :, 0].numpy() y_phase = np.angle(y)
+                            # y_phase[np.abs(y) < 1e-2] = 0.0  # rules phase
+                            # instability scat_covariances = y_phase
 
                             filename = file + '_' + str(b)
                             event_start, event_end = get_time_interval(
@@ -175,14 +177,8 @@ if __name__ == "__main__":
                         type=int,
                         default=8,
                         help='Number of octaves in the scattering transform')
-    parser.add_argument('--q1',
-                        dest='q1',
-                        type=int,
-                        default=2)
-    parser.add_argument('--q2',
-                        dest='q2',
-                        type=int,
-                        default=4)
+    parser.add_argument('--q1', dest='q1', type=int, default=2)
+    parser.add_argument('--q2', dest='q2', type=int, default=4)
     parser.add_argument('--cuda',
                         dest='cuda',
                         type=int,
