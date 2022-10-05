@@ -2,7 +2,6 @@
 import argparse
 import h5py
 import obspy
-import torch
 import numpy as np
 import os
 from tqdm import tqdm
@@ -58,9 +57,10 @@ def update_hdf5_file(path, scat_cov_filename, filename, waveform,
     file_group.create_dataset('scat_cov',
                               data=scat_covariances,
                               dtype=np.float32)
-    file_group.create_dataset('window_times',
-                              data=window_times,
-                              dtype=h5py.string_dtype())
+    file_group.create_dataset(
+        'window_times',
+        data=[str(event_time) for event_time in window_times],
+        dtype=h5py.string_dtype())
     file.close()
 
 
@@ -114,6 +114,9 @@ def compute_scat_cov(args):
                         batched_window.append(
                             np.stack([tr.data for tr in window]))
                     batched_window = np.stack(batched_window)
+                    batched_window = batched_window.reshape(
+                        batched_window.shape[0] * batched_window.shape[1],
+                        batched_window.shape[2])
 
                     # Compute scattering covariance. RX is a
                     # DescribedTensor.
@@ -122,53 +125,60 @@ def compute_scat_cov(args):
                     # RX.info is a dataframe with nb_coeff rows that
                     # describes each RX.y[:, i_coeff, :, :] for 0 <=
                     # i_coeff < nb_coeff
-                    RX = []
-                    for c in range(3):
-                        RX.append(
-                            analyze(batched_window[:, c, :],
-                                    J=args.num_oct,
-                                    Q1=args.q1,
-                                    Q2=args.q2,
-                                    moments='cov',
-                                    cuda=args.cuda,
-                                    normalize=True,
-                                    nchunks=batched_window.shape[0] * 2))  # 16
+                    RX = analyze(batched_window,
+                                 J=args.num_oct,
+                                 Q1=args.q1,
+                                 Q2=args.q2,
+                                 moments='cov',
+                                 cuda=args.cuda,
+                                 normalize=True,
+                                 nchunks=48)
+                    if not args.use_power_spectrum:
+                        mask_power_spectrum = RX.descri.where(
+                            q=2, r=1)  # where is the power spectrum
+                        RX = RX.reduce(mask=~mask_power_spectrum)
+                    RX.y = RX.y.reshape(len(windowed_data), 3, -1, 2)
 
-                        for b in range(batched_window.shape[0]):
+                    # Compute the average of the scattering covariance
+                    # over the time axis.
+                    for b in range(len(windowed_data)):
 
-                            # CASE 1: keep real and imag parts by considering
-                            # it as different real coefficients
-                            scat_covariances = [
-                                torch.cat([
-                                    RX[i].y[b, :, 0].real, RX[i].y[b, :,
-                                                                   0].imag
-                                ]).numpy() for i in range(3)
-                            ]
-                            scat_covariances = np.transpose(
-                                np.stack(scat_covariances), (1, 0, 2))
+                        # CASE 1: keep real and imag parts by considering
+                        # it as different real coefficients
+                        y = RX.y[b, ...].numpy()
+                        scat_covariances = np.transpose(y, (0, 2, 1)).reshape(
+                            3 * 2, -1)
 
-                            # CASE 2: only keeps the modulus of the scattering
-                            # covariance, hence discarding time asymmetry info
-                            # scat_covariances = np.abs(cplx.to_np(y))
+                        # scat_covariances = [
+                        #     torch.cat(
+                        #         [RX.y[b, :, 0].real,
+                        #          RX.y[b, :, 0].imag]).numpy()
+                        #     for i in range(3)
+                        # ]
+                        # scat_covariances = np.transpose(
+                        #     np.stack(scat_covariances), (1, 0, 2))
 
-                            # CASE 3: only keep the phase, which looks at time
-                            # asymmetry in the data y =
-                            # RX.reduce(m_type=['m01', 'm11'], re=False).y[0,
-                            # :, 0].numpy() y_phase = np.angle(y)
-                            # y_phase[np.abs(y) < 1e-2] = 0.0  # rules phase
-                            # instability scat_covariances = y_phase
+                        # CASE 2: only keeps the modulus of the scattering
+                        # covariance, hence discarding time asymmetry info
+                        # scat_covariances = np.abs(cplx.to_np(y))
 
-                            filename = file + '_' + str(b)
-                            event_start, event_end = window_times[b]
-                            if args.use_day_data or is_night_time_event(
-                                    event_start, event_end):
+                        # CASE 3: only keep the phase, which looks at time
+                        # asymmetry in the data y =
+                        # RX.reduce(m_type=['m01', 'm11'], re=False).y[0,
+                        # :, 0].numpy() y_phase = np.angle(y)
+                        # y_phase[np.abs(y) < 1e-2] = 0.0  # rules phase
+                        # instability scat_covariances = y_phase
 
-                                update_hdf5_file(scat_cov_path,
-                                                 args.scat_cov_filename,
-                                                 filename, batched_window[b,
-                                                                          ...],
-                                                 scat_covariances,
-                                                 window_times[b])
+                        filename = file + '_' + str(b)
+                        event_start, event_end = window_times[b]
+                        if args.use_day_data or is_night_time_event(
+                                event_start, event_end):
+
+                            update_hdf5_file(
+                                scat_cov_path, args.scat_cov_filename,
+                                filename, batched_window[3 * b:3 * (b + 1),
+                                                         ...],
+                                scat_covariances, window_times[b])
                         pb.set_postfix({
                             'shape':
                             scat_covariances.shape,
@@ -186,7 +196,7 @@ if __name__ == "__main__":
     parser.add_argument('--window_size',
                         dest='window_size',
                         type=int,
-                        default=2**17,
+                        default=2**12,
                         help='Window size of raw waveforms')
     parser.add_argument('--num_oct',
                         dest='num_oct',
@@ -205,11 +215,17 @@ if __name__ == "__main__":
                         type=int,
                         default=1,
                         help='set to 0 for extracting only night time data')
-    parser.add_argument('--scat_cov_filename',
-                        dest='scat_cov_filename',
-                        type=str,
-                        default='scat_covs_w-size-2e14_q1-2_q2-4_nighttime.h5',
-                        help='filname to be created')
+    parser.add_argument('--use_power_spectrum',
+                        dest='use_power_spectrum',
+                        type=int,
+                        default=1,
+                        help='set to 0 for extracting only night time data')
+    parser.add_argument(
+        '--scat_cov_filename',
+        dest='scat_cov_filename',
+        type=str,
+        default='scat_covs_mc_w-size-2e12_q1-2_q2-4_nighttime.h5',
+        help='filname to be created')
     args = parser.parse_args()
 
     compute_scat_cov(args)
