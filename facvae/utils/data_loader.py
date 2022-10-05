@@ -3,12 +3,14 @@ import numpy as np
 import os
 import torch
 import pickle
+from mpire import WorkerPool
+from obspy.core import UTCDateTime
 
 from facvae.utils import (GaussianDataset, CrescentDataset,
                           CrescentCubedDataset, SineWaveDataset, AbsDataset,
                           SignDataset, FourCirclesDataset, DiamondDataset,
                           TwoSpiralsDataset, CheckerboardDataset,
-                          TwoMoonsDataset, catalogsdir, get_time_interval)
+                          TwoMoonsDataset, catalogsdir)
 
 
 class MarsDataset(torch.utils.data.Dataset):
@@ -86,6 +88,14 @@ class MarsDataset(torch.utils.data.Dataset):
     def get_waveform_key(self, idx):
         return [self.file_keys[i] for i in idx]
 
+    def get_time_interval(self, idx):
+        labels = []
+        for i in idx:
+            group = self.file[self.file_keys[i]]
+            x = group['window_times'][...].astype(str)
+            labels.append(x)
+        return labels
+
 
 class ToyDataset(torch.utils.data.Dataset):
 
@@ -107,7 +117,7 @@ class ToyDataset(torch.utils.data.Dataset):
             'twomoons': TwoMoonsDataset,
         }
 
-        if not dataset_name in toy_datasets.keys():
+        if dataset_name not in toy_datasets.keys():
             raise ValueError('No dataset exists with name ', dataset_name)
 
         # Create dataset.
@@ -137,7 +147,7 @@ class CatalogReader(torch.utils.data.Dataset):
     def __init__(self,
                  path_to_catalog=os.path.join(catalogsdir('v11'),
                                               'events_InSIght.pkl'),
-                 window_size=2**17,
+                 window_size=2**12,
                  frequency=20.0):
 
         self.window_size = window_size
@@ -146,21 +156,28 @@ class CatalogReader(torch.utils.data.Dataset):
         with open(path_to_catalog, 'rb') as f:
             self.df = pickle.load(f)
 
-    def get_window_label(self, window_key):
-        start_time, end_time = get_time_interval(window_key,
-                                                 window_size=self.window_size,
-                                                 frequency=self.frequency)
-        label = []
-        for _, row in self.df.iterrows():
-            if row['eventTime'] >= start_time and row['eventTime'] <= end_time:
-                label.append(row['type'])
-        return label
+    def get_window_label(self, key, start_time, end_time):
+        df = self.df[(self.df['eventTime'] >= start_time)
+                     & (self.df['eventTime'] <= end_time)]
+        labels = []
+        for _, row in df.iterrows():
+            labels.append(row['type'])
+        if len(labels) > 0:
+            print(key, labels)
+        return key, labels
 
-    def add_labels_to_h5_file(self, path_to_h5_file):
+    def add_labels_to_h5_file(self, path_to_h5_file, n_workers=8):
         file = h5py.File(path_to_h5_file, 'r+')
+        inputs = []
         for key in file.keys():
-            label = self.get_window_label(key)
-            print(key, label)
+            start_time, end_time = file[key]['window_times'][...]
+            inputs.append((key, UTCDateTime(start_time.decode('utf-8')),
+                           UTCDateTime(end_time.decode('utf-8'))))
+        with WorkerPool(n_jobs=n_workers) as pool:
+            keys_and_labels = pool.map(self.get_window_label,
+                                       inputs,
+                                       progress_bar=True)
+        for key, label in keys_and_labels:
             file[key].require_dataset('label',
                                       shape=len(label),
                                       data=label,
