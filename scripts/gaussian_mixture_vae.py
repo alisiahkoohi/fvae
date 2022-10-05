@@ -45,13 +45,16 @@ class GaussianMixtureVAE(object):
         self.metrics = Metrics()
 
     def compute_loss(self, data, out_net):
-        """Method defining the loss functions derived from the variational lower bound
+        """Loss functions derived from the variational lower bound.
+
         Args:
             data: (array) corresponding array containing the input data
-            out_net: (dict) contains the graph operations or nodes of the network output
+            out_net: (dict) contains the graph operations or nodes of the
+            network output
 
         Returns:
-            loss_dic: (dict) contains the values of each loss function and predictions
+            loss_dic: (dict) contains the values of each loss function and
+            predictions
         """
         # obtain network variables
         z, data_recon = out_net['gaussian'], out_net['x_rec']
@@ -59,7 +62,8 @@ class GaussianMixtureVAE(object):
         y_mu, y_var = out_net['y_mean'], out_net['y_var']
         mu, var = out_net['mean'], out_net['var']
 
-        # Reconstruction loss
+        # Reconstruction loss.
+        # from IPython import embed; embed()
         rec_loss = self.losses.reconstruction_loss(data, data_recon, 'mse')
 
         # Gaussian loss.
@@ -94,8 +98,9 @@ class GaussianMixtureVAE(object):
         """Train the model
 
         Args:
-            train_loader: (DataLoader) corresponding loader containing the training data
-            val_loader: (DataLoader) corresponding loader containing the validation data
+            train_loader: (DataLoader) corresponding loader containing the
+            training data val_loader: (DataLoader) corresponding loader
+            containing the validation data
 
         Returns:
             output: (dict) contains the history of train/val loss
@@ -131,13 +136,13 @@ class GaussianMixtureVAE(object):
                     # Forward call.
                     y = self.network(x)
                     # Compute loss.
-                    train_loss = self.compute_loss(x, y)
+                    train_loss = self.compute_loss(x.view(x.size(0), -1), y)
                     # Compute gradients.
                     train_loss['vae'].backward()
 
                     for p in self.network.parameters():
                         if p.requires_grad:
-                            p.grad.clamp_(-5, 5)
+                            p.grad.clamp_(-args.clip, args.clip)
                     # Update parameters.
                     optim.step()
 
@@ -148,7 +153,8 @@ class GaussianMixtureVAE(object):
                             iter(val_loader)))
                         x_val = x_val.to(self.device)
                         y_val = self.network(x_val)
-                        val_loss = self.compute_loss(x_val, y_val)
+                        val_loss = self.compute_loss(
+                            x_val.view(x_val.size(0), -1), y_val)
                         self.log_progress(args, epoch, train_loss, val_loss)
 
                 self.progress_bar(pb, train_loss)
@@ -169,7 +175,7 @@ class GaussianMixtureVAE(object):
                             'val_log': self.val_log
                         },
                         os.path.join(checkpointsdir(args.experiment),
-                                    f'checkpoint_{epoch}.pth'))
+                                     f'checkpoint_{epoch}.pth'))
 
     def progress_bar(self, pb, train_loss):
         progress_bar_dict = {}

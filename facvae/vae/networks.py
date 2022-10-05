@@ -1,8 +1,32 @@
-import numpy as np
 import torch
 from torch.nn import functional as F
 
 from facvae.vae.layers import GumbelSoftmax, Gaussian
+
+
+class View(torch.nn.Module):
+    """A module to create a view of an existing torch.Tensor (avoid copying).
+    Attributes:
+        shape: A tuple containing the desired shape of the view.
+    """
+
+    def __init__(self, *shape):
+        """Initializes a Concat module.
+        Args:
+            shape: A tuple containing the desired shape of the view.
+        """
+        super().__init__()
+        self.shape = shape
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Creates a view of an input.
+        Args:
+            x: A torch.Tensor object.
+        Returns:
+            A torch.Tensor containing the view of the input with given
+                dimensions.
+        """
+        return x.view(*self.shape)
 
 
 # Inference Network
@@ -54,7 +78,7 @@ class InferenceNet(torch.nn.Module):
         return self.inference_qzyx(concat)
 
     def forward(self, x, temperature=1.0, hard=0):
-        # x = Flatten(x)
+        # from IPython import embed; embed()
 
         # q(y|x)
         logits, prob, y = self.qyx(x, temperature, hard)
@@ -72,6 +96,7 @@ class InferenceNet(torch.nn.Module):
         }
         return output
 
+
 # Generative Network
 class GenerativeNet(torch.nn.Module):
 
@@ -81,7 +106,6 @@ class GenerativeNet(torch.nn.Module):
         # p(z|y)
         self.y_mu = torch.nn.Linear(y_dim, z_dim)
         self.y_var = torch.nn.Linear(y_dim, z_dim)
-
 
         # p(x|z)
         self.generative_pxz = torch.nn.ModuleList([

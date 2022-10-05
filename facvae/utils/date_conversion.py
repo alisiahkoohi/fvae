@@ -116,15 +116,20 @@ def is_night_time_event(event_start, event_end):
     return False
 
 
-def create_lmst_xticks(window_key,
+def create_lmst_xticks(start_time,
+                       end_time,
                        window_size=2**17,
                        frequency=20.0,
                        time_zone='LMST'):
 
-    start_time, end_time = get_time_interval(window_key,
-                                             window_size=window_size,
-                                             frequency=frequency,
-                                             time_zone=time_zone)
+    if time_zone == 'LMST':
+        mars_date = MarsConverter()
+        start_time = mars_date.get_utc_2_lmst(utc_date=start_time)
+        end_time = mars_date.get_utc_2_lmst(utc_date=end_time)
+    elif time_zone == 'UTC':
+        pass
+    else:
+        raise NotImplementedError('Time zone not implemented')
 
     start_day = start_time.split('T')[0]
     end_day = end_time.split('T')[0]
@@ -138,11 +143,10 @@ def create_lmst_xticks(window_key,
     if int(end_day) > int(start_day):
         end_time = end_time + datetime.timedelta(days=1)
 
-    dt = 1 / frequency
     times = np.arange(
         np.datetime64(start_time), np.datetime64(end_time),
-        np.timedelta64(
-            (np.datetime64(end_time) - np.datetime64(start_time)) / window_size,
-            'us')).astype('datetime64[s]')[:window_size]
+        np.timedelta64((np.datetime64(end_time) - np.datetime64(start_time)) /
+                       window_size,
+                       'us')).astype('datetime64[s]')[:window_size]
 
     return times

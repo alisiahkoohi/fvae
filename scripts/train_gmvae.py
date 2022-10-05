@@ -18,7 +18,8 @@ from scripts.visualization import Visualization
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH = datadir('mars')
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
-SCAT_COV_FILENAME = 'scat_covs_w-size-2e12_q1-2_q2-4_day-data-0_power-spectrum-0.h5'
+SCAT_COV_FILENAME = ('scat_covs_3c_w-size-2e12_q1-2_q2-4_day-data-0'
+                     '_power-spectrum-0.h5')
 WINDOW_SIZE = 2**12
 
 # GMVAE training default hyperparameters.
@@ -37,16 +38,14 @@ if __name__ == "__main__":
     args = parse_input_args(args)
     args.experiment = make_experiment_name(args)
 
-    # Setting default device (cpu/cuda) depending on CUDA availability and input
-    # arguments.
+    # Setting default device (cpu/cuda) depending on CUDA availability and
+    # input arguments.
     if torch.cuda.is_available() and args.cuda:
         device = torch.device('cuda')
         # Read in all the data into CPU memory to avoid slowing down GPU.
-        load_to_memory = True
     else:
         device = torch.device('cpu')
         # Read the data from disk batch by batch.
-        load_to_memory = False
 
     # Read Data
     if args.dataset == 'mars':
@@ -54,7 +53,7 @@ if __name__ == "__main__":
                                            SCAT_COV_FILENAME),
                               0.8,
                               transform=None,
-                              load_to_memory=load_to_memory)
+                              load_to_memory=args.load_to_memory)
     else:
         dataset = ToyDataset(30000, 0.8, dataset_name=args.dataset)
 
@@ -85,11 +84,11 @@ if __name__ == "__main__":
         vis = Visualization(network, dataset, WINDOW_SIZE, device)
         if args.dataset == 'mars':
             vis.plot_waveforms(args, test_loader)
-            vis.random_generation(args)
+            # vis.random_generation(args)
             vis.reconstruct_data(args, val_loader)
         else:
             vis.plot_clusters(args, test_loader)
             vis.random_generation(args, num_elements=5000)
             vis.reconstruct_data(args, val_loader, sample_size=5000)
-        vis.plot_latent_space(args, val_loader)
+        # vis.plot_latent_space(args, test_loader)
     upload_results(args, flag='--progress')

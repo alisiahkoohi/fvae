@@ -22,10 +22,13 @@ def parse_input_args(args):
         parser.add_argument('--' + key, default=value, type=type(value))
     return parser.parse_args()
 
+
 def make_experiment_name(args):
     """Make experiment name based on input arguments"""
     experiment_name = args.experiment_name + '_'
     for key, value in vars(args).items():
-        if key not in ['experiment_name', 'cuda', 'phase']:
+        if key not in [
+                'experiment_name', 'cuda', 'phase', 'load_to_memory', 'clip'
+        ]:
             experiment_name += key + '-{}_'.format(value)
     return experiment_name[:-1].replace(' ', '')

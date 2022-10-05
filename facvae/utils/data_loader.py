@@ -54,7 +54,12 @@ class MarsDataset(torch.utils.data.Dataset):
             data = []
             for key in self.file_keys:
                 group = self.file[key]
-                x = group[type][...]
+                if type == 'scat_cov':
+                    x = group[type][...].reshape(3, 2, -1)[0, ...].reshape(-1)
+                elif type == 'waveform':
+                    x = group[type][0, :]
+                else:
+                    raise ValueError('No dataset exists with type ', type)
                 x = torch.from_numpy(x)
                 if self.transform:
                     with torch.no_grad():
@@ -67,7 +72,12 @@ class MarsDataset(torch.utils.data.Dataset):
             batch_data = []
             for i in idx:
                 group = self.file[self.file_keys[i]]
-                x = group[type][...]
+                if type == 'scat_cov':
+                    x = group[type][...].reshape(3, 2, -1)[0, ...].reshape(-1)
+                elif type == 'waveform':
+                    x = group[type][0, :]
+                else:
+                    raise ValueError('No dataset exists with type ', type)
                 x = torch.from_numpy(x)
                 if self.transform:
                     with torch.no_grad():
@@ -92,7 +102,9 @@ class MarsDataset(torch.utils.data.Dataset):
         labels = []
         for i in idx:
             group = self.file[self.file_keys[i]]
-            x = group['window_times'][...].astype(str)
+            x = group['window_times'][...]
+            x = (UTCDateTime(x[0].decode('utf-8')),
+                 UTCDateTime(x[1].decode('utf-8')))
             labels.append(x)
         return labels
 
@@ -163,7 +175,7 @@ class CatalogReader(torch.utils.data.Dataset):
         for _, row in df.iterrows():
             labels.append(row['type'])
         if len(labels) > 0:
-            print(key, labels)
+            print(key, start_time, end_time, labels)
         return key, labels
 
     def add_labels_to_h5_file(self, path_to_h5_file, n_workers=8):

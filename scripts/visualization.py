@@ -9,7 +9,7 @@ from sklearn.decomposition import PCA
 import torch
 from tqdm import tqdm
 
-from facvae.utils import plotsdir, create_lmst_xticks, get_time_interval
+from facvae.utils import plotsdir, create_lmst_xticks
 
 sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}
@@ -65,7 +65,7 @@ class Visualization(object):
                 x = self.dataset.sample_data(idx)
 
                 # flatten data
-                x = x.view(x.size(0), -1)
+                x = x.to(self.device)
                 y = self.network.inference(x)
                 latent_feat = y['mean']
                 cluster_membership = y['logits'].argmax(axis=1)
@@ -83,27 +83,33 @@ class Visualization(object):
     def plot_waveforms(self, args, data_loader, sample_size=10):
         """Plot waveforms.
         """
-        # Load all the data to cluster.
-        x = self.dataset.sample_data(range(len(data_loader.dataset)),
-                                     type='scat_cov')
-        # Move to `device`.
-        x = x.to(self.device)
+        # Setup the batch index generator.
+        idx_loader = torch.utils.data.DataLoader(range(len(
+            data_loader.dataset)),
+                                                 batch_size=args.batchsize,
+                                                 shuffle=False,
+                                                 drop_last=False)
         # Placeholder list for cluster membership for all the data.
         cluster_membership = []
-
+        confident_idxs = []
         # Extract cluster memberships.
-        with torch.no_grad():
+        for idx in idx_loader:
+            # Load data.
+            x = self.dataset.sample_data(idx, type='scat_cov')
+            # Move to `device`.
+            x = x.to(self.device)
             # Run the input data through the pretrained GMVAE network.
             y = self.network(x)
             # Sort indices based on  most confident cluster predictions by the
             # network (increasing).
-            confident_idxs = y['prob_cat'].max(axis=-1)[0].sort()[1]
+            confident_idxs.append(y['prob_cat'].max(axis=-1)[0].sort()[1])
             # Extract the predicted cluster memberships.
-            cluster_membership = y['logits'][confident_idxs, :].argmax(axis=1)
+            cluster_membership.append(
+                y['logits'][confident_idxs[-1], :].argmax(axis=1))
 
         # Moving back tensors to CPU for plotting.
-        confident_idxs = confident_idxs.cpu()
-        cluster_membership = cluster_membership.cpu()
+        confident_idxs = torch.cat(confident_idxs).cpu().numpy()
+        cluster_membership = torch.cat(cluster_membership).cpu().numpy()
         x = x.cpu()
 
         # List of figures and `ax`s to plot waveforms, spectrograms, and
@@ -136,12 +142,12 @@ class Visualization(object):
                 waveforms = self.dataset.sample_data(cluster_idxs,
                                                      type='waveform')
                 x = self.dataset.sample_data(cluster_idxs, type='scat_cov')
-                waveform_keys = self.dataset.get_waveform_key(cluster_idxs)
+                waveform_times = self.dataset.get_time_interval(cluster_idxs)
 
                 for j in range(len(cluster_idxs)):
 
                     figs_axs[0][1][j, i].plot_date(create_lmst_xticks(
-                        waveform_keys[j],
+                        *waveform_times[j],
                         time_zone='LMST',
                         window_size=self.window_size),
                                                    waveforms[j, :],
@@ -158,14 +164,14 @@ class Visualization(object):
                     figs_axs[0][1][j, i].set_title("Waveform from cluster " +
                                                    str(i))
 
-                    # figs_axs[1][1][j, i].specgram(waveforms[j, :],
-                    #                               Fs=20.0,
-                    #                               mode='magnitude',
-                    #                               cmap='jet_r')
-                    # figs_axs[1][1][j,
-                    #                i].set_title("Spectrogram from cluster " +
-                    #                             str(i))
-                    # figs_axs[1][1][j, i].grid(False)
+                    figs_axs[1][1][j, i].specgram(waveforms[j, :],
+                                                  Fs=20.0,
+                                                  mode='magnitude',
+                                                  cmap='jet_r')
+                    figs_axs[1][1][j,
+                                   i].set_title("Spectrogram from cluster " +
+                                                str(i))
+                    figs_axs[1][1][j, i].grid(False)
 
                     figs_axs[2][1][j, i].plot(x[j, :],
                                               color=self.colors[i % 10],
@@ -234,6 +240,14 @@ class Visualization(object):
                     dpi=300,
                     pad_inches=.05)
         plt.close(fig)
+        print('label distribution')
+        for key, value in cluster_labels.items():
+            print(key, len(value))
+        print('number of waveforms per cluster')
+        for key in cluster_labels.keys():
+            cluster_idxs = confident_idxs[np.where(
+                cluster_membership == int(key))[0]]
+            print(key, len(cluster_idxs))
 
     def plot_clusters(self, args, data_loader):
         """Plot predicted clusters.
@@ -255,7 +269,6 @@ class Visualization(object):
         # Moving back tensors to CPU for plotting.
         cluster_membership = cluster_membership.cpu()
         x = x.cpu()
-        num_elements = x.shape[0]
 
         fig = plt.figure(figsize=(8, 6))
         for i in range(args.ncluster):
@@ -289,11 +302,15 @@ class Visualization(object):
         x = self.dataset.sample_data(next(iter(data_loader)))
         indices = np.random.randint(0, x.shape[0], size=sample_size)
         x = x[indices, ...]
+        x = x.to(self.device)
 
         # Obtain reconstructed data.
         with torch.no_grad():
             y = self.network(x)
             x_rec = y['x_rec']
+
+        x = x.cpu()
+        x_rec = x_rec.cpu()
 
         if args.input_size > 2:
             fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
@@ -420,6 +437,7 @@ class Visualization(object):
         gaussian = mean + noise * std
 
         # generate new samples with the given gaussian
+        gaussian = gaussian.to(self.device)
         samples = self.network.generative.pxz(gaussian).cpu().detach().numpy()
 
         if args.input_size > 2:
