@@ -32,3 +32,12 @@ def make_experiment_name(args):
         ]:
             experiment_name += key + '-{}_'.format(value)
     return experiment_name[:-1].replace(' ', '')
+
+
+def make_h5_file_name(args):
+    """Make HDF5 file name based on input arguments"""
+    filename = args.filename + '_'
+    for key, value in vars(args).items():
+        if key not in ['cuda']:
+            filename += key + '-{}_'.format(value)
+    return filename[:-1].replace(' ', '') + '.h5'
