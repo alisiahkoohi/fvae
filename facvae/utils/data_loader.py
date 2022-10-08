@@ -26,9 +26,9 @@ class MarsDataset(torch.utils.data.Dataset):
 
         # HDF5 file.
         self.file = h5py.File(file_path, 'r')
-        self.file_keys = list(self.file.keys())
+        self.num_windows = self.file['scat_cov'].shape[0]
         self.train_idx, self.val_idx, self.test_idx = self.split_data(
-            train_proportion)
+            self.num_windows, train_proportion)
 
         self.data = {
             'waveform': None,
@@ -38,11 +38,11 @@ class MarsDataset(torch.utils.data.Dataset):
         if self.load_to_memory:
             self.load_all_data(data_types)
 
-    def split_data(self, train_proportion):
-        ntrain = int(train_proportion * len(self.file))
-        nval = int((1 - train_proportion) * len(self.file))
+    def split_data(self, num_windows, train_proportion):
+        ntrain = int(train_proportion * num_windows)
+        nval = int((1 - train_proportion) * num_windows)
 
-        idxs = np.random.permutation(len(self.file))
+        idxs = np.random.permutation(num_windows)
         train_idx = idxs[:ntrain]
         val_idx = idxs[ntrain:ntrain + nval]
         test_idx = idxs
@@ -51,62 +51,56 @@ class MarsDataset(torch.utils.data.Dataset):
 
     def load_all_data(self, data_types):
         for type in data_types:
-            data = []
-            for key in self.file_keys:
-                group = self.file[key]
-                if type == 'scat_cov':
-                    x = group[type][...].reshape(3, 2, -1)[0, ...].reshape(-1)
-                elif type == 'waveform':
-                    x = group[type][0, :]
-                else:
-                    raise ValueError('No dataset exists with type ', type)
-                x = torch.from_numpy(x)
-                if self.transform:
-                    with torch.no_grad():
-                        x = self.transform(x)
-                data.append(x)
-            self.data[type] = torch.stack(data)
+            if type == 'scat_cov':
+                x = self.file['scat_cov'][:, 1, :, :].reshape(
+                    self.num_windows, -1)
+            elif type == 'waveform':
+                x = self.file['waveform'][:, 1, :]
+            else:
+                raise ValueError('No dataset exists with type ', type)
+            x = torch.from_numpy(x)
+            if self.transform:
+                with torch.no_grad():
+                    x = self.transform(x)
+            self.data[type] = x
 
     def sample_data(self, idx, type='scat_cov'):
         if self.data[type] is None:
-            batch_data = []
-            for i in idx:
-                group = self.file[self.file_keys[i]]
-                if type == 'scat_cov':
-                    x = group[type][...].reshape(3, 2, -1)[0, ...].reshape(-1)
-                elif type == 'waveform':
-                    x = group[type][0, :]
-                else:
-                    raise ValueError('No dataset exists with type ', type)
-                x = torch.from_numpy(x)
-                if self.transform:
-                    with torch.no_grad():
-                        x = self.transform(x)
-                batch_data.append(x)
-            return torch.stack(batch_data)
+            if type == 'scat_cov':
+                x = self.file['scat_cov'][np.sort(idx),
+                                          1, :, :].reshape(len(idx), -1)
+            elif type == 'waveform':
+                x = self.file['waveform'][np.sort(idx), 1, :]
+            else:
+                raise ValueError('No dataset exists with type ', type)
+            x = torch.from_numpy(x)
+            if self.transform:
+                with torch.no_grad():
+                    x = self.transform(x)
+            return x
         else:
-            return self.data[type][idx, ...]
+            return self.data[type][np.sort(idx), ...]
 
     def get_labels(self, idx):
+        labels_list = self.file['labels'][np.sort(idx), ...].astype(str)
         labels = []
-        for i in idx:
-            group = self.file[self.file_keys[i]]
-            x = group['label'][...].astype(str)
-            labels.append(x)
+        for i in range(len(idx)):
+            label = []
+            for v in labels_list[i]:
+                if v != '':
+                    label.append(v)
+            labels.append(label)
         return labels
 
-    def get_waveform_key(self, idx):
-        return [self.file_keys[i] for i in idx]
+    def get_waveform_filename(self, idx):
+        return [
+            f.decode('utf-8') for f in self.file['filename'][np.sort(idx), ...]
+        ]
 
     def get_time_interval(self, idx):
-        labels = []
-        for i in idx:
-            group = self.file[self.file_keys[i]]
-            x = group['window_times'][...]
-            x = (UTCDateTime(x[0].decode('utf-8')),
-                 UTCDateTime(x[1].decode('utf-8')))
-            labels.append(x)
-        return labels
+        return [(UTCDateTime(s.decode('utf-8')),
+                 UTCDateTime(e.decode('utf-8')))
+                for s, e in self.file['time_interval'][np.sort(idx), ...]]
 
 
 class ToyDataset(torch.utils.data.Dataset):
@@ -168,30 +162,36 @@ class CatalogReader(torch.utils.data.Dataset):
         with open(path_to_catalog, 'rb') as f:
             self.df = pickle.load(f)
 
-    def get_window_label(self, key, start_time, end_time):
+    def get_window_label(self, i, start_time, end_time):
         df = self.df[(self.df['eventTime'] >= start_time)
                      & (self.df['eventTime'] <= end_time)]
         labels = []
         for _, row in df.iterrows():
             labels.append(row['type'])
         if len(labels) > 0:
-            print(key, start_time, end_time, labels)
-        return key, labels
+            print(i, start_time, end_time, labels)
+        return i, labels
 
-    def add_labels_to_h5_file(self, path_to_h5_file, n_workers=8):
+    def add_labels_to_h5_file(self, path_to_h5_file, n_workers=16):
         file = h5py.File(path_to_h5_file, 'r+')
+
+        time_intervals = file['time_interval'][...]
         inputs = []
-        for key in file.keys():
-            start_time, end_time = file[key]['window_times'][...]
-            inputs.append((key, UTCDateTime(start_time.decode('utf-8')),
-                           UTCDateTime(end_time.decode('utf-8'))))
+        for i in range(len(time_intervals)):
+            inputs.append(
+                (i, UTCDateTime(time_intervals[i][0].decode('utf-8')),
+                 UTCDateTime(time_intervals[i][1].decode('utf-8'))))
         with WorkerPool(n_jobs=n_workers) as pool:
-            keys_and_labels = pool.map(self.get_window_label,
-                                       inputs,
-                                       progress_bar=True)
-        for key, label in keys_and_labels:
-            file[key].require_dataset('label',
-                                      shape=len(label),
-                                      data=label,
-                                      dtype=h5py.string_dtype())
+            idx_and_labels = pool.map(self.get_window_label,
+                                      inputs,
+                                      progress_bar=True)
+
+        max_label_len = max([len(j) for _, j in idx_and_labels])
+        label_dataset = file.require_dataset(
+            'labels', (file['waveform'].shape[0], max_label_len),
+            chunks=True,
+            dtype=h5py.string_dtype())
+
+        for i, label in idx_and_labels:
+            label_dataset[i, :len(label)] = label
         file.close()

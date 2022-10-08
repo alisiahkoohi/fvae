@@ -52,12 +52,17 @@ def setup_hdf5_file(path, scat_cov_filename, window_size, max_win_num,
     # Time interval dataset for recording the start and end time of each
     # windowed waveform.
     file.require_dataset('time_interval', (max_win_num, 2),
+                         chunks=True,
+                         dtype=h5py.string_dtype())
+
+    file.require_dataset('filename', (max_win_num, ),
+                         chunks=True,
                          dtype=h5py.string_dtype())
 
     file.close()
 
 
-def update_hdf5_file(path, scat_cov_filename, filename, file_idx, waveform,
+def update_hdf5_file(path, scat_cov_filename, filename, window_idx, waveform,
                      scat_covariances, time_intervals):
     """
     Update the HDF5 file by writing new scattering covariances.
@@ -69,11 +74,27 @@ def update_hdf5_file(path, scat_cov_filename, filename, file_idx, waveform,
     file = h5py.File(file_path, 'r+')
 
     # Write `scat_covariances` to the HDF5 file.
-    file['scat_cov'][file_idx, ...] = scat_covariances
+    file['scat_cov'][window_idx, ...] = scat_covariances
     # Write `waveform` to the HDF5 file.
-    file['waveform'][file_idx, ...] = waveform
+    file['waveform'][window_idx, ...] = waveform
     # Write `time_intervals` to the HDF5 file.
-    file['time_interval'][file_idx, ...] = time_intervals
+    file['time_interval'][window_idx, ...] = [
+        str(event_time) for event_time in time_intervals
+    ]
+    file['filename'][window_idx] = str(filename)
+
+    file.close()
+
+
+def finalize_dataset_size(path, scat_cov_filename, num_windows):
+    # Path to the file.
+    file_path = os.path.join(path, scat_cov_filename)
+
+    # HDF5 file.
+    file = h5py.File(file_path, 'r+')
+
+    for key in file.keys():
+        file[key].resize(num_windows, axis=0)
 
     file.close()
 
@@ -83,7 +104,7 @@ def compute_scat_cov(args):
     # Path to raw data and directory for creating scattering dataset.
     waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms'))
     scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
-    raw_data_files = os.listdir(waveform_path)[:50]
+    raw_data_files = os.listdir(waveform_path)
 
     # Extract some properties of the data to setup HDF5 file.
     data_stream = obspy.read(os.path.join(waveform_path, raw_data_files[0]))
@@ -97,7 +118,7 @@ def compute_scat_cov(args):
                             Q2=args.q2,
                             model_type=args.model_type,
                             cuda=args.cuda,
-                            normalize=True,
+                            normalize='each_ps',
                             nchunks=1).y.shape[1]
     # Max window number.
     max_win_num = int(
@@ -109,6 +130,7 @@ def compute_scat_cov(args):
                     max_win_num, num_components, scat_cov_size)
 
     discarded_files = 0
+    num_windows = 0
     with tqdm(raw_data_files,
               unit='file',
               colour='#B5F2A9',
@@ -153,14 +175,13 @@ def compute_scat_cov(args):
                     batched_window = np.stack(batched_window)
                     batched_window = batched_window.reshape(
                         len(windowed_data) * num_components, args.window_size)
-                    from IPython import embed; embed()
                     # Compute scattering covariance.
                     y = analyze(batched_window,
                                 Q1=args.q1,
                                 Q2=args.q2,
                                 model_type=args.model_type,
                                 cuda=args.cuda,
-                                normalize=True,
+                                normalize='each_ps',
                                 nchunks=args.nchunks).y
 
                     batched_window = batched_window.reshape(
@@ -195,9 +216,11 @@ def compute_scat_cov(args):
                                 event_start, event_end):
                             update_hdf5_file(scat_cov_path,
                                              args.scat_cov_filename, filename,
-                                             file_idx, batched_window[b, ...],
+                                             num_windows, batched_window[b,
+                                                                         ...],
                                              scat_covariances,
                                              time_intervals[b])
+                            num_windows += 1
                         pb.set_postfix({
                             'shape':
                             scat_covariances.shape,
@@ -207,6 +230,8 @@ def compute_scat_cov(args):
 
                 else:
                     discarded_files += 1
+
+    finalize_dataset_size(scat_cov_path, args.scat_cov_filename, num_windows)
 
 
 if __name__ == "__main__":
@@ -242,7 +267,7 @@ if __name__ == "__main__":
     parser.add_argument('--filename',
                         dest='filename',
                         type=str,
-                        default='scat_covs_3c',
+                        default='3c',
                         help='filename prefix to be created')
     args = parser.parse_args()
 

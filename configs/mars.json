@@ -12,7 +12,7 @@
     "w_gauss": 1.0,
     "w_rec": 1.0,
     "w_cat": 1.0,
-    "experiment_name": "3c_w-size-2e12_q1-2_q2-4",
+    "experiment_name": "scat+cov",
     "phase": "train",
     "wd": 0.0,
     "hidden_dim": 512,
