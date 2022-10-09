@@ -18,9 +18,6 @@ from scripts.visualization import Visualization
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH = datadir('mars')
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
-SCAT_COV_FILENAME = ('3c_window_size-4096_q1-2_q2-4_nchunks-16_use_day_'
-                     'data-1_model_type-scat+cov_filename-3c.h5')
-WINDOW_SIZE = 2**12
 
 # GMVAE training default hyperparameters.
 MARS_CONFIG_FILE = 'mars.json'
@@ -50,7 +47,7 @@ if __name__ == "__main__":
     # Read Data
     if args.dataset == 'mars':
         dataset = MarsDataset(os.path.join(MARS_SCAT_COV_PATH,
-                                           SCAT_COV_FILENAME),
+                                           args.h5_filename),
                               0.8,
                               transform=None,
                               load_to_memory=args.load_to_memory)
@@ -81,7 +78,7 @@ if __name__ == "__main__":
         gmvaw.train(args, train_loader, val_loader)
     elif args.phase == 'test':
         network = gmvaw.load_checkpoint(args, args.max_epoch - 1)
-        vis = Visualization(network, dataset, WINDOW_SIZE, device)
+        vis = Visualization(network, dataset, args.window_size, device)
         if args.dataset == 'mars':
             vis.plot_waveforms(args, test_loader)
             # vis.random_generation(args)

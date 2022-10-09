@@ -99,13 +99,15 @@ class Visualization(object):
             # Move to `device`.
             x = x.to(self.device)
             # Run the input data through the pretrained GMVAE network.
-            y = self.network(x)
+            with torch.no_grad():
+                y = self.network(x)
             # Sort indices based on  most confident cluster predictions by the
             # network (increasing).
-            confident_idxs.append(y['prob_cat'].max(axis=-1)[0].sort()[1])
+            per_batch_confident_idx = y['prob_cat'].max(axis=-1)[0].sort()[1]
+            confident_idxs.append(idx[per_batch_confident_idx])
             # Extract the predicted cluster memberships.
             cluster_membership.append(
-                y['logits'][confident_idxs[-1], :].argmax(axis=1))
+                y['logits'][per_batch_confident_idx, :].argmax(axis=1))
 
         # Moving back tensors to CPU for plotting.
         confident_idxs = torch.cat(confident_idxs).cpu().numpy()
@@ -127,11 +129,8 @@ class Visualization(object):
         cluster_labels = {str(i): [] for i in range(args.ncluster)}
         # Loop through all the clusters.
         for i in tqdm(range(args.ncluster)):
-            labels = self.dataset.get_labels(
+            cluster_labels[str(i)] = self.dataset.get_labels(
                 confident_idxs[np.where(cluster_membership == i)[0]])
-            for label in labels:
-                for v in label:
-                    cluster_labels[str(i)].append(v)
             # Find the `sample_size` most confident data points belonging to
             # cluster `i`
             cluster_idxs = confident_idxs[np.where(
@@ -192,7 +191,11 @@ class Visualization(object):
         for i in range(args.ncluster):
             for label in self.labels:
                 label_count_per_cluster[str(i)][label] = 0
-            count = dict(Counter(cluster_labels[str(i)]))
+            per_cluster_label_list = []
+            for label in cluster_labels[str(i)]:
+                for v in label:
+                    per_cluster_label_list.append(v)
+            count = dict(Counter(per_cluster_label_list))
             for key, value in count.items():
                 label_count_per_cluster[str(i)][key] = value
 
@@ -242,7 +245,11 @@ class Visualization(object):
         plt.close(fig)
         print('label distribution')
         for key, value in cluster_labels.items():
-            print(key, len(value))
+            per_cluster_label_list = []
+            for label in value:
+                for v in label:
+                    per_cluster_label_list.append(v)
+            print(key, len(per_cluster_label_list))
         print('number of waveforms per cluster')
         for key in cluster_labels.keys():
             cluster_idxs = confident_idxs[np.where(

@@ -38,12 +38,12 @@ class InferenceNet(torch.nn.Module):
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
             torch.nn.Linear(x_dim, hidden_dim),
-            torch.nn.BatchNorm1d(hidden_dim),
+            # torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
         for i in range(1, nlayer):
             self.inference_qyx.append(torch.nn.Linear(hidden_dim, hidden_dim))
-            self.inference_qyx.append(torch.nn.BatchNorm1d(hidden_dim))
+            # self.inference_qyx.append(torch.nn.BatchNorm1d(hidden_dim))
             self.inference_qyx.append(torch.nn.LeakyReLU(negative_slope=0.2))
         self.inference_qyx.append(GumbelSoftmax(hidden_dim, y_dim))
         self.inference_qyx = torch.nn.Sequential(*self.inference_qyx)
@@ -51,12 +51,12 @@ class InferenceNet(torch.nn.Module):
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
             torch.nn.Linear(x_dim + y_dim, hidden_dim),
-            torch.nn.BatchNorm1d(hidden_dim),
+            # torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
         for i in range(1, nlayer):
             self.inference_qzyx.append(torch.nn.Linear(hidden_dim, hidden_dim))
-            self.inference_qzyx.append(torch.nn.BatchNorm1d(hidden_dim))
+            # self.inference_qzyx.append(torch.nn.BatchNorm1d(hidden_dim))
             self.inference_qzyx.append(torch.nn.LeakyReLU(negative_slope=0.2))
         self.inference_qzyx.append(Gaussian(hidden_dim, z_dim))
         self.inference_qzyx = torch.nn.Sequential(*self.inference_qzyx)
@@ -110,12 +110,12 @@ class GenerativeNet(torch.nn.Module):
         # p(x|z)
         self.generative_pxz = torch.nn.ModuleList([
             torch.nn.Linear(z_dim, hidden_dim),
-            torch.nn.BatchNorm1d(hidden_dim),
+            # torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
         for i in range(1, nlayer):
             self.generative_pxz.append(torch.nn.Linear(hidden_dim, hidden_dim))
-            self.generative_pxz.append(torch.nn.BatchNorm1d(hidden_dim))
+            # self.generative_pxz.append(torch.nn.BatchNorm1d(hidden_dim))
             self.generative_pxz.append(torch.nn.LeakyReLU(negative_slope=0.2))
         self.generative_pxz.append(torch.nn.Linear(hidden_dim, x_dim))
         self.generative_pxz = torch.nn.Sequential(*self.generative_pxz)

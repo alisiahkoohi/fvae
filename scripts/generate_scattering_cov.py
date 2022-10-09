@@ -162,7 +162,7 @@ def compute_scat_cov(args):
                             (args.window_size - 1) /
                             data_stream[0].meta.sampling_rate,
                             args.window_size /
-                            data_stream[0].meta.sampling_rate // STRIDE,
+                            data_stream[0].meta.sampling_rate * STRIDE,
                             offset=OFFSET))
 
                     time_intervals = []
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_day_data',
                         dest='use_day_data',
                         type=int,
-                        default=1,
+                        default=0,
                         help='set to 0 for extracting only night time data')
     parser.add_argument('--model_type',
                         dest='model_type',
