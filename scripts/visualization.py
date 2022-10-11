@@ -62,7 +62,7 @@ class Visualization(object):
         with torch.no_grad():
             for idx in data_loader:
                 # Load data batch.
-                x = self.dataset.sample_data(idx)
+                x = self.dataset.sample_data(idx, type=args.type)
 
                 # flatten data
                 x = x.to(self.device)
@@ -95,7 +95,7 @@ class Visualization(object):
         # Extract cluster memberships.
         for idx in idx_loader:
             # Load data.
-            x = self.dataset.sample_data(idx, type='scat_cov')
+            x = self.dataset.sample_data(idx, type=args.type)
             # Move to `device`.
             x = x.to(self.device)
             # Run the input data through the pretrained GMVAE network.
@@ -140,7 +140,7 @@ class Visualization(object):
             if len(cluster_idxs) > 0:
                 waveforms = self.dataset.sample_data(cluster_idxs,
                                                      type='waveform')
-                x = self.dataset.sample_data(cluster_idxs, type='scat_cov')
+                x = self.dataset.sample_data(cluster_idxs, type=args.type)
                 waveform_times = self.dataset.get_time_interval(cluster_idxs)
 
                 for j in range(len(cluster_idxs)):
@@ -260,7 +260,7 @@ class Visualization(object):
         """Plot predicted clusters.
         """
         # Load all the data to cluster.
-        x = self.dataset.sample_data(range(len(data_loader.dataset)))
+        x = self.dataset.sample_data(range(len(data_loader.dataset)), type=args.type)
         # Move to `device`.
         x = x.to(self.device)
         # Placeholder list for cluster membership for all the data.
@@ -306,7 +306,7 @@ class Visualization(object):
             reconstructed: (array) array containing the reconstructed data
         """
         # Sample random data from loader
-        x = self.dataset.sample_data(next(iter(data_loader)))
+        x = self.dataset.sample_data(next(iter(data_loader)), type=args.type)
         indices = np.random.randint(0, x.shape[0], size=sample_size)
         x = x[indices, ...]
         x = x.to(self.device)

@@ -50,6 +50,7 @@ if __name__ == "__main__":
                                            args.h5_filename),
                               0.8,
                               transform=None,
+                              data_types=[args.type],
                               load_to_memory=args.load_to_memory)
     else:
         dataset = ToyDataset(30000, 0.8, dataset_name=args.dataset)
@@ -69,7 +70,8 @@ if __name__ == "__main__":
                                               drop_last=False)
 
     # Get input dimension.
-    args.input_size = int(np.prod(dataset.sample_data([0]).size()))
+    args.input_size = int(
+        np.prod(dataset.sample_data([0], type=args.type).size()))
 
     gmvaw = GaussianMixtureVAE(args, dataset, device)
 

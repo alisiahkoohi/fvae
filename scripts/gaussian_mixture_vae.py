@@ -131,7 +131,7 @@ class GaussianMixtureVAE(object):
                     scheduler.step()
 
                     # Load data batch.
-                    x = self.dataset.sample_data(idx)
+                    x = self.dataset.sample_data(idx, type=args.type)
                     x = x.to(self.device)
                     # Forward call.
                     y = self.network(x)
@@ -150,7 +150,8 @@ class GaussianMixtureVAE(object):
                 if epoch % 100 == 0:
                     with torch.no_grad():
                         x_val = self.dataset.sample_data(next(
-                            iter(val_loader)))
+                            iter(val_loader)),
+                                                         type=args.type)
                         x_val = x_val.to(self.device)
                         y_val = self.network(x_val)
                         val_loss = self.compute_loss(

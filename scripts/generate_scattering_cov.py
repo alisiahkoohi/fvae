@@ -119,6 +119,7 @@ def compute_scat_cov(args):
                             model_type=args.model_type,
                             cuda=args.cuda,
                             normalize='each_ps',
+                            qs=[1.0] if args.model_type == 'scat' else None,
                             nchunks=1).y.shape[1]
     # Max window number.
     max_win_num = int(
@@ -176,13 +177,15 @@ def compute_scat_cov(args):
                     batched_window = batched_window.reshape(
                         len(windowed_data) * num_components, args.window_size)
                     # Compute scattering covariance.
-                    y = analyze(batched_window,
-                                Q1=args.q1,
-                                Q2=args.q2,
-                                model_type=args.model_type,
-                                cuda=args.cuda,
-                                normalize='each_ps',
-                                nchunks=args.nchunks).y
+                    y = analyze(
+                        batched_window,
+                        Q1=args.q1,
+                        Q2=args.q2,
+                        model_type=args.model_type,
+                        cuda=args.cuda,
+                        normalize='each_ps',
+                        qs=[1.0] if args.model_type == 'scat' else None,
+                        nchunks=args.nchunks).y
 
                     batched_window = batched_window.reshape(
                         len(windowed_data), num_components, args.window_size)
