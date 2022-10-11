@@ -49,9 +49,9 @@ if __name__ == "__main__":
         dataset = MarsDataset(os.path.join(MARS_SCAT_COV_PATH,
                                            args.h5_filename),
                               0.8,
-                              transform=None,
                               data_types=[args.type],
-                              load_to_memory=args.load_to_memory)
+                              load_to_memory=args.load_to_memory,
+                              normalize_data=args.normalize)
     else:
         dataset = ToyDataset(30000, 0.8, dataset_name=args.dataset)
 
@@ -70,8 +70,7 @@ if __name__ == "__main__":
                                               drop_last=False)
 
     # Get input dimension.
-    args.input_size = int(
-        np.prod(dataset.sample_data([0], type=args.type).size()))
+    args.input_size = int(np.prod(dataset.sample_data([0], args.type).size()))
 
     gmvaw = GaussianMixtureVAE(args, dataset, device)
 
@@ -84,7 +83,7 @@ if __name__ == "__main__":
         if args.dataset == 'mars':
             vis.plot_waveforms(args, test_loader)
             # vis.random_generation(args)
-            vis.reconstruct_data(args, val_loader)
+            vis.reconstruct_data(args, train_loader)
         else:
             vis.plot_clusters(args, test_loader)
             vis.random_generation(args, num_elements=5000)

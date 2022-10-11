@@ -67,25 +67,6 @@ class LossFunctions(object):
             z, z_mu_prior, z_var_prior)
         return loss.mean()
 
-    def gaussian_loss(self, z, z_mu, z_var, z_mu_prior, z_var_prior):
-        """Variational loss when using labeled data without considering reconstruction loss
-        loss = log q(z|x,y) - log p(z) - log p(y)
-
-        Args:
-            z: (array) array containing the gaussian latent variable
-            z_mu: (array) array containing the mean of the inference model
-            z_var: (array) array containing the variance of the inference model
-            z_mu_prior: (array) array containing the prior mean of the generative model
-            z_var_prior: (array) array containing the prior variance of the generative mode
-
-        Returns:
-            output: (array/float) depending on average parameters the result will be the mean
-                of all the sample losses or an array with the losses per sample
-        """
-        loss = self.log_normal(z, z_mu, z_var) - self.log_normal(
-            z, z_mu_prior, z_var_prior)
-        return loss.mean()
-
     def gaussian_closed_form_loss(self, mu_q, var_q, mu_p, var_p):
 
         loss = -0.5 * mu_q.shape[-1]

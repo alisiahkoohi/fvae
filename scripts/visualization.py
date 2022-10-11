@@ -62,7 +62,7 @@ class Visualization(object):
         with torch.no_grad():
             for idx in data_loader:
                 # Load data batch.
-                x = self.dataset.sample_data(idx, type=args.type)
+                x = self.dataset.sample_data(idx, args.type)
 
                 # flatten data
                 x = x.to(self.device)
@@ -95,7 +95,7 @@ class Visualization(object):
         # Extract cluster memberships.
         for idx in idx_loader:
             # Load data.
-            x = self.dataset.sample_data(idx, type=args.type)
+            x = self.dataset.sample_data(idx, args.type)
             # Move to `device`.
             x = x.to(self.device)
             # Run the input data through the pretrained GMVAE network.
@@ -140,7 +140,10 @@ class Visualization(object):
             if len(cluster_idxs) > 0:
                 waveforms = self.dataset.sample_data(cluster_idxs,
                                                      type='waveform')
-                x = self.dataset.sample_data(cluster_idxs, type=args.type)
+                x = self.dataset.sample_data(cluster_idxs, args.type)
+
+                x = self.dataset.unnormalize(x, args.type)
+                waveforms = self.dataset.unnormalize(waveforms, 'waveform')
                 waveform_times = self.dataset.get_time_interval(cluster_idxs)
 
                 for j in range(len(cluster_idxs)):
@@ -260,7 +263,8 @@ class Visualization(object):
         """Plot predicted clusters.
         """
         # Load all the data to cluster.
-        x = self.dataset.sample_data(range(len(data_loader.dataset)), type=args.type)
+        x = self.dataset.sample_data(range(len(data_loader.dataset)),
+                                     args.type)
         # Move to `device`.
         x = x.to(self.device)
         # Placeholder list for cluster membership for all the data.
@@ -276,6 +280,7 @@ class Visualization(object):
         # Moving back tensors to CPU for plotting.
         cluster_membership = cluster_membership.cpu()
         x = x.cpu()
+        x = self.dataset.unnormalize(x, args.type)
 
         fig = plt.figure(figsize=(8, 6))
         for i in range(args.ncluster):
@@ -306,7 +311,7 @@ class Visualization(object):
             reconstructed: (array) array containing the reconstructed data
         """
         # Sample random data from loader
-        x = self.dataset.sample_data(next(iter(data_loader)), type=args.type)
+        x = self.dataset.sample_data(next(iter(data_loader)), args.type)
         indices = np.random.randint(0, x.shape[0], size=sample_size)
         x = x[indices, ...]
         x = x.to(self.device)
@@ -318,6 +323,9 @@ class Visualization(object):
 
         x = x.cpu()
         x_rec = x_rec.cpu()
+
+        x = self.dataset.unnormalize(x, args.type)
+        x_rec = self.dataset.unnormalize(x_rec, args.type)
 
         if args.input_size > 2:
             fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))

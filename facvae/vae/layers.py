@@ -2,15 +2,16 @@ import torch
 from torch.nn import functional as F
 
 
-
 # Flatten layer
 class Flatten(torch.nn.Module):
+
     def forward(self, x):
         return x.view(x.size(0), -1)
 
 
 # Reshape layer
 class Reshape(torch.nn.Module):
+
     def __init__(self, outer_shape):
         super(Reshape, self).__init__()
         self.outer_shape = outer_shape
@@ -21,6 +22,7 @@ class Reshape(torch.nn.Module):
 
 # Sample from the Gumbel-Softmax distribution and optionally discretize.
 class GumbelSoftmax(torch.nn.Module):
+
     def __init__(self, f_dim, c_dim):
         super(GumbelSoftmax, self).__init__()
         self.logits = torch.nn.Linear(f_dim, c_dim)
@@ -67,6 +69,7 @@ class GumbelSoftmax(torch.nn.Module):
 
 # Sample from a Gaussian distribution
 class Gaussian(torch.nn.Module):
+
     def __init__(self, in_dim, z_dim):
         super(Gaussian, self).__init__()
         self.mu = torch.nn.Linear(in_dim, z_dim, bias=False)
@@ -86,39 +89,45 @@ class Gaussian(torch.nn.Module):
 
 
 class ResidualUnit(torch.nn.Module):
+
     def __init__(self, n_channels, dilation=1):
         super().__init__()
 
         self.dilation = dilation
 
         self.layers = torch.nn.Sequential(
-            torch.nn.Conv1d(in_channels=n_channels, out_channels=n_channels,
-                      kernel_size=21, dilation=dilation, padding='same', padding_mode='reflect'),
-            torch.nn.ELU(),
-            torch.nn.Conv1d(in_channels=n_channels, out_channels=n_channels,
-                      kernel_size=1, padding='same', padding_mode='reflect')
-        )
+            torch.nn.Conv1d(in_channels=n_channels,
+                            out_channels=n_channels,
+                            kernel_size=21,
+                            dilation=dilation,
+                            padding='same',
+                            padding_mode='reflect'), torch.nn.ELU(),
+            torch.nn.Conv1d(in_channels=n_channels,
+                            out_channels=n_channels,
+                            kernel_size=1,
+                            padding='same',
+                            padding_mode='reflect'))
 
     def forward(self, x):
         return x + self.layers(x)
 
 
 class EncoderBlock(torch.nn.Module):
+
     def __init__(self, in_channels, hidden_channels, out_channels, stride):
         super().__init__()
 
         self.layers = torch.nn.Sequential(
-            torch.nn.Conv1d(in_channels=in_channels, out_channels=hidden_channels,
-                      kernel_size=21, stride=stride),
-            ResidualUnit(hidden_channels),
-            torch.nn.ELU(),
-            ResidualUnit(hidden_channels),
-            torch.nn.ELU(),
-            ResidualUnit(hidden_channels),
-            torch.nn.ELU(),
-            torch.nn.Conv1d(in_channels=hidden_channels, out_channels=out_channels,
-                      kernel_size=2*stride, stride=stride)
-        )
+            torch.nn.Conv1d(in_channels=in_channels,
+                            out_channels=hidden_channels,
+                            kernel_size=21,
+                            stride=stride), ResidualUnit(hidden_channels),
+            torch.nn.ELU(), ResidualUnit(hidden_channels), torch.nn.ELU(),
+            ResidualUnit(hidden_channels), torch.nn.ELU(),
+            torch.nn.Conv1d(in_channels=hidden_channels,
+                            out_channels=out_channels,
+                            kernel_size=2 * stride,
+                            stride=stride))
 
     def forward(self, x):
         return self.layers(x)

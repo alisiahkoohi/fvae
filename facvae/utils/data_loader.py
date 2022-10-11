@@ -6,12 +6,15 @@ import pickle
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
 from typing import Optional
+import logging
 
 from facvae.utils import (GaussianDataset, CrescentDataset,
                           CrescentCubedDataset, SineWaveDataset, AbsDataset,
                           SignDataset, FourCirclesDataset, DiamondDataset,
                           TwoSpiralsDataset, CheckerboardDataset,
-                          TwoMoonsDataset, catalogsdir)
+                          TwoMoonsDataset, catalogsdir, RunningStats)
+
+NORMALIZATION_BATCH_SIZE = 10000
 
 
 class MarsDataset(torch.utils.data.Dataset):
@@ -20,14 +23,18 @@ class MarsDataset(torch.utils.data.Dataset):
                  file_path,
                  train_proportion,
                  data_types=['scat_cov'],
-                 transform=None,
-                 load_to_memory=False):
-        self.transform = transform
+                 load_to_memory=False,
+                 normalize_data=True):
         self.load_to_memory = load_to_memory
+        self.normalize_data = normalize_data
 
         # HDF5 file.
         self.file = h5py.File(file_path, 'r')
         self.num_windows = self.file['scat_cov'].shape[0]
+        self.shape = {
+            'waveform': np.prod(self.file['waveform'][0, 1, :].shape),
+            'scat_cov': np.prod(self.file['scat_cov'][0, 1, :, :].shape)
+        }
         self.train_idx, self.val_idx, self.test_idx = self.split_data(
             self.num_windows, train_proportion)
 
@@ -35,9 +42,20 @@ class MarsDataset(torch.utils.data.Dataset):
             'waveform': None,
             'scat_cov': None,
         }
+        self.normalizer = {
+            'waveform': None,
+            'scat_cov': None,
+        }
 
         if self.load_to_memory:
             self.load_all_data(data_types)
+
+        if self.normalize_data:
+            self.setup_data_normalizer(data_types)
+        self.already_normalized = {
+            'waveform': False,
+            'scat_cov': False,
+        }
 
     def split_data(self, num_windows, train_proportion):
         ntrain = int(train_proportion * num_windows)
@@ -50,6 +68,36 @@ class MarsDataset(torch.utils.data.Dataset):
 
         return train_idx, val_idx, test_idx
 
+    def setup_data_normalizer(self, data_types):
+        logging.info('Setting up data normalizer...')
+
+        for type in data_types:
+            running_stats = RunningStats(self.shape[type])
+            if self.load_to_memory:
+                running_stats.input_samples(
+                    self.data[type][np.sort(self.train_idx), ...])
+                mean, std = running_stats.compute_stats()
+            else:
+                for i in range(0, len(self.train_idx),
+                               NORMALIZATION_BATCH_SIZE):
+                    running_stats.input_samples(
+                        self.sample_data(
+                            self.train_idx[i:i + NORMALIZATION_BATCH_SIZE],
+                            type=type))
+                mean, std = running_stats.compute_stats()
+
+            self.normalizer[type] = Normalizer(mean, std)
+
+    def normalize(self, x, type):
+        if self.normalizer[type]:
+            x = self.normalizer[type].normalize(x)
+        return x
+
+    def unnormalize(self, x, type):
+        if self.normalizer[type]:
+            x = self.normalizer[type].unnormalize(x)
+        return x
+
     def load_all_data(self, data_types):
         for type in data_types:
             if type == 'scat_cov':
@@ -60,12 +108,9 @@ class MarsDataset(torch.utils.data.Dataset):
             else:
                 raise ValueError('No dataset exists with type ', type)
             x = torch.from_numpy(x)
-            if self.transform:
-                with torch.no_grad():
-                    x = self.transform(x)
             self.data[type] = x
 
-    def sample_data(self, idx, type='scat_cov'):
+    def sample_data(self, idx, type):
         if self.data[type] is None:
             if type == 'scat_cov':
                 x = self.file['scat_cov'][np.sort(idx),
@@ -74,12 +119,13 @@ class MarsDataset(torch.utils.data.Dataset):
                 x = self.file['waveform'][np.sort(idx), 1, :]
             else:
                 raise ValueError('No dataset exists with type ', type)
+            x = self.normalize(x, type)
             x = torch.from_numpy(x)
-            if self.transform:
-                with torch.no_grad():
-                    x = self.transform(x)
             return x
         else:
+            if (not self.already_normalized[type]) and self.normalize_data:
+                self.data[type] = self.normalize(self.data[type][...], type)
+                self.already_normalized[type] = True
             return self.data[type][np.sort(idx), ...]
 
     def get_labels(self, idx):
@@ -209,18 +255,22 @@ class Normalizer(object):
         training. eps: A small float to avoid dividing by 0.
     """
 
-    def __init__(self, dataset: torch.Tensor, eps: Optional[int] = 0.00001):
+    def __init__(self,
+                 mean: torch.Tensor,
+                 std: torch.Tensor,
+                 eps: Optional[int] = 1e-6):
         """Initializes a Normalizer object.
         Args:
-            dataset: A torch.Tensor that first dimension is the batch
+            mean: A torch.Tensor that contains the mean of input data.
+            std: A torch.Tensor that contains the standard deviation of input.
             dimension. eps: A optional small float to avoid dividing by 0.
         """
         super().__init__()
 
         # Compute the training dataset mean and standard deviation over the
         # batch dimensions.
-        self.mean = torch.mean(dataset, 0)
-        self.std = torch.std(dataset, 0)
+        self.mean = mean
+        self.std = std
         self.eps = eps
 
     def normalize(self, x: torch.Tensor) -> torch.Tensor:

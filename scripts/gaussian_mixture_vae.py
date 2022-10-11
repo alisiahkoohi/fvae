@@ -63,7 +63,6 @@ class GaussianMixtureVAE(object):
         mu, var = out_net['mean'], out_net['var']
 
         # Reconstruction loss.
-        # from IPython import embed; embed()
         rec_loss = self.losses.reconstruction_loss(data, data_recon, 'mse')
 
         # Gaussian loss.
@@ -124,19 +123,19 @@ class GaussianMixtureVAE(object):
                   dynamic_ncols=True) as pb:
             for epoch in pb:
                 # iterate over the dataset
-                for idx in train_loader:
+                for i_idx, idx in enumerate(train_loader):
                     # Reset gradient attributes.
                     optim.zero_grad()
                     # Update learning rate.
                     scheduler.step()
 
                     # Load data batch.
-                    x = self.dataset.sample_data(idx, type=args.type)
+                    x = self.dataset.sample_data(idx, args.type)
                     x = x.to(self.device)
                     # Forward call.
                     y = self.network(x)
                     # Compute loss.
-                    train_loss = self.compute_loss(x.view(x.size(0), -1), y)
+                    train_loss = self.compute_loss(x, y)
                     # Compute gradients.
                     train_loss['vae'].backward()
 
@@ -146,19 +145,20 @@ class GaussianMixtureVAE(object):
                     # Update parameters.
                     optim.step()
 
+                    if i_idx % 10 == 0:
+                        # Update progress bar.
+                        self.progress_bar(pb, train_loss)
+
                 # Log progress.
                 if epoch % 100 == 0:
                     with torch.no_grad():
-                        x_val = self.dataset.sample_data(next(
-                            iter(val_loader)),
-                                                         type=args.type)
+                        x_val = self.dataset.sample_data(
+                            next(iter(val_loader)), args.type)
                         x_val = x_val.to(self.device)
                         y_val = self.network(x_val)
                         val_loss = self.compute_loss(
                             x_val.view(x_val.size(0), -1), y_val)
                         self.log_progress(args, epoch, train_loss, val_loss)
-
-                self.progress_bar(pb, train_loss)
 
                 # Decay gumbel temperature
                 if args.temp_decay > 0:
@@ -166,7 +166,7 @@ class GaussianMixtureVAE(object):
                         args.init_temp * np.exp(-args.temp_decay * epoch),
                         args.min_temp)
 
-                if epoch % 1000 == 0 or epoch == args.max_epoch - 1:
+                if epoch == args.max_epoch - 1:
                     torch.save(
                         {
                             'model_state_dict': self.network.state_dict(),

@@ -37,26 +37,28 @@ class InferenceNet(torch.nn.Module):
 
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
-            torch.nn.Linear(x_dim, hidden_dim),
-            # torch.nn.BatchNorm1d(hidden_dim),
+            torch.nn.Linear(x_dim, hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
         for i in range(1, nlayer):
-            self.inference_qyx.append(torch.nn.Linear(hidden_dim, hidden_dim))
-            # self.inference_qyx.append(torch.nn.BatchNorm1d(hidden_dim))
+            self.inference_qyx.append(
+                torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
+            self.inference_qyx.append(torch.nn.BatchNorm1d(hidden_dim))
             self.inference_qyx.append(torch.nn.LeakyReLU(negative_slope=0.2))
         self.inference_qyx.append(GumbelSoftmax(hidden_dim, y_dim))
         self.inference_qyx = torch.nn.Sequential(*self.inference_qyx)
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
-            torch.nn.Linear(x_dim + y_dim, hidden_dim),
-            # torch.nn.BatchNorm1d(hidden_dim),
+            torch.nn.Linear(x_dim + y_dim, hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
         for i in range(1, nlayer):
-            self.inference_qzyx.append(torch.nn.Linear(hidden_dim, hidden_dim))
-            # self.inference_qzyx.append(torch.nn.BatchNorm1d(hidden_dim))
+            self.inference_qzyx.append(
+                torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
+            self.inference_qzyx.append(torch.nn.BatchNorm1d(hidden_dim))
             self.inference_qzyx.append(torch.nn.LeakyReLU(negative_slope=0.2))
         self.inference_qzyx.append(Gaussian(hidden_dim, z_dim))
         self.inference_qzyx = torch.nn.Sequential(*self.inference_qzyx)
@@ -109,13 +111,14 @@ class GenerativeNet(torch.nn.Module):
 
         # p(x|z)
         self.generative_pxz = torch.nn.ModuleList([
-            torch.nn.Linear(z_dim, hidden_dim),
-            # torch.nn.BatchNorm1d(hidden_dim),
+            torch.nn.Linear(z_dim, hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
         for i in range(1, nlayer):
-            self.generative_pxz.append(torch.nn.Linear(hidden_dim, hidden_dim))
-            # self.generative_pxz.append(torch.nn.BatchNorm1d(hidden_dim))
+            self.generative_pxz.append(
+                torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
+            self.generative_pxz.append(torch.nn.BatchNorm1d(hidden_dim))
             self.generative_pxz.append(torch.nn.LeakyReLU(negative_slope=0.2))
         self.generative_pxz.append(torch.nn.Linear(hidden_dim, x_dim))
         self.generative_pxz = torch.nn.Sequential(*self.generative_pxz)
@@ -167,14 +170,14 @@ class GMVAENetwork(torch.nn.Module):
         self.gumbel_temp = init_temp
         self.hard_gumbel = hard_gumbel
 
-        # weight initialization
-        for m in self.modules():
-            if type(m) == torch.nn.Linear or type(
-                    m) == torch.nn.Conv2d or type(
-                        m) == torch.nn.ConvTranspose2d:
-                torch.nn.init.xavier_normal_(m.weight)
-                if m.bias is not None:
-                    torch.nn.init.constant_(m.bias, 0)
+        # # weight initialization
+        # for m in self.modules():
+        #     if type(m) == torch.nn.Linear or type(
+        #             m) == torch.nn.Conv2d or type(
+        #                 m) == torch.nn.ConvTranspose2d:
+        #         torch.nn.init.xavier_normal_(m.weight)
+        #         if m.bias is not None:
+        #             torch.nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         x = x.view(x.size(0), -1)
