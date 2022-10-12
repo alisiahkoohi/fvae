@@ -246,18 +246,28 @@ class Visualization(object):
                     dpi=300,
                     pad_inches=.05)
         plt.close(fig)
-        print('label distribution')
-        for key, value in cluster_labels.items():
-            per_cluster_label_list = []
-            for label in value:
-                for v in label:
-                    per_cluster_label_list.append(v)
-            print(key, len(per_cluster_label_list))
-        print('number of waveforms per cluster')
-        for key in cluster_labels.keys():
-            cluster_idxs = confident_idxs[np.where(
-                cluster_membership == int(key))[0]]
-            print(key, len(cluster_idxs))
+
+        with open(
+                os.path.join(plotsdir(args.experiment),
+                             'label-distribution.txt'), 'w') as f:
+            print('label distribution')
+            for key, value in cluster_labels.items():
+                per_cluster_label_list = []
+                for label in value:
+                    for v in label:
+                        per_cluster_label_list.append(v)
+                f.write(key + ': ' + str(len(per_cluster_label_list)) + '\n')
+                print(key, len(per_cluster_label_list))
+
+        with open(
+                os.path.join(plotsdir(args.experiment),
+                             'waveforms-per-cluster.txt'), 'w') as f:
+            print('number of waveforms per cluster')
+            for key in cluster_labels.keys():
+                cluster_idxs = confident_idxs[np.where(
+                    cluster_membership == int(key))[0]]
+                f.write(key + ': ' + str(len(cluster_idxs)) + '\n')
+                print(key, len(cluster_idxs))
 
     def plot_clusters(self, args, data_loader):
         """Plot predicted clusters.

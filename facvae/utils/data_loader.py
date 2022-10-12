@@ -1,18 +1,18 @@
 import h5py
 import numpy as np
-import os
 import torch
 import pickle
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
 from typing import Optional
 import logging
+from tqdm import tqdm
 
 from facvae.utils import (GaussianDataset, CrescentDataset,
                           CrescentCubedDataset, SineWaveDataset, AbsDataset,
                           SignDataset, FourCirclesDataset, DiamondDataset,
                           TwoSpiralsDataset, CheckerboardDataset,
-                          TwoMoonsDataset, catalogsdir, RunningStats)
+                          TwoMoonsDataset, RunningStats)
 
 NORMALIZATION_BATCH_SIZE = 10000
 
@@ -195,55 +195,6 @@ class ToyDataset(torch.utils.data.Dataset):
         return self.data[idx, ...]
 
 
-class CatalogReader(torch.utils.data.Dataset):
-
-    def __init__(self,
-                 path_to_catalog=os.path.join(catalogsdir('v11'),
-                                              'events_InSIght.pkl'),
-                 window_size=2**12,
-                 frequency=20.0):
-
-        self.window_size = window_size
-        self.frequency = frequency
-
-        with open(path_to_catalog, 'rb') as f:
-            self.df = pickle.load(f)
-
-    def get_window_label(self, i, start_time, end_time):
-        df = self.df[(self.df['eventTime'] >= start_time)
-                     & (self.df['eventTime'] <= end_time)]
-        labels = []
-        for _, row in df.iterrows():
-            labels.append(row['type'])
-        if len(labels) > 0:
-            print(i, start_time, end_time, labels)
-        return i, labels
-
-    def add_labels_to_h5_file(self, path_to_h5_file, n_workers=16):
-        file = h5py.File(path_to_h5_file, 'r+')
-
-        time_intervals = file['time_interval'][...]
-        inputs = []
-        for i in range(len(time_intervals)):
-            inputs.append(
-                (i, UTCDateTime(time_intervals[i][0].decode('utf-8')),
-                 UTCDateTime(time_intervals[i][1].decode('utf-8'))))
-        with WorkerPool(n_jobs=n_workers) as pool:
-            idx_and_labels = pool.map(self.get_window_label,
-                                      inputs,
-                                      progress_bar=True)
-
-        max_label_len = max([len(j) for _, j in idx_and_labels])
-        label_dataset = file.require_dataset(
-            'labels', (file['waveform'].shape[0], max_label_len),
-            chunks=True,
-            dtype=h5py.string_dtype())
-
-        for i, label in idx_and_labels:
-            label_dataset[i, :len(label)] = label
-        file.close()
-
-
 class Normalizer(object):
     """Normalizer a tensor image with training mean and standard deviation.
     Extracts the mean and standard deviation from the training dataset, and
@@ -295,3 +246,54 @@ class Normalizer(object):
             been unnormalized.
         """
         return x * (self.std + self.eps) + self.mean
+
+
+class CatalogReader(torch.utils.data.Dataset):
+
+    def __init__(self, path_to_catalog, window_size, frequency=20.0):
+
+        self.window_size = window_size
+        self.frequency = frequency
+
+        with open(path_to_catalog, 'rb') as f:
+            self.df = pickle.load(f)
+
+    def get_window_label(self, i, start_time, end_time, target_column_name):
+        df = self.df[(self.df['eventTime'] >= start_time)
+                     & (self.df['eventTime'] <= end_time)]
+        labels = []
+        for _, row in df.iterrows():
+            labels.append(row[target_column_name])
+        if len(labels) > 0:
+            print(i, start_time, end_time, labels)
+        return i, labels
+
+    def add_events_to_h5_file(self,
+                              path_to_h5_file,
+                              h5_dataset_name,
+                              target_column_name,
+                              n_workers=16):
+        file = h5py.File(path_to_h5_file, 'r+')
+
+        time_intervals = file['time_interval'][...]
+        inputs = []
+        for i in tqdm(range(len(time_intervals))):
+            inputs.append(
+                (i, UTCDateTime(time_intervals[i][0].decode('utf-8')),
+                 UTCDateTime(time_intervals[i][1].decode('utf-8')),
+                 target_column_name))
+        with WorkerPool(n_jobs=n_workers) as pool:
+            idx_and_labels = pool.map(self.get_window_label,
+                                      inputs,
+                                      progress_bar=True)
+
+        max_label_len = max([len(j) for _, j in idx_and_labels])
+        label_dataset = file.require_dataset(
+            h5_dataset_name, (file['waveform'].shape[0], max_label_len),
+            chunks=True,
+            dtype=h5py.string_dtype()
+            if target_column_name == 'label' else np.float32)
+
+        for i, label in idx_and_labels:
+            label_dataset[i, :len(label)] = label
+        file.close()

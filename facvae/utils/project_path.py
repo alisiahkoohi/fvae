@@ -23,8 +23,8 @@ def gitdir() -> str:
 def datadir(path: str, mkdir: Optional[bool] = True) -> str:
     """The absolute path to the data directory.
 
-    Data directory is for training and testing data. Here the path is created if
-    it does not exist upon call if `mkdir` is True.
+    Data directory is for training and testing data. Here the path is created
+    if it does not exist upon call if `mkdir` is True.
 
     Args:
         path: A string for directory name located at the data directory. mkdir:
@@ -40,8 +40,8 @@ def datadir(path: str, mkdir: Optional[bool] = True) -> str:
 def plotsdir(path: str, mkdir: Optional[bool] = True) -> str:
     """The absolute path to the plot directory.
 
-    Plot directory stores figure of experiment results. Here the path is created
-    if it does not exist upon call if `mkdir` is True.
+    Plot directory stores figure of experiment results. Here the path is
+    created if it does not exist upon call if `mkdir` is True.
 
     Args:
         path: A string for directory name located at the plot directory. mkdir:
@@ -57,9 +57,9 @@ def plotsdir(path: str, mkdir: Optional[bool] = True) -> str:
 def checkpointsdir(path: str, mkdir: Optional[bool] = True) -> str:
     """The absolute path to the checkpoint directory.
 
-    Checkpoint directory stores intermediate training checkpoints, e.g., network
-    weights. Here the path is created if it does not exist upon call if `mkdir`
-    is True.
+    Checkpoint directory stores intermediate training checkpoints, e.g.,
+    network weights. Here the path is created if it does not exist upon call if
+    `mkdir` is True.
 
     Args:
         path: A string for directory name located at the checkpoint directory.
@@ -105,17 +105,19 @@ def configsdir(mkdir: Optional[bool] = True) -> str:
     return path
 
 
-def catalogsdir(path: str, mkdir: Optional[bool] = True) -> str:
+def catalogsdir(mkdir: Optional[bool] = True) -> str:
     """The absolute path to the catalogs directory.
 
-    Catalogs directory stores the information regarding different events in the mars dataset. Here the path is created if it does not exist upon call if `mkdir` is True.
+    Catalogs directory stores the information regarding different events in the
+    mars dataset. Here the path is created if it does not exist upon call if
+    `mkdir` is True.
 
     Args:
         path: A string for directory name located at the checkpoint directory.
         mkdir: An optional boolean for whether to create the directory if it
             does not exist.
     """
-    path = os.path.join(datadir('catalogs'), path)
+    path = datadir('catalogs')
     if (not os.path.exists(path)) and mkdir:
         os.makedirs(path)
     return path

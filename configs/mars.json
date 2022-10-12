@@ -1,7 +1,7 @@
 {
     "cuda": 1,
-    "max_epoch": 500,
-    "batchsize": 512,
+    "max_epoch": 250,
+    "batchsize": 1024,
     "lr": 0.001,
     "lr_final": 0.0001,
     "ncluster": 10,
