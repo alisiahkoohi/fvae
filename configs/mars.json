@@ -1,6 +1,6 @@
 {
     "cuda": 1,
-    "max_epoch": 5000,
+    "max_epoch": 500,
     "batchsize": 512,
     "lr": 0.001,
     "lr_final": 0.0001,

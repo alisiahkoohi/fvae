@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import shutil
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -30,6 +31,8 @@ class GaussianMixtureVAE(object):
 
         # Tensorboard writer.
         if args.phase == 'train':
+            if os.path.exists(logsdir(args.experiment)):
+                shutil.rmtree(logsdir(args.experiment))
             self.writer = SummaryWriter(log_dir=logsdir(args.experiment))
 
         self.train_log = {
@@ -150,14 +153,13 @@ class GaussianMixtureVAE(object):
                         self.progress_bar(pb, train_loss)
 
                 # Log progress.
-                if epoch % 100 == 0:
+                if epoch % 1 == 0:
                     with torch.no_grad():
                         x_val = self.dataset.sample_data(
                             next(iter(val_loader)), args.type)
                         x_val = x_val.to(self.device)
                         y_val = self.network(x_val)
-                        val_loss = self.compute_loss(
-                            x_val.view(x_val.size(0), -1), y_val)
+                        val_loss = self.compute_loss(x_val, y_val)
                         self.log_progress(args, epoch, train_loss, val_loss)
 
                 # Decay gumbel temperature

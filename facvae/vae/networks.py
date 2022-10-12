@@ -170,18 +170,7 @@ class GMVAENetwork(torch.nn.Module):
         self.gumbel_temp = init_temp
         self.hard_gumbel = hard_gumbel
 
-        # # weight initialization
-        # for m in self.modules():
-        #     if type(m) == torch.nn.Linear or type(
-        #             m) == torch.nn.Conv2d or type(
-        #                 m) == torch.nn.ConvTranspose2d:
-        #         torch.nn.init.xavier_normal_(m.weight)
-        #         if m.bias is not None:
-        #             torch.nn.init.constant_(m.bias, 0)
-
     def forward(self, x):
-        x = x.view(x.size(0), -1)
-        # with torch.no_grad():
         x = self.bn(x) if hasattr(self, 'bn') else x
         out_inf = self.inference(x, self.gumbel_temp, self.hard_gumbel)
         z, y = out_inf['gaussian'], out_inf['categorical']

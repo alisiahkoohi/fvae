@@ -162,7 +162,7 @@ class Visualization(object):
                         matplotlib.dates.MinuteLocator(interval=10))
                     figs_axs[0][1][j, i].xaxis.set_major_formatter(
                         matplotlib.dates.DateFormatter('%H:%M'))
-                    figs_axs[0][1][j, i].set_ylim([-2.5e-6, 2.5e-6])
+                    figs_axs[0][1][j, i].set_ylim([-5e-7, 5e-7])
                     figs_axs[0][1][j, i].set_title("Waveform from cluster " +
                                                    str(i))
 

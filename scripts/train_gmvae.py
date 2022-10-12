@@ -83,7 +83,7 @@ if __name__ == "__main__":
         if args.dataset == 'mars':
             vis.plot_waveforms(args, test_loader)
             # vis.random_generation(args)
-            vis.reconstruct_data(args, train_loader)
+            vis.reconstruct_data(args, val_loader)
         else:
             vis.plot_clusters(args, test_loader)
             vis.random_generation(args, num_elements=5000)
