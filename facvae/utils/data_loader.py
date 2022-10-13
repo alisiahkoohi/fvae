@@ -119,8 +119,8 @@ class MarsDataset(torch.utils.data.Dataset):
                 x = self.file['waveform'][np.sort(idx), 1, :]
             else:
                 raise ValueError('No dataset exists with type ', type)
-            x = self.normalize(x, type)
             x = torch.from_numpy(x)
+            x = self.normalize(x, type)
             return x
         else:
             if (not self.already_normalized[type]) and self.normalize_data:
