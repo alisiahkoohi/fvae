@@ -5,12 +5,12 @@ class RunningStats(object):
     """Running first- and second-order statistics.
     """
 
-    def __init__(self, shape):
+    def __init__(self, shape, dtype=torch.float32):
         super(RunningStats, self).__init__()
 
         self.num_samples = 0
-        self.running_mean = torch.zeros(shape, dtype=torch.float)
-        self.running_sum_of_differences = torch.zeros(shape, dtype=torch.float)
+        self.running_mean = torch.zeros(shape, dtype=dtype)
+        self.running_sum_of_differences = torch.zeros(shape, dtype=dtype)
 
     def input_samples(self, samples):
         """
