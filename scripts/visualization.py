@@ -141,6 +141,7 @@ class Visualization(object):
                 waveforms = self.dataset.sample_data(cluster_idxs,
                                                      type='waveform')
                 x = self.dataset.sample_data(cluster_idxs, args.type)
+                # from IPython import embed; embed()
 
                 x = self.dataset.unnormalize(x, args.type)
                 waveforms = self.dataset.unnormalize(waveforms, 'waveform')
@@ -334,9 +335,6 @@ class Visualization(object):
         x = x.cpu()
         x_rec = x_rec.cpu()
 
-        x = self.dataset.unnormalize(x, args.type)
-        x_rec = self.dataset.unnormalize(x_rec, args.type)
-
         if args.input_size > 2:
             fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
             for i in range(sample_size):
@@ -373,6 +371,53 @@ class Visualization(object):
                           label='reconstructed')
             plt.legend()
             plt.savefig(os.path.join(plotsdir(args.experiment), 'rec.png'),
+                        format="png",
+                        bbox_inches="tight",
+                        dpi=300,
+                        pad_inches=.05)
+            plt.close(fig)
+
+        x = self.dataset.unnormalize(x, args.type)
+        x_rec = self.dataset.unnormalize(x_rec, args.type)
+
+        if args.input_size > 2:
+            fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
+            for i in range(sample_size):
+                ax[i].plot(x[i, :],
+                           lw=.8,
+                           alpha=1,
+                           color='k',
+                           label='original')
+                ax[i].plot(x_rec[i, :],
+                           lw=.8,
+                           alpha=0.5,
+                           color='r',
+                           label='reconstructed')
+            plt.legend()
+            plt.savefig(os.path.join(plotsdir(args.experiment),
+                                     'rec_unnormalized.png'),
+                        format="png",
+                        bbox_inches="tight",
+                        dpi=300,
+                        pad_inches=.05)
+            plt.close(fig)
+        else:
+            fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+            ax[0].scatter(x[:, 0],
+                          x[:, 1],
+                          s=2,
+                          alpha=0.5,
+                          color='k',
+                          label='original')
+            ax[1].scatter(x_rec[:, 0],
+                          x_rec[:, 1],
+                          s=2,
+                          alpha=0.5,
+                          color='r',
+                          label='reconstructed')
+            plt.legend()
+            plt.savefig(os.path.join(plotsdir(args.experiment),
+                                     'rec_unnormalized.png'),
                         format="png",
                         bbox_inches="tight",
                         dpi=300,
