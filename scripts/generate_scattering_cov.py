@@ -169,54 +169,58 @@ def compute_scat_cov(args):
                     time_intervals = []
                     batched_window = []
                     for window in windowed_data:
-                        time_intervals.append(
-                            (window[0].meta.starttime, window[0].meta.endtime))
-                        batched_window.append(
-                            np.stack([tr.data for tr in window]))
-                    batched_window = np.stack(batched_window)
-                    batched_window = batched_window.reshape(
-                        len(windowed_data) * num_components, args.window_size)
-                    # Compute scattering covariance.
-                    y = analyze(
-                        batched_window,
-                        Q1=args.q1,
-                        Q2=args.q2,
-                        model_type=args.model_type,
-                        cuda=args.cuda,
-                        normalize='each_ps',
-                        qs=[1.0] if args.model_type == 'scat' else None,
-                        nchunks=args.nchunks).y
-
-                    batched_window = batched_window.reshape(
-                        len(windowed_data), num_components, args.window_size)
-                    y = y.reshape(len(windowed_data), num_components,
-                                  scat_cov_size).numpy()
-
-                    # Compute the average of the scattering covariance
-                    # over the time axis.
-                    for b in range(len(windowed_data)):
-
-                        # CASE 1: keep real and imag parts by considering
-                        # it as different real coefficients
-                        scat_covariances = np.stack(
-                            [y[b, ...].real, y[b, ...].imag],
-                            axis=-1).astype(np.float32)
-
-                        # CASE 2: only keeps the modulus of the scattering
-                        # covariance, hence discarding time asymmetry info
-                        # scat_covariances = np.abs(cplx.to_np(y))
-
-                        # CASE 3: only keep the phase, which looks at time
-                        # asymmetry in the data y =
-                        # RX.reduce(m_type=['m01', 'm11'], re=False).y[0,
-                        # :, 0].numpy() y_phase = np.angle(y)
-                        # y_phase[np.abs(y) < 1e-2] = 0.0  # rules phase
-                        # instability scat_covariances = y_phase
-
-                        filename = file + '_' + str(b)
-                        event_start, event_end = time_intervals[b]
                         if args.use_day_data or is_night_time_event(
-                                event_start, event_end):
+                                window[0].meta.starttime,
+                                window[0].meta.endtime):
+                            time_intervals.append((window[0].meta.starttime,
+                                                   window[0].meta.endtime))
+                            batched_window.append(
+                                np.stack([tr.data for tr in window]))
+
+                    window_num = len(batched_window)
+                    if window_num > 0:
+                        batched_window = np.stack(batched_window)
+                        batched_window = batched_window.reshape(
+                            window_num * num_components, args.window_size)
+
+                        # Compute scattering covariance.
+                        y = analyze(
+                            batched_window,
+                            Q1=args.q1,
+                            Q2=args.q2,
+                            model_type=args.model_type,
+                            cuda=args.cuda,
+                            normalize='each_ps',
+                            qs=[1.0] if args.model_type == 'scat' else None,
+                            nchunks=args.nchunks).y
+
+                        y = y.reshape(window_num, num_components,
+                                      scat_cov_size).numpy()
+                        batched_window = batched_window.reshape(
+                            window_num, num_components, args.window_size)
+
+                        # Compute the average of the scattering covariance
+                        # over the time axis.
+                        for b in range(window_num):
+
+                            # CASE 1: keep real and imag parts by considering
+                            # it as different real coefficients
+                            scat_covariances = np.stack(
+                                [y[b, ...].real, y[b, ...].imag],
+                                axis=-1).astype(np.float32)
+
+                            # CASE 2: only keeps the modulus of the scattering
+                            # covariance, hence discarding time asymmetry info
+                            # scat_covariances = np.abs(cplx.to_np(y))
+
+                            # CASE 3: only keep the phase, which looks at time
+                            # asymmetry in the data y =
+                            # RX.reduce(m_type=['m01', 'm11'], re=False).y[0,
+                            # :, 0].numpy() y_phase = np.angle(y)
+                            # y_phase[np.abs(y) < 1e-2] = 0.0  # rules phase
+                            # instability scat_covariances = y_phase
+
+                            filename = file + '_' + str(b)
                             update_hdf5_file(scat_cov_path,
                                              args.scat_cov_filename, filename,
                                              num_windows, batched_window[b,
@@ -224,12 +228,12 @@ def compute_scat_cov(args):
                                              scat_covariances,
                                              time_intervals[b])
                             num_windows += 1
-                        pb.set_postfix({
-                            'shape':
-                            scat_covariances.shape,
-                            'discarded':
-                            f'{discarded_files/(file_idx + 1):.4f}'
-                        })
+                            pb.set_postfix({
+                                'shape':
+                                scat_covariances.shape,
+                                'discarded':
+                                f'{discarded_files/(file_idx + 1):.4f}'
+                            })
 
                 else:
                     discarded_files += 1
