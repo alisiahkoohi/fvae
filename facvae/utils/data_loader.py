@@ -24,9 +24,11 @@ class MarsDataset(torch.utils.data.Dataset):
                  train_proportion,
                  data_types=['scat_cov'],
                  load_to_memory=False,
-                 normalize_data=True):
+                 normalize_data=True,
+                 filter_key=None):
         self.load_to_memory = load_to_memory
         self.normalize_data = normalize_data
+        self.filter_key = filter_key
 
         # HDF5 file.
         self.file = h5py.File(file_path, 'r')
@@ -36,7 +38,7 @@ class MarsDataset(torch.utils.data.Dataset):
             'scat_cov': np.prod(self.file['scat_cov'].shape[-2:])
         }
         self.train_idx, self.val_idx, self.test_idx = self.split_data(
-            self.num_windows, train_proportion)
+            train_proportion)
 
         self.data = {
             'waveform': None,
@@ -57,14 +59,30 @@ class MarsDataset(torch.utils.data.Dataset):
             'scat_cov': False,
         }
 
-    def split_data(self, num_windows, train_proportion):
-        ntrain = int(train_proportion * num_windows)
-        nval = int((1 - train_proportion) * num_windows)
+    def split_data(self, train_proportion):
+        if self.filter_key:
+            filenames = self.get_waveform_filename(range(self.num_windows))
+            filenames = list(
+                filter(lambda k: self.filter_key in k[1],
+                       enumerate(filenames)))
+            file_idxs = [file[0] for file in filenames]
 
-        idxs = np.random.permutation(num_windows)
-        train_idx = idxs[:ntrain]
-        val_idx = idxs[ntrain:ntrain + nval]
-        test_idx = idxs
+            ntrain = int(train_proportion * len(filenames))
+            nval = int((1 - train_proportion) * len(filenames))
+
+            idxs = np.random.permutation(file_idxs)
+            train_idx = idxs[:ntrain]
+            val_idx = idxs[ntrain:ntrain + nval]
+            test_idx = idxs
+
+        else:
+            ntrain = int(train_proportion * self.num_windows)
+            nval = int((1 - train_proportion) * self.num_windows)
+
+            idxs = np.random.permutation(self.num_windows)
+            train_idx = idxs[:ntrain]
+            val_idx = idxs[ntrain:ntrain + nval]
+            test_idx = idxs
 
         return train_idx, val_idx, test_idx
 
@@ -305,7 +323,7 @@ class CatalogReader(torch.utils.data.Dataset):
             h5_dataset_name, (file['waveform'].shape[0], max_label_len),
             chunks=True,
             dtype=h5py.string_dtype()
-            if target_column_name == 'label' else np.float32)
+            if target_column_name == 'type' else np.float32)
 
         for i, label in idx_and_labels:
             label_dataset[i, :len(label)] = label

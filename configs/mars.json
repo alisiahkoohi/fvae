@@ -24,5 +24,6 @@
     "window_size": 4096,
     "clip": 20.0,
     "type": "scat_cov",
-    "normalize": 1
+    "normalize": 1,
+    "filter_key": ""
 }

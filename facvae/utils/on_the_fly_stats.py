@@ -20,8 +20,6 @@ class RunningStats(object):
         """
         Input new samples and update the quantities.
         """
-        # TODO: implement parallel version.
-
         if n_workers > 1:
             split_idxs = np.array_split(np.arange(samples.shape[0]),
                                         n_workers,
@@ -66,6 +64,5 @@ class RunningStats(object):
         Return the weighted mean and standard deviation based on the
         intermediate weighted sum and sum of squares
         """
-
         return self.running_mean, torch.sqrt(self.running_sum_of_differences /
                                              self.num_samples)

@@ -51,7 +51,8 @@ if __name__ == "__main__":
                               0.8,
                               data_types=[args.type],
                               load_to_memory=args.load_to_memory,
-                              normalize_data=args.normalize)
+                              normalize_data=args.normalize,
+                              filter_key=args.filter_key)
     else:
         dataset = ToyDataset(30000, 0.8, dataset_name=args.dataset)
 
