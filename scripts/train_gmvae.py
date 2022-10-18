@@ -48,7 +48,7 @@ if __name__ == "__main__":
     if args.dataset == 'mars':
         dataset = MarsDataset(os.path.join(MARS_SCAT_COV_PATH,
                                            args.h5_filename),
-                              0.8,
+                              0.99,
                               data_types=[args.type],
                               load_to_memory=args.load_to_memory,
                               normalize_data=args.normalize,
@@ -83,11 +83,11 @@ if __name__ == "__main__":
         vis = Visualization(network, dataset, args.window_size, device)
         if args.dataset == 'mars':
             vis.plot_waveforms(args, test_loader)
-            # vis.random_generation(args)
-            vis.reconstruct_data(args, val_loader)
+            vis.random_generation(args)
+            vis.reconstruct_data(args, train_loader)
         else:
             vis.plot_clusters(args, test_loader)
             vis.random_generation(args, num_elements=5000)
             vis.reconstruct_data(args, val_loader, sample_size=5000)
-        # vis.plot_latent_space(args, test_loader)
+        vis.plot_latent_space(args, test_loader)
     upload_results(args, flag='--progress')

@@ -497,7 +497,7 @@ class Visualization(object):
         indices = arr.astype(int).tolist()
 
         categorical = torch.nn.functional.one_hot(torch.tensor(indices),
-                                                  args.ncluster).float()
+                                                  args.ncluster).float().to(self.device)
         # infer the gaussian distribution according to the category
         mean, var = self.network.generative.pzy(categorical)
 
