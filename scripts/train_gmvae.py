@@ -21,7 +21,7 @@ MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # GMVAE training default hyperparameters.
 MARS_CONFIG_FILE = 'mars.json'
-TOY_CONFIG_FILE = 'toy.json'
+TOY_CONFIG_FILE = 'toy_checkerboard.json'
 
 # Random seed.
 SEED = 12
@@ -80,6 +80,9 @@ if __name__ == "__main__":
         gmvaw.train(args, train_loader, val_loader)
     elif args.phase == 'test':
         network = gmvaw.load_checkpoint(args, args.max_epoch - 1)
+        network.gumbel_temp = np.maximum(
+            args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
+            args.min_temp)
 
         if args.dataset == 'mars':
             vis = Visualization(network, dataset, args.window_size, device)

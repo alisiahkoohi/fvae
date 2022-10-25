@@ -66,7 +66,8 @@ class Visualization(object):
 
                 # flatten data
                 x = x.to(self.device)
-                y = self.network.inference(x)
+                y = self.network.inference(x, self.network.gumbel_temp,
+                                           self.network.hard_gumbel)
                 latent_feat = y['mean']
                 cluster_membership = y['logits'].argmax(axis=1)
 
@@ -421,27 +422,48 @@ class Visualization(object):
                              init='pca',
                              early_exaggeration=10,
                              perplexity=200).fit_transform(features)
-        features_pca = PCA(n_components=2).fit_transform(features)
+
         # plot only the first 2 dimensions
         # cmap = plt.cm.get_cmap('hsv', args.ncluster)
         label_colors = {i: self.colors[i % 10] for i in range(args.ncluster)}
         colors = [label_colors[int(i)] for i in clusters]
-        fig = plt.figure(figsize=(8, 6))
-        plt.scatter(features_pca[:, 0],
-                    features_pca[:, 1],
-                    marker='o',
-                    c=colors,
-                    edgecolor='none',
-                    cmap=plt.cm.get_cmap('jet', 10),
-                    s=10)
-        plt.title("Two dimensional PCA of the latent samples")
-        plt.savefig(os.path.join(plotsdir(args.experiment),
-                                 'pca_latent_space.png'),
-                    format="png",
-                    bbox_inches="tight",
-                    dpi=300,
-                    pad_inches=.05)
-        plt.close(fig)
+
+        if args.input_size > 2:
+            features_pca = PCA(n_components=2).fit_transform(features)
+            fig = plt.figure(figsize=(8, 6))
+            plt.scatter(features_pca[:, 0],
+                        features_pca[:, 1],
+                        marker='o',
+                        c=colors,
+                        edgecolor='none',
+                        cmap=plt.cm.get_cmap('jet', 10),
+                        s=10)
+            plt.title("Two dimensional PCA of the latent samples")
+            plt.savefig(os.path.join(plotsdir(args.experiment),
+                                     'pca_latent_space.png'),
+                        format="png",
+                        bbox_inches="tight",
+                        dpi=300,
+                        pad_inches=.05)
+            plt.close(fig)
+        else:
+            fig = plt.figure(figsize=(8, 6))
+            plt.scatter(features[:, 0],
+                        features[:, 1],
+                        marker='o',
+                        c=colors,
+                        edgecolor='none',
+                        cmap=plt.cm.get_cmap('jet', 10),
+                        s=10)
+
+            plt.title("Latent samples")
+            plt.savefig(os.path.join(plotsdir(args.experiment),
+                                     'pca_latent_space.png'),
+                        format="png",
+                        bbox_inches="tight",
+                        dpi=300,
+                        pad_inches=.05)
+            plt.close(fig)
 
         fig = plt.figure(figsize=(8, 6))
         plt.scatter(features_tsne[:, 0],

@@ -29,7 +29,7 @@ def make_experiment_name(args):
     for key, value in vars(args).items():
         if key not in [
                 'experiment_name', 'cuda', 'phase', 'load_to_memory', 'clip',
-                'h5_filename', 'w_cat', 'w_rec', 'w_gauss',
+                'h5_filename', 'w_cat', 'w_gauss',
                 'temp_decay', 'min_temp', 'init_temp'
         ]:
             experiment_name += key + '-{}_'.format(value)
