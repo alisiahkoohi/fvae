@@ -291,7 +291,8 @@ class Visualization(object):
         # Moving back tensors to CPU for plotting.
         cluster_membership = cluster_membership.cpu()
         x = x.cpu()
-        x = self.dataset.unnormalize(x, args.type)
+        if args.dataset == 'mars':
+            x = self.dataset.unnormalize(x, args.type)
 
         fig = plt.figure(figsize=(8, 6))
         for i in range(args.ncluster):
@@ -377,10 +378,10 @@ class Visualization(object):
                         pad_inches=.05)
             plt.close(fig)
 
-        x = self.dataset.unnormalize(x, args.type)
-        x_rec = self.dataset.unnormalize(x_rec, args.type)
+        if args.dataset == 'mars':
+            x = self.dataset.unnormalize(x, args.type)
+            x_rec = self.dataset.unnormalize(x_rec, args.type)
 
-        if args.input_size > 2:
             fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
             for i in range(sample_size):
                 ax[i].plot(x[i, :],
@@ -393,28 +394,6 @@ class Visualization(object):
                            alpha=0.5,
                            color='r',
                            label='reconstructed')
-            plt.legend()
-            plt.savefig(os.path.join(plotsdir(args.experiment),
-                                     'rec_unnormalized.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
-            plt.close(fig)
-        else:
-            fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-            ax[0].scatter(x[:, 0],
-                          x[:, 1],
-                          s=2,
-                          alpha=0.5,
-                          color='k',
-                          label='original')
-            ax[1].scatter(x_rec[:, 0],
-                          x_rec[:, 1],
-                          s=2,
-                          alpha=0.5,
-                          color='r',
-                          label='reconstructed')
             plt.legend()
             plt.savefig(os.path.join(plotsdir(args.experiment),
                                      'rec_unnormalized.png'),
@@ -496,8 +475,8 @@ class Visualization(object):
             arr = np.hstack([arr, np.ones(num_elements) * i])
         indices = arr.astype(int).tolist()
 
-        categorical = torch.nn.functional.one_hot(torch.tensor(indices),
-                                                  args.ncluster).float().to(self.device)
+        categorical = torch.nn.functional.one_hot(
+            torch.tensor(indices), args.ncluster).float().to(self.device)
         # infer the gaussian distribution according to the category
         mean, var = self.network.generative.pzy(categorical)
 

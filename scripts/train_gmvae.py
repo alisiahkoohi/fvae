@@ -31,7 +31,7 @@ torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
     # Command line arguments.
-    args = read_config(os.path.join(configsdir(), MARS_CONFIG_FILE))
+    args = read_config(os.path.join(configsdir(), TOY_CONFIG_FILE))
     args = parse_input_args(args)
     args.experiment = make_experiment_name(args)
 
@@ -80,14 +80,17 @@ if __name__ == "__main__":
         gmvaw.train(args, train_loader, val_loader)
     elif args.phase == 'test':
         network = gmvaw.load_checkpoint(args, args.max_epoch - 1)
-        vis = Visualization(network, dataset, args.window_size, device)
+
         if args.dataset == 'mars':
+            vis = Visualization(network, dataset, args.window_size, device)
             vis.plot_waveforms(args, test_loader)
             vis.random_generation(args)
             vis.reconstruct_data(args, train_loader)
+            vis.plot_latent_space(args, test_loader)
         else:
+            vis = Visualization(network, dataset, None, device)
             vis.plot_clusters(args, test_loader)
             vis.random_generation(args, num_elements=5000)
             vis.reconstruct_data(args, val_loader, sample_size=5000)
-        vis.plot_latent_space(args, test_loader)
+            vis.plot_latent_space(args, val_loader)
     upload_results(args, flag='--progress')

@@ -222,7 +222,7 @@ class ToyDataset(torch.utils.data.Dataset):
 
         return train_idx, val_idx, test_idx
 
-    def sample_data(self, idx):
+    def sample_data(self, idx, type):
         return self.data[idx, ...]
 
 
