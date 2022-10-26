@@ -31,9 +31,11 @@ torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
     # Command line arguments.
-    args = read_config(os.path.join(configsdir(), TOY_CONFIG_FILE))
+    args = read_config(os.path.join(configsdir(), MARS_CONFIG_FILE))
     args = parse_input_args(args)
     args.experiment = make_experiment_name(args)
+    if hasattr(args, 'filter_key'):
+        args.filter_key = args.filter_key.replace(' ', '').split(',')
 
     # Setting default device (cpu/cuda) depending on CUDA availability and
     # input arguments.
@@ -89,7 +91,7 @@ if __name__ == "__main__":
             vis.plot_waveforms(args, test_loader)
             vis.random_generation(args)
             vis.reconstruct_data(args, train_loader)
-            vis.plot_latent_space(args, test_loader)
+            # vis.plot_latent_space(args, test_loader)
         else:
             vis = Visualization(network, dataset, None, device)
             vis.plot_clusters(args, test_loader)
