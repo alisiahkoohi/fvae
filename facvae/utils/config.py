@@ -42,4 +42,5 @@ def make_h5_file_name(args):
     for key, value in vars(args).items():
         if key not in ['cuda', 'filename', 'nchunks']:
             filename += key + '-{}_'.format(value)
-    return filename[:-1].replace(' ', '') + '.h5'
+    filename = filename[:-1].replace(' ', '') + '.h5'
+    return filename.replace('[', '').replace(']', '').replace(',', '-')

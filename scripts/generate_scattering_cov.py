@@ -113,9 +113,11 @@ def compute_scat_cov(args):
     # Data sampling rate.
     sampling_rate = data_stream[0].meta.sampling_rate
     # Shape of the scattering covariance for one window size.
-    scat_cov_size = analyze(data_stream[0][:args.window_size],
-                            Q1=args.q1,
-                            Q2=args.q2,
+    scat_cov_size = analyze(data_stream[0][:args.window_size].astype(
+        np.float32),
+                            Qs=args.q,
+                            J=args.J,
+                            r=args.r,
                             model_type=args.model_type,
                             cuda=args.cuda,
                             normalize='each_ps',
@@ -181,13 +183,15 @@ def compute_scat_cov(args):
                     if window_num > 0:
                         batched_window = np.stack(batched_window)
                         batched_window = batched_window.reshape(
-                            window_num * num_components, args.window_size)
+                            window_num * num_components,
+                            args.window_size).astype(np.float32)
 
                         # Compute scattering covariance.
                         y = analyze(
                             batched_window,
-                            Q1=args.q1,
-                            Q2=args.q2,
+                            Qs=args.q,
+                            J=args.J,
+                            r=args.r,
                             model_type=args.model_type,
                             cuda=args.cuda,
                             normalize='each_ps',
@@ -249,8 +253,9 @@ if __name__ == "__main__":
                         type=int,
                         default=2**12,
                         help='Window size of raw waveforms')
-    parser.add_argument('--q1', dest='q1', type=int, default=2)
-    parser.add_argument('--q2', dest='q2', type=int, default=4)
+    parser.add_argument('--q', dest='q', type=str, default='2,4')
+    parser.add_argument('--r', dest='r', type=int, default=2)
+    parser.add_argument('--J', dest='J', type=int, default=7)
     parser.add_argument('--cuda',
                         dest='cuda',
                         type=int,
@@ -277,7 +282,8 @@ if __name__ == "__main__":
                         default='3c',
                         help='filename prefix to be created')
     args = parser.parse_args()
-
+    args.q = [int(j) for j in args.q.replace(' ', '').split(',')]
     args.scat_cov_filename = make_h5_file_name(args)
+    args.r = len(args.q)
 
     compute_scat_cov(args)
