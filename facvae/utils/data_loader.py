@@ -37,8 +37,14 @@ class MarsDataset(torch.utils.data.Dataset):
             'waveform': self.file['waveform'].shape[2],
             'scat_cov': np.prod(self.file['scat_cov'].shape[-2:])
         }
-        self.train_idx, self.val_idx, self.test_idx = self.split_data(
-            train_proportion)
+        (self.file_idx, self.train_idx, self.val_idx,
+         self.test_idx) = self.split_data(train_proportion)
+        if filter_key:
+            idxs_dict = {str(i): idx for i, idx in enumerate(self.file_idx)}
+            self.idx_converter = lambda idx: np.array(
+                [idxs_dict[str(j)] for j in idx])
+        else:
+            self.idx_converter: lambda idx: idx
 
         self.data = {
             'waveform': None,
@@ -63,32 +69,46 @@ class MarsDataset(torch.utils.data.Dataset):
         if self.filter_key:
             all_filenames = self.get_waveform_filename(range(self.num_windows))
             filenames = []
-            file_idxs = []
+            file_idx = []
             for filter_key in self.filter_key:
                 names = list(
                     filter(lambda k: filter_key in k[1],
                            enumerate(all_filenames)))
-                file_idxs.extend([file[0] for file in names])
+                file_idx.extend([file[0] for file in names])
                 filenames.extend(names)
+            file_idx = np.array(file_idx)
 
-            ntrain = int(train_proportion * len(filenames))
-            nval = int((1 - train_proportion) * len(filenames))
+            ntrain = int(train_proportion * file_idx.shape[0])
+            nval = int((1 - train_proportion) * file_idx.shape[0])
 
-            idxs = np.random.permutation(file_idxs)
+            idxs = np.random.permutation(file_idx.shape[0])
             train_idx = idxs[:ntrain]
             val_idx = idxs[ntrain:ntrain + nval]
             test_idx = idxs
 
         else:
-            ntrain = int(train_proportion * self.num_windows)
-            nval = int((1 - train_proportion) * self.num_windows)
+            file_idx = np.array(list(range(self.num_windows)))
+            ntrain = int(train_proportion * file_idx.shape[0])
+            nval = int((1 - train_proportion) * file_idx.shape[0])
 
-            idxs = np.random.permutation(self.num_windows)
+            idxs = np.random.permutation(file_idx.shape[0])
             train_idx = idxs[:ntrain]
             val_idx = idxs[ntrain:ntrain + nval]
             test_idx = idxs
 
-        return train_idx, val_idx, test_idx
+        return file_idx, train_idx, val_idx, test_idx
+
+    def load_all_data(self, data_types):
+        for type in data_types:
+            if type == 'scat_cov':
+                x = self.file['scat_cov'][self.file_idx, 1, :, :].reshape(
+                    self.file_idx.shape[0], -1)
+            elif type == 'waveform':
+                x = self.file['waveform'][self.file_idx, 1, :]
+            else:
+                raise ValueError('No dataset exists with type ', type)
+            x = torch.from_numpy(x)
+            self.data[type] = x
 
     def setup_data_normalizer(self, data_types):
         logging.info('Setting up data normalizer...')
@@ -97,25 +117,31 @@ class MarsDataset(torch.utils.data.Dataset):
             if self.load_to_memory:
                 running_stats.input_samples(self.data[type][self.train_idx,
                                                             ...])
-                mean, std = running_stats.compute_stats()
             else:
                 for i in range(0, len(self.train_idx),
                                NORMALIZATION_BATCH_SIZE):
                     if type == 'scat_cov':
-                        batch = torch.from_numpy(self.file['scat_cov'][
-                            np.sort(self.train_idx[i:i +
-                                                   NORMALIZATION_BATCH_SIZE]),
-                            1, :, :])
+                        batch = torch.from_numpy(
+                            self.file['scat_cov'][self.idx_converter(
+                                np.sort(self.
+                                        train_idx[i:i +
+                                                  NORMALIZATION_BATCH_SIZE])),
+                                                  1, :, :])
                         running_stats.input_samples(batch.reshape(
                             batch.shape[0], -1),
                                                     n_workers=1)
                     elif type == 'waveform':
-                        running_stats.input_samples(self.sample_data(
-                            self.train_idx[i:i + NORMALIZATION_BATCH_SIZE],
-                            type=type),
+                        batch = torch.from_numpy(
+                            self.file['waveform'][self.idx_converter(
+                                np.sort(self.
+                                        train_idx[i:i +
+                                                  NORMALIZATION_BATCH_SIZE])),
+                                                  1, :])
+                        running_stats.input_samples(batch.reshape(
+                            batch.shape[0], -1),
                                                     n_workers=1)
-                mean, std = running_stats.compute_stats()
 
+            mean, std = running_stats.compute_stats()
             self.normalizer[type] = Normalizer(mean, std)
 
     def normalize(self, x, type):
@@ -128,25 +154,14 @@ class MarsDataset(torch.utils.data.Dataset):
             x = self.normalizer[type].unnormalize(x)
         return x
 
-    def load_all_data(self, data_types):
-        for type in data_types:
-            if type == 'scat_cov':
-                x = self.file['scat_cov'][:, 1, :, :].reshape(
-                    self.num_windows, -1)
-            elif type == 'waveform':
-                x = self.file['waveform'][:, 1, :]
-            else:
-                raise ValueError('No dataset exists with type ', type)
-            x = torch.from_numpy(x)
-            self.data[type] = x
-
     def sample_data(self, idx, type):
         if self.data[type] is None:
             if type == 'scat_cov':
-                x = self.file['scat_cov'][np.sort(idx),
+                x = self.file['scat_cov'][self.idx_converter(np.sort(idx)),
                                           1, :, :].reshape(len(idx), -1)
             elif type == 'waveform':
-                x = self.file['waveform'][np.sort(idx), 1, :]
+                x = self.file['waveform'][self.idx_converter(np.sort(idx)),
+                                          1, :]
             else:
                 raise ValueError('No dataset exists with type ', type)
             x = torch.from_numpy(x)
@@ -154,17 +169,13 @@ class MarsDataset(torch.utils.data.Dataset):
             return x
         else:
             if (not self.already_normalized[type]) and self.normalize_data:
-                if type == 'scat_cov':
-                    self.data[type] = self.normalize(
-                        self.data['scat_cov'][...], 'scat_cov')
-                elif type == 'waveform':
-                    self.data[type] = self.normalize(self.data[type][...],
-                                                     type)
+                self.data[type] = self.normalize(self.data[type][...], type)
                 self.already_normalized[type] = True
             return self.data[type][np.sort(idx), ...]
 
     def get_labels(self, idx):
-        labels_list = self.file['labels'][np.sort(idx), ...].astype(str)
+        labels_list = self.file['labels'][self.idx_converter(np.sort(idx)),
+                                          ...].astype(str)
         labels = []
         for i in range(len(idx)):
             label = []
@@ -175,14 +186,23 @@ class MarsDataset(torch.utils.data.Dataset):
         return labels
 
     def get_waveform_filename(self, idx):
-        return [
-            f.decode('utf-8') for f in self.file['filename'][np.sort(idx), ...]
-        ]
+        if hasattr(self, 'idx_converter'):
+            filenames = [
+                f.decode('utf-8') for f in self.file['filename'][
+                    self.idx_converter(np.sort(idx)), ...]
+            ]
+        else:
+            filenames = [
+                f.decode('utf-8')
+                for f in self.file['filename'][np.sort(idx), ...]
+            ]
+        return filenames
 
     def get_time_interval(self, idx):
         return [(UTCDateTime(s.decode('utf-8')),
                  UTCDateTime(e.decode('utf-8')))
-                for s, e in self.file['time_interval'][np.sort(idx), ...]]
+                for s, e in self.file['time_interval'][
+                    self.idx_converter(np.sort(idx)), ...]]
 
 
 class ToyDataset(torch.utils.data.Dataset):
