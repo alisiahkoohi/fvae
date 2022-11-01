@@ -27,7 +27,7 @@ class LossFunctions(object):
             loss = F.binary_cross_entropy(predicted, real, reduction='none')
         else:
             raise "invalid loss function... try bce or mse..."
-        return loss.sum(-1).mean()
+        return loss.sum(tuple(range(1, loss.dim()))).mean()
 
     def log_normal(self, x, mu, var):
         """Logarithm of normal distribution with mean=mu and variance=var

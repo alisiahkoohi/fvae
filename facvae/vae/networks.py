@@ -32,12 +32,16 @@ class View(torch.nn.Module):
 # Inference Network
 class InferenceNet(torch.nn.Module):
 
-    def __init__(self, x_dim, z_dim, y_dim, hidden_dim, nlayer):
+    def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):
         super(InferenceNet, self).__init__()
 
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
-            torch.nn.Linear(x_dim, hidden_dim, bias=False),
+            View((-1, *x_shape[::-1])),
+            torch.nn.Linear(x_shape[0], 1, bias=False),
+            View((-1, x_shape[1])),
+            torch.nn.LeakyReLU(negative_slope=0.2),
+            torch.nn.Linear(x_shape[1], hidden_dim, bias=False),
             torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
@@ -51,7 +55,11 @@ class InferenceNet(torch.nn.Module):
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
-            torch.nn.Linear(x_dim + y_dim, hidden_dim, bias=False),
+            View((-1, x_shape[1] + y_dim, x_shape[0])),
+            torch.nn.Linear(x_shape[0], 1, bias=False),
+            View((-1, x_shape[1] + y_dim)),
+            torch.nn.LeakyReLU(negative_slope=0.2),
+            torch.nn.Linear(x_shape[1] + y_dim, hidden_dim, bias=False),
             torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
@@ -76,12 +84,10 @@ class InferenceNet(torch.nn.Module):
 
     # q(z|x,y)
     def qzxy(self, x, y):
-        concat = torch.cat((x, y), dim=1)
+        concat = torch.cat((x, y.unsqueeze(1).repeat(1, x.shape[1], 1)), dim=2)
         return self.inference_qzyx(concat)
 
     def forward(self, x, temperature=1.0, hard=0):
-        # from IPython import embed; embed()
-
         # q(y|x)
         logits, prob, y = self.qyx(x, temperature, hard)
 
@@ -102,7 +108,7 @@ class InferenceNet(torch.nn.Module):
 # Generative Network
 class GenerativeNet(torch.nn.Module):
 
-    def __init__(self, x_dim, z_dim, y_dim, hidden_dim, nlayer):
+    def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):
         super(GenerativeNet, self).__init__()
 
         # p(z|y)
@@ -113,14 +119,18 @@ class GenerativeNet(torch.nn.Module):
         self.generative_pxz = torch.nn.ModuleList([
             torch.nn.Linear(z_dim, hidden_dim, bias=False),
             torch.nn.BatchNorm1d(hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2)
+            torch.nn.LeakyReLU(negative_slope=0.2),
+            torch.nn.Linear(hidden_dim, x_shape[0] * hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(x_shape[0] * hidden_dim),
+            torch.nn.LeakyReLU(negative_slope=0.2),
         ])
         for i in range(1, nlayer):
             self.generative_pxz.append(
-                torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
-            self.generative_pxz.append(torch.nn.BatchNorm1d(hidden_dim))
+                torch.nn.Linear(x_shape[0] * hidden_dim, x_shape[0] * hidden_dim, bias=False))
+            self.generative_pxz.append(torch.nn.BatchNorm1d(x_shape[0] * hidden_dim))
             self.generative_pxz.append(torch.nn.LeakyReLU(negative_slope=0.2))
-        self.generative_pxz.append(torch.nn.Linear(hidden_dim, x_dim))
+        self.generative_pxz.append(View((-1, x_shape[0], hidden_dim)))
+        self.generative_pxz.append(torch.nn.Linear(hidden_dim, x_shape[1]))
         self.generative_pxz = torch.nn.Sequential(*self.generative_pxz)
 
     # p(z|y)
@@ -147,31 +157,26 @@ class GenerativeNet(torch.nn.Module):
 # GMVAE Network
 class GMVAENetwork(torch.nn.Module):
 
-    def __init__(self,
-                 x_dim,
-                 z_dim,
-                 y_dim,
-                 init_temp,
-                 hard_gumbel=0,
-                 hidden_dim=512,
-                 nlayer=3,
-                 batchnorm=0):
+    def __init__(
+        self,
+        x_shape,
+        z_dim,
+        y_dim,
+        init_temp,
+        hard_gumbel=0,
+        hidden_dim=512,
+        nlayer=3,
+    ):
         super(GMVAENetwork, self).__init__()
 
-        self.inference = InferenceNet(x_dim, z_dim, y_dim, hidden_dim, nlayer)
-        self.generative = GenerativeNet(x_dim, z_dim, y_dim, hidden_dim,
+        self.inference = InferenceNet(x_shape, z_dim, y_dim, hidden_dim,
+                                      nlayer)
+        self.generative = GenerativeNet(x_shape, z_dim, y_dim, hidden_dim,
                                         nlayer)
-        if batchnorm:
-            self.bn = torch.nn.BatchNorm1d(x_dim,
-                                           affine=True,
-                                           track_running_stats=True,
-                                           eps=1e-5)
-
         self.gumbel_temp = init_temp
         self.hard_gumbel = hard_gumbel
 
     def forward(self, x):
-        x = self.bn(x) if hasattr(self, 'bn') else x
         out_inf = self.inference(x, self.gumbel_temp, self.hard_gumbel)
         z, y = out_inf['gaussian'], out_inf['categorical']
         out_gen = self.generative(z, y)

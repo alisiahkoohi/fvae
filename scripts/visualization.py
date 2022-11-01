@@ -154,7 +154,7 @@ class Visualization(object):
                         *waveform_times[j],
                         time_zone='LMST',
                         window_size=self.window_size),
-                                                   waveforms[j, :],
+                                                   waveforms[j, 0, :],
                                                    xdate=True,
                                                    color=self.colors[i % 10],
                                                    lw=1.2,
@@ -168,7 +168,7 @@ class Visualization(object):
                     figs_axs[0][1][j, i].set_title("Waveform from cluster " +
                                                    str(i))
 
-                    figs_axs[1][1][j, i].specgram(waveforms[j, :],
+                    figs_axs[1][1][j, i].specgram(waveforms[j, 0, :],
                                                   Fs=20.0,
                                                   mode='magnitude',
                                                   cmap='jet_r')
@@ -177,7 +177,7 @@ class Visualization(object):
                                                 str(i))
                     figs_axs[1][1][j, i].grid(False)
 
-                    figs_axs[2][1][j, i].plot(x[j, :],
+                    figs_axs[2][1][j, i].plot(x[j, 0, :],
                                               color=self.colors[i % 10],
                                               lw=1.2,
                                               alpha=0.8)
@@ -337,15 +337,15 @@ class Visualization(object):
         x = x.cpu()
         x_rec = x_rec.cpu()
 
-        if args.input_size > 2:
+        if x.shape[-1] > 2:
             fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
             for i in range(sample_size):
-                ax[i].plot(x[i, :],
+                ax[i].plot(x[i, 0, :],
                            lw=.8,
                            alpha=1,
                            color='k',
                            label='original')
-                ax[i].plot(x_rec[i, :],
+                ax[i].plot(x_rec[i, 0, :],
                            lw=.8,
                            alpha=0.5,
                            color='r',
@@ -385,12 +385,12 @@ class Visualization(object):
 
             fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
             for i in range(sample_size):
-                ax[i].plot(x[i, :],
+                ax[i].plot(x[i, 0, :],
                            lw=.8,
                            alpha=1,
                            color='k',
                            label='original')
-                ax[i].plot(x_rec[i, :],
+                ax[i].plot(x_rec[i, 0, :],
                            lw=.8,
                            alpha=0.5,
                            color='r',
@@ -428,7 +428,7 @@ class Visualization(object):
         label_colors = {i: self.colors[i % 10] for i in range(args.ncluster)}
         colors = [label_colors[int(i)] for i in clusters]
 
-        if args.input_size > 2:
+        if features.shape[-1] > 2:
             features_pca = PCA(n_components=2).fit_transform(features)
             fig = plt.figure(figsize=(8, 6))
             plt.scatter(features_pca[:, 0],
@@ -511,14 +511,14 @@ class Visualization(object):
         gaussian = gaussian.to(self.device)
         samples = self.network.generative.pxz(gaussian).cpu().detach().numpy()
 
-        if args.input_size > 2:
+        if samples.shape[-1] > 2:
             fig, ax = plt.subplots(num_elements,
                                    args.ncluster,
                                    figsize=(8 * args.ncluster,
                                             4 * args.ncluster))
             for i in range(args.ncluster):
                 for j in range(num_elements):
-                    ax[j, i].plot(samples[i * num_elements + j, :],
+                    ax[j, i].plot(samples[i * num_elements + j, 0, :],
                                   color=self.colors[i % 10],
                                   lw=1.2,
                                   alpha=0.8)

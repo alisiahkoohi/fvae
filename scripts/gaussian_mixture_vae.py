@@ -21,13 +21,12 @@ class GaussianMixtureVAE(object):
         self.device = device
 
         # Network architecture.
-        self.network = GMVAENetwork(args.input_size,
+        self.network = GMVAENetwork(dataset.shape[args.type],
                                     args.latent_dim,
                                     args.ncluster,
                                     args.init_temp,
                                     hidden_dim=args.hidden_dim,
-                                    nlayer=args.nlayer,
-                                    batchnorm=args.bn).to(self.device)
+                                    nlayer=args.nlayer).to(self.device)
 
         # Tensorboard writer.
         if args.phase == 'train':

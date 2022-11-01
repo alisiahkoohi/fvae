@@ -5,7 +5,6 @@ import pickle
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
 from typing import Optional
-import logging
 from tqdm import tqdm
 
 from facvae.utils import (GaussianDataset, CrescentDataset,
@@ -34,11 +33,15 @@ class MarsDataset(torch.utils.data.Dataset):
         self.file = h5py.File(file_path, 'r')
         self.num_windows = self.file['scat_cov'].shape[0]
         self.shape = {
-            'waveform': self.file['waveform'].shape[2],
-            'scat_cov': np.prod(self.file['scat_cov'].shape[-2:])
+            'waveform':
+            self.file['waveform'].shape[1:],
+            'scat_cov': (np.prod(self.file['scat_cov'].shape[1]),
+                         np.prod(self.file['scat_cov'].shape[-2:]))
         }
+
         (self.file_idx, self.train_idx, self.val_idx,
          self.test_idx) = self.split_data(train_proportion)
+
         if filter_key:
             idxs_dict = {str(i): idx for i, idx in enumerate(self.file_idx)}
             self.idx_converter = lambda idx: np.array(
@@ -68,14 +71,12 @@ class MarsDataset(torch.utils.data.Dataset):
     def split_data(self, train_proportion):
         if self.filter_key:
             all_filenames = self.get_waveform_filename(range(self.num_windows))
-            filenames = []
             file_idx = []
             for filter_key in self.filter_key:
-                names = list(
+                filtered_filenames = list(
                     filter(lambda k: filter_key in k[1],
                            enumerate(all_filenames)))
-                file_idx.extend([file[0] for file in names])
-                filenames.extend(names)
+                file_idx.extend([file[0] for file in filtered_filenames])
             file_idx = np.array(file_idx)
 
             ntrain = int(train_proportion * file_idx.shape[0])
@@ -100,18 +101,12 @@ class MarsDataset(torch.utils.data.Dataset):
 
     def load_all_data(self, data_types):
         for type in data_types:
-            if type == 'scat_cov':
-                x = self.file['scat_cov'][self.file_idx, 1, :, :].reshape(
-                    self.file_idx.shape[0], -1)
-            elif type == 'waveform':
-                x = self.file['waveform'][self.file_idx, 1, :]
-            else:
-                raise ValueError('No dataset exists with type ', type)
-            x = torch.from_numpy(x)
-            self.data[type] = x
+            self.data[type] = torch.from_numpy(
+                self.file[type][self.file_idx,
+                                ...].reshape(self.file_idx.shape[0],
+                                             *self.shape[type]))
 
     def setup_data_normalizer(self, data_types):
-        logging.info('Setting up data normalizer...')
         for type in data_types:
             running_stats = RunningStats(self.shape[type], dtype=torch.float32)
             if self.load_to_memory:
@@ -120,27 +115,14 @@ class MarsDataset(torch.utils.data.Dataset):
             else:
                 for i in range(0, len(self.train_idx),
                                NORMALIZATION_BATCH_SIZE):
-                    if type == 'scat_cov':
-                        batch = torch.from_numpy(
-                            self.file['scat_cov'][self.idx_converter(
-                                np.sort(self.
-                                        train_idx[i:i +
-                                                  NORMALIZATION_BATCH_SIZE])),
-                                                  1, :, :])
-                        running_stats.input_samples(batch.reshape(
-                            batch.shape[0], -1),
-                                                    n_workers=1)
-                    elif type == 'waveform':
-                        batch = torch.from_numpy(
-                            self.file['waveform'][self.idx_converter(
-                                np.sort(self.
-                                        train_idx[i:i +
-                                                  NORMALIZATION_BATCH_SIZE])),
-                                                  1, :])
-                        running_stats.input_samples(batch.reshape(
-                            batch.shape[0], -1),
-                                                    n_workers=1)
-
+                    batch = torch.from_numpy(
+                        self.file[type][self.idx_converter(
+                            np.sort(self.train_idx[i:i +
+                                                   NORMALIZATION_BATCH_SIZE])),
+                                        ...])
+                    running_stats.input_samples(batch.reshape(
+                        batch.shape[0], *self.shape[type]),
+                                                n_workers=1)
             mean, std = running_stats.compute_stats()
             self.normalizer[type] = Normalizer(mean, std)
 
@@ -156,14 +138,8 @@ class MarsDataset(torch.utils.data.Dataset):
 
     def sample_data(self, idx, type):
         if self.data[type] is None:
-            if type == 'scat_cov':
-                x = self.file['scat_cov'][self.idx_converter(np.sort(idx)),
-                                          1, :, :].reshape(len(idx), -1)
-            elif type == 'waveform':
-                x = self.file['waveform'][self.idx_converter(np.sort(idx)),
-                                          1, :]
-            else:
-                raise ValueError('No dataset exists with type ', type)
+            x = self.file[type][self.idx_converter(np.sort(idx)),
+                                ...].reshape(len(idx), *self.shape[type])
             x = torch.from_numpy(x)
             x = self.normalize(x, type)
             return x

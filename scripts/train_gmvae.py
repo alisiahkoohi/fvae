@@ -73,15 +73,13 @@ if __name__ == "__main__":
                                               drop_last=False)
 
     # Get input dimension.
-    args.input_size = int(np.prod(dataset.sample_data([0], args.type).size()))
-
-    gmvaw = GaussianMixtureVAE(args, dataset, device)
+    gm_vae = GaussianMixtureVAE(args, dataset, device)
 
     if args.phase == 'train':
         # Training Phase.
-        gmvaw.train(args, train_loader, val_loader)
+        gm_vae.train(args, train_loader, val_loader)
     elif args.phase == 'test':
-        network = gmvaw.load_checkpoint(args, args.max_epoch - 1)
+        network = gm_vae.load_checkpoint(args, args.max_epoch - 1)
         network.gumbel_temp = np.maximum(
             args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
             args.min_temp)
