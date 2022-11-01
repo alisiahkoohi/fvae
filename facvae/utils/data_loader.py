@@ -314,8 +314,14 @@ class CatalogReader(torch.utils.data.Dataset):
             self.df = pickle.load(f)
 
     def get_window_label(self, i, start_time, end_time, target_column_name):
-        df = self.df[(self.df['eventTime'] >= start_time)
-                     & (self.df['eventTime'] <= end_time)]
+        if target_column_name == 'drop':
+            df = self.df[(self.df['eventTime'] >= start_time)
+                         & (self.df['eventTime'] <= end_time)]
+        elif target_column_name == 'type':
+            df = self.df[((self.df['start_time'] > start_time) &
+                          (self.df['start_time'] < end_time)) |
+                         ((self.df['end_time'] > start_time) &
+                          (self.df['end_time'] < end_time))]
         labels = []
         for _, row in df.iterrows():
             labels.append(row[target_column_name])
