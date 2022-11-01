@@ -13,9 +13,11 @@ import os
 from obspy import read_events
 import pandas as pd
 import xml.etree.ElementTree as ET
+from facvae.utils import catalogsdir
 
-DATA_DIR = "/Users/greg/Dropbox (IPGP)/MARS/Hybrid Recurrent Scattering NN/DATA"
-quakeml_file = "events_extended_multiorigin_v11_2022-04-01.xml"
+DATA_DIR = catalogsdir()
+quakeml_file = os.path.join(catalogsdir(),
+                            "events_extended_multiorigin_v11_2022-04-01.xml")
 
 
 def get_quality_list(root):
@@ -94,6 +96,10 @@ def get_df_from_quakeml2(quakeMLfilename):
                     picks_dict["lower_uncertainty"] = None
                     picks_dict["upper_uncertainty"] = None
                 picks_dict["phase_hint"] = pk.phase_hint
+                if pk.phase_hint == 'start':
+                    event_dict["start_time"] = pk.time
+                if pk.phase_hint == 'end':
+                    event_dict["end_time"] = pk.time
                 pick_list.append(picks_dict)
             event_dict["picks"] = pick_list
         event_list.append(event_dict)
