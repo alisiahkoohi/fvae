@@ -9,7 +9,7 @@ from sklearn.decomposition import PCA
 import torch
 from tqdm import tqdm
 
-from facvae.utils import plotsdir, create_lmst_xticks
+from facvae.utils import plotsdir, create_lmst_xticks, lmst_xtick
 
 sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}
@@ -123,6 +123,11 @@ class Visualization(object):
                          figsize=(8 * args.ncluster, 8 * args.ncluster))
             for i in range(3)
         ]
+
+        fig_hist, ax_hist = plt.subplots(args.ncluster,
+                                         1,
+                                         figsize=(2 * args.ncluster,
+                                                  4 * args.ncluster))
         # List of file names for each the figures.
         names = ['waveform_samples', 'waveform_spectograms', 'scatcov_samples']
         # Dictionary containing list of all the labels belonging to each
@@ -134,15 +139,40 @@ class Visualization(object):
                 confident_idxs[np.where(cluster_membership == i)[0]])
             # Find the `sample_size` most confident data points belonging to
             # cluster `i`
-            cluster_idxs = confident_idxs[np.where(
-                cluster_membership == i)[0]][-sample_size:, ...]
+
+            cluster_idxs = confident_idxs[np.where(cluster_membership == i)[0]]
+
+            cluster_times = self.dataset.get_time_interval(cluster_idxs)
+            for outer_idx in range(len(cluster_times)):
+                cluster_times[outer_idx] = list(cluster_times[outer_idx])
+                for inner_idx in range(len(cluster_times[outer_idx])):
+                    cluster_times[outer_idx][inner_idx] = lmst_xtick(
+                        cluster_times[outer_idx][inner_idx])
+                    cluster_times[outer_idx][
+                        inner_idx] = matplotlib.dates.date2num(
+                            cluster_times[outer_idx][inner_idx])
+            cluster_times = np.array(cluster_times).mean(-1)
+            ax_hist[i].hist(cluster_times,
+                            bins=len(cluster_times),
+                            edgecolor=self.colors[i % 10],
+                            linewidth=0.25,
+                            rwidth=0.3,
+                            color=self.colors[i % 10],
+                            label='cluster ' + str(i) + ' - ' +
+                            str(len(cluster_times)))
+            ax_hist[i].xaxis.set_major_locator(
+                matplotlib.dates.HourLocator(interval=12))
+            ax_hist[i].xaxis.set_major_formatter(
+                matplotlib.dates.DateFormatter('%H'))
+            ax_hist[i].legend()
+
+            cluster_idxs = cluster_idxs[-sample_size:, ...]
 
             # Loop over most confident data points belonging to cluster `i`.
             if len(cluster_idxs) > 0:
                 waveforms = self.dataset.sample_data(cluster_idxs,
                                                      type='waveform')
                 x = self.dataset.sample_data(cluster_idxs, args.type)
-                # from IPython import embed; embed()
 
                 x = self.dataset.unnormalize(x, args.type)
                 waveforms = self.dataset.unnormalize(waveforms, 'waveform')
@@ -183,6 +213,14 @@ class Visualization(object):
                                               alpha=0.8)
                     figs_axs[2][1][j, i].set_title("Scat covs from cluster " +
                                                    str(i))
+
+        fig_hist.savefig(os.path.join(plotsdir(args.experiment),
+                                      'cluster_time_dist.png'),
+                         format="png",
+                         bbox_inches="tight",
+                         dpi=200,
+                         pad_inches=.05)
+        plt.close(fig_hist)
 
         for (fig, _), name in zip(figs_axs, names):
             fig.savefig(os.path.join(plotsdir(args.experiment), name + '.png'),

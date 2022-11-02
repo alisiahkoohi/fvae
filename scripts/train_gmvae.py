@@ -83,6 +83,8 @@ if __name__ == "__main__":
         network.gumbel_temp = np.maximum(
             args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
             args.min_temp)
+        if len(args.filter_key) > 1:
+            args.experiment = args.experiment + '_multiday'
 
         if args.dataset == 'mars':
             vis = Visualization(network, dataset, args.window_size, device)

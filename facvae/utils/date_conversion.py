@@ -150,3 +150,11 @@ def create_lmst_xticks(start_time,
                        'us')).astype('datetime64[s]')[:window_size]
 
     return times
+
+
+def lmst_xtick(input_utc):
+    mars_date = MarsConverter()
+    start_time = mars_date.get_utc_2_lmst(utc_date=input_utc)
+    start_time = start_time.split('T')[1]
+    start_time = datetime.datetime.strptime(start_time, '%H:%M:%S.%f')
+    return start_time
