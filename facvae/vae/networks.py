@@ -37,13 +37,13 @@ class InferenceNet(torch.nn.Module):
 
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
-            View((-1, *x_shape[::-1])),
-            torch.nn.Linear(x_shape[0], 1, bias=False),
-            View((-1, x_shape[1])),
-            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(x_shape[1], hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(x_shape[0]),
+            torch.nn.LeakyReLU(negative_slope=0.2),
+            View((-1, x_shape[0] * hidden_dim)),
+            torch.nn.Linear(x_shape[0] * hidden_dim, hidden_dim, bias=False),
             torch.nn.BatchNorm1d(hidden_dim),
-            torch.nn.LeakyReLU(negative_slope=0.2)
+            torch.nn.LeakyReLU(negative_slope=0.2),
         ])
         for i in range(1, nlayer):
             self.inference_qyx.append(
@@ -55,11 +55,11 @@ class InferenceNet(torch.nn.Module):
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
-            View((-1, x_shape[1] + y_dim, x_shape[0])),
-            torch.nn.Linear(x_shape[0], 1, bias=False),
-            View((-1, x_shape[1] + y_dim)),
-            torch.nn.LeakyReLU(negative_slope=0.2),
             torch.nn.Linear(x_shape[1] + y_dim, hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(x_shape[0]),
+            torch.nn.LeakyReLU(negative_slope=0.2),
+            View((-1, x_shape[0] * hidden_dim)),
+            torch.nn.Linear(x_shape[0] * hidden_dim, hidden_dim, bias=False),
             torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(negative_slope=0.2)
         ])
@@ -126,8 +126,11 @@ class GenerativeNet(torch.nn.Module):
         ])
         for i in range(1, nlayer):
             self.generative_pxz.append(
-                torch.nn.Linear(x_shape[0] * hidden_dim, x_shape[0] * hidden_dim, bias=False))
-            self.generative_pxz.append(torch.nn.BatchNorm1d(x_shape[0] * hidden_dim))
+                torch.nn.Linear(x_shape[0] * hidden_dim,
+                                x_shape[0] * hidden_dim,
+                                bias=False))
+            self.generative_pxz.append(
+                torch.nn.BatchNorm1d(x_shape[0] * hidden_dim))
             self.generative_pxz.append(torch.nn.LeakyReLU(negative_slope=0.2))
         self.generative_pxz.append(View((-1, x_shape[0], hidden_dim)))
         self.generative_pxz.append(torch.nn.Linear(hidden_dim, x_shape[1]))
