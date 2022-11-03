@@ -31,7 +31,7 @@ torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
     # Command line arguments.
-    args = read_config(os.path.join(configsdir(), MARS_CONFIG_FILE))
+    args = read_config(os.path.join(configsdir(), TOY_CONFIG_FILE))
     args = parse_input_args(args)
     args.experiment = make_experiment_name(args)
     if hasattr(args, 'filter_key'):
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         network.gumbel_temp = np.maximum(
             args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
             args.min_temp)
-        if len(args.filter_key) > 1:
+        if len(args.filter_key) != 1:
             args.experiment = args.experiment + '_multiday'
 
         if args.dataset == 'mars':

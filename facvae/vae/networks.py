@@ -30,10 +30,10 @@ class View(torch.nn.Module):
 
 
 # Inference Network
-class InferenceNet(torch.nn.Module):
+class InferenceMLPNet(torch.nn.Module):
 
     def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):
-        super(InferenceNet, self).__init__()
+        super(InferenceMLPNet, self).__init__()
 
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
@@ -105,11 +105,70 @@ class InferenceNet(torch.nn.Module):
         return output
 
 
-# Generative Network
-class GenerativeNet(torch.nn.Module):
+class InferenceAttentionNet(torch.nn.Module):
 
     def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):
-        super(GenerativeNet, self).__init__()
+        super(InferenceAttentionNet, self).__init__()
+
+        # q(y|x)
+        self.inference_qyx = torch.nn.Sequential(
+            torch.nn.Linear(x_shape[1], hidden_dim),
+            torch.nn.TransformerEncoder(torch.nn.TransformerEncoderLayer(
+                d_model=hidden_dim, nhead=4, dim_feedforward=128),
+                                        num_layers=nlayer),
+            View((-1, x_shape[0] * hidden_dim)),
+            torch.nn.Linear(x_shape[0] * hidden_dim, hidden_dim, bias=False),
+            GumbelSoftmax(hidden_dim, y_dim))
+
+        # q(z|y,x)
+        self.inference_qzyx = torch.nn.Sequential(
+            torch.nn.Linear(x_shape[1] + y_dim, hidden_dim),
+            torch.nn.TransformerEncoder(torch.nn.TransformerEncoderLayer(
+                d_model=hidden_dim, nhead=4, dim_feedforward=128),
+                                        num_layers=nlayer),
+            View((-1, x_shape[0] * hidden_dim)),
+            torch.nn.Linear(x_shape[0] * hidden_dim, hidden_dim, bias=False),
+            Gaussian(hidden_dim, z_dim))
+
+    # q(y|x)
+    def qyx(self, x, temperature, hard):
+        nlayer = len(self.inference_qyx)
+        for i, layer in enumerate(self.inference_qyx):
+            if i == nlayer - 1:
+                # last layer is gumbel softmax
+                x = layer(x, temperature, hard)
+            else:
+                x = layer(x)
+        return x
+
+    # q(z|x,y)
+    def qzxy(self, x, y):
+        concat = torch.cat((x, y.unsqueeze(1).repeat(1, x.shape[1], 1)), dim=2)
+        return self.inference_qzyx(concat)
+
+    def forward(self, x, temperature=1.0, hard=0):
+        # q(y|x)
+        logits, prob, y = self.qyx(x, temperature, hard)
+
+        # q(z|x,y)
+        mu, var, z = self.qzxy(x, y)
+
+        output = {
+            'mean': mu,
+            'var': var,
+            'gaussian': z,
+            'logits': logits,
+            'prob_cat': prob,
+            'categorical': y
+        }
+        return output
+
+
+# Generative Network
+class GenerativeMLPNet(torch.nn.Module):
+
+    def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):
+        super(GenerativeMLPNet, self).__init__()
 
         # p(z|y)
         self.y_mu = torch.nn.Linear(y_dim, z_dim)
@@ -157,6 +216,45 @@ class GenerativeNet(torch.nn.Module):
         return output
 
 
+class GenerativeAttentionNet(torch.nn.Module):
+
+    def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):
+        super(GenerativeAttentionNet, self).__init__()
+
+        # p(z|y)
+        self.y_mu = torch.nn.Linear(y_dim, z_dim)
+        self.y_var = torch.nn.Linear(y_dim, z_dim)
+
+        # p(x|z)
+        self.generative_pxz = torch.nn.Sequential(
+            torch.nn.Linear(z_dim, x_shape[0] * hidden_dim, bias=False),
+            torch.nn.TransformerEncoder(torch.nn.TransformerEncoderLayer(
+                d_model=x_shape[0] * hidden_dim, nhead=4, dim_feedforward=128),
+                                        num_layers=nlayer),
+            View((-1, x_shape[0], hidden_dim)),
+            torch.nn.Linear(hidden_dim, x_shape[1]))
+
+    # p(z|y)
+    def pzy(self, y):
+        y_mu = self.y_mu(y)
+        y_var = F.softplus(self.y_var(y))
+        return y_mu, y_var
+
+    # p(x|z)
+    def pxz(self, z):
+        return self.generative_pxz(z)
+
+    def forward(self, z, y):
+        # p(z|y)
+        y_mu, y_var = self.pzy(y)
+
+        # p(x|z)
+        x_rec = self.pxz(z)
+
+        output = {'y_mean': y_mu, 'y_var': y_var, 'x_rec': x_rec}
+        return output
+
+
 # GMVAE Network
 class GMVAENetwork(torch.nn.Module):
 
@@ -172,10 +270,10 @@ class GMVAENetwork(torch.nn.Module):
     ):
         super(GMVAENetwork, self).__init__()
 
-        self.inference = InferenceNet(x_shape, z_dim, y_dim, hidden_dim,
-                                      nlayer)
-        self.generative = GenerativeNet(x_shape, z_dim, y_dim, hidden_dim,
-                                        nlayer)
+        self.inference = InferenceMLPNet(x_shape, z_dim, y_dim, hidden_dim,
+                                         nlayer)
+        self.generative = GenerativeAttentionNet(x_shape, z_dim, y_dim,
+                                                 hidden_dim, nlayer)
         self.gumbel_temp = init_temp
         self.hard_gumbel = hard_gumbel
 

@@ -206,6 +206,7 @@ class ToyDataset(torch.utils.data.Dataset):
 
         # Create dataset.
         self.data = toy_datasets[dataset_name](num_points=num_points).data
+        self.shape = (1, self.data.shape[-1])
 
         # Data split.
         self.train_idx, self.val_idx, self.test_idx = self.split_data(
@@ -223,7 +224,7 @@ class ToyDataset(torch.utils.data.Dataset):
         return train_idx, val_idx, test_idx
 
     def sample_data(self, idx, type):
-        return self.data[idx, ...]
+        return self.data[idx, ...].unsqueeze(1)
 
 
 class Normalizer(object):
