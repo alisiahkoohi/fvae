@@ -126,7 +126,7 @@ class Visualization(object):
 
         fig_hist, ax_hist = plt.subplots(args.ncluster,
                                          1,
-                                         figsize=(2 * args.ncluster,
+                                         figsize=(20,
                                                   4 * args.ncluster))
         # List of file names for each the figures.
         names = ['waveform_samples', 'waveform_spectograms', 'scatcov_samples']
@@ -261,7 +261,7 @@ class Visualization(object):
                                      'event_count' + label + '.png'),
                         format="png",
                         bbox_inches="tight",
-                        dpi=300,
+                        dpi=200,
                         pad_inches=.05)
             plt.close(fig)
 
@@ -283,7 +283,7 @@ class Visualization(object):
         fig.savefig(os.path.join(plotsdir(args.experiment), 'event_count.png'),
                     format="png",
                     bbox_inches="tight",
-                    dpi=300,
+                    dpi=200,
                     pad_inches=.05)
         plt.close(fig)
 

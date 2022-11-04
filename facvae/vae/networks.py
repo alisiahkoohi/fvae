@@ -272,8 +272,8 @@ class GMVAENetwork(torch.nn.Module):
 
         self.inference = InferenceMLPNet(x_shape, z_dim, y_dim, hidden_dim,
                                          nlayer)
-        self.generative = GenerativeAttentionNet(x_shape, z_dim, y_dim,
-                                                 hidden_dim, nlayer)
+        self.generative = GenerativeMLPNet(x_shape, z_dim, y_dim, hidden_dim,
+                                           nlayer)
         self.gumbel_temp = init_temp
         self.hard_gumbel = hard_gumbel
 
