@@ -40,7 +40,9 @@ def make_h5_file_name(args):
     """Make HDF5 file name based on input arguments"""
     filename = args.filename + '_'
     for key, value in vars(args).items():
-        if key not in ['cuda', 'filename', 'nchunks']:
+        if key not in ['cuda', 'filename', 'nchunks', 'filter_key']:
             filename += key + '-{}_'.format(value)
+        elif key == 'filter_key':
+            filename += key + '-true_'
     filename = filename[:-1].replace(' ', '') + '.h5'
     return filename.replace('[', '').replace(']', '').replace(',', '-')
