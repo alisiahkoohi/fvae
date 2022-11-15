@@ -126,8 +126,8 @@ class Visualization(object):
 
         fig_hist, ax_hist = plt.subplots(args.ncluster,
                                          1,
-                                         figsize=(20,
-                                                  4 * args.ncluster))
+                                         figsize=(20, 4 * args.ncluster),
+                                         sharex=True)
         # List of file names for each the figures.
         names = ['waveform_samples', 'waveform_spectograms', 'scatcov_samples']
         # Dictionary containing list of all the labels belonging to each
@@ -152,16 +152,16 @@ class Visualization(object):
                         inner_idx] = matplotlib.dates.date2num(
                             cluster_times[outer_idx][inner_idx])
             cluster_times = np.array(cluster_times).mean(-1)
-            ax_hist[i].hist(cluster_times,
-                            bins=len(cluster_times),
-                            edgecolor=self.colors[i % 10],
-                            linewidth=0.25,
-                            rwidth=0.3,
-                            color=self.colors[i % 10],
-                            label='cluster ' + str(i) + ' - ' +
-                            str(len(cluster_times)))
+            sns.histplot(cluster_times,
+                         ax=ax_hist[i],
+                         color=self.colors[i % 10],
+                         element="step",
+                         alpha=0.3,
+                         binwidth=0.005,
+                         label='cluster ' + str(i) + ' - ' +
+                         str(len(cluster_times)))
             ax_hist[i].xaxis.set_major_locator(
-                matplotlib.dates.HourLocator(interval=12))
+                matplotlib.dates.HourLocator(interval=3))
             ax_hist[i].xaxis.set_major_formatter(
                 matplotlib.dates.DateFormatter('%H'))
             ax_hist[i].legend()

@@ -91,7 +91,7 @@ if __name__ == "__main__":
             vis.plot_waveforms(args, test_loader)
             vis.random_generation(args)
             vis.reconstruct_data(args, train_loader)
-            vis.plot_latent_space(args, test_loader)
+            # vis.plot_latent_space(args, test_loader)
         else:
             vis = Visualization(network, dataset, None, device)
             vis.plot_clusters(args, test_loader)
