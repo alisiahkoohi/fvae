@@ -142,34 +142,33 @@ class Visualization(object):
 
             cluster_idxs = confident_idxs[np.where(cluster_membership == i)[0]]
 
-            cluster_times = self.dataset.get_time_interval(cluster_idxs)
-            for outer_idx in range(len(cluster_times)):
-                cluster_times[outer_idx] = list(cluster_times[outer_idx])
-                for inner_idx in range(len(cluster_times[outer_idx])):
-                    cluster_times[outer_idx][inner_idx] = lmst_xtick(
-                        cluster_times[outer_idx][inner_idx])
-                    cluster_times[outer_idx][
-                        inner_idx] = matplotlib.dates.date2num(
-                            cluster_times[outer_idx][inner_idx])
-            cluster_times = np.array(cluster_times).mean(-1)
-            sns.histplot(cluster_times,
-                         ax=ax_hist[i],
-                         color=self.colors[i % 10],
-                         element="step",
-                         alpha=0.3,
-                         binwidth=0.005,
-                         label='cluster ' + str(i) + ' - ' +
-                         str(len(cluster_times)))
-            ax_hist[i].xaxis.set_major_locator(
-                matplotlib.dates.HourLocator(interval=3))
-            ax_hist[i].xaxis.set_major_formatter(
-                matplotlib.dates.DateFormatter('%H'))
-            ax_hist[i].legend()
-
-            cluster_idxs = cluster_idxs[-sample_size:, ...]
-
-            # Loop over most confident data points belonging to cluster `i`.
             if len(cluster_idxs) > 0:
+                cluster_times = self.dataset.get_time_interval(cluster_idxs)
+                for outer_idx, _ in enumerate(cluster_times):
+                    cluster_times[outer_idx] = list(cluster_times[outer_idx])
+                    for inner_idx in range(len(cluster_times[outer_idx])):
+                        cluster_times[outer_idx][inner_idx] = lmst_xtick(
+                            cluster_times[outer_idx][inner_idx])
+                        cluster_times[outer_idx][
+                            inner_idx] = matplotlib.dates.date2num(
+                                cluster_times[outer_idx][inner_idx])
+                cluster_times = np.array(cluster_times).mean(-1)
+                sns.histplot(cluster_times,
+                             ax=ax_hist[i],
+                             color=self.colors[i % 10],
+                             element="step",
+                             alpha=0.3,
+                             binwidth=0.005,
+                             label='cluster ' + str(i) + ' - ' +
+                             str(len(cluster_times)))
+                ax_hist[i].xaxis.set_major_locator(
+                    matplotlib.dates.HourLocator(interval=3))
+                ax_hist[i].xaxis.set_major_formatter(
+                    matplotlib.dates.DateFormatter('%H'))
+                ax_hist[i].legend()
+
+                cluster_idxs = cluster_idxs[-sample_size:, ...]
+
                 waveforms = self.dataset.sample_data(cluster_idxs,
                                                      type='waveform')
                 x = self.dataset.sample_data(cluster_idxs, args.type)
