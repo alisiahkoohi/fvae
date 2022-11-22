@@ -150,17 +150,47 @@ class MarsDataset(torch.utils.data.Dataset):
             return self.data[type][np.sort(idx), ...]
 
     def get_labels(self, idx):
-        labels_list = self.file['labels'][self.idx_converter(np.sort(idx)),
-                                          ...].astype(str)
         labels = []
-        for i in range(len(idx)):
-            label = []
-            for v in labels_list[i]:
-                if v != '':
-                    label.append(v)
-            labels.append(label)
+        if len(idx) > 0:
+            labels_list = self.file['labels'][self.idx_converter(np.sort(idx)),
+                                              ...].astype(str)
+
+            for i in range(len(idx)):
+                label = []
+                for v in labels_list[i]:
+                    if v != '':
+                        label.append(v)
+                labels.append(label)
         return labels
 
+    def get_drops(self, idx):
+        drops = []
+        if len(idx) > 0:
+            drops_list = self.file['pressure'][
+                self.idx_converter(np.sort(idx)), ...]
+
+            for i, _ in enumerate(idx):
+                drop = []
+                for v in drops_list[i]:
+                    if v != 0.0:
+                        drop.append(v)
+                drops.append(drop)
+        return drops
+
+    def get_glitches(self, idx):
+        glitches = []
+        if len(idx) > 0:
+            glitches_list = self.file['glitches'][
+                self.idx_converter(np.sort(idx)), ...]
+
+            for i, _ in enumerate(idx):
+                glitch = []
+                for v in glitches_list[i]:
+                    if v == 1.0:
+                        glitch.append(v)
+                glitches.append(glitch)
+        return glitches
+    
     def get_waveform_filename(self, idx):
         if hasattr(self, 'idx_converter'):
             filenames = [
@@ -227,7 +257,7 @@ class ToyDataset(torch.utils.data.Dataset):
         return self.data[idx, ...].unsqueeze(1)
 
 
-class Normalizer(object):
+class Normalizer():
     """Normalizer a tensor image with training mean and standard deviation.
     Extracts the mean and standard deviation from the training dataset, and
     uses them to normalize an input image.
@@ -294,7 +324,7 @@ class CatalogReader(torch.utils.data.Dataset):
         if target_column_name == 'drop':
             df = self.df[(self.df['eventTime'] >= start_time)
                          & (self.df['eventTime'] <= end_time)]
-        elif target_column_name == 'type':
+        elif target_column_name == 'type' or target_column_name == 'glitch':
             df = self.df[((self.df['start_time'] > start_time) &
                           (self.df['start_time'] < end_time)) |
                          ((self.df['end_time'] > start_time) &

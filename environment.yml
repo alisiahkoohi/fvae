@@ -8,7 +8,6 @@ dependencies:
   - nvidia::cudatoolkit=11.6
   - python==3.9
   - pytorch::pytorch
-  - pytorch::torchvision
   - pip
   - pip:
     - git+https://github.com/alisiahkoohi/scattering_covariance

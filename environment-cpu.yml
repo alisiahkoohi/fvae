@@ -6,7 +6,6 @@ channels:
 dependencies:
   - python==3.9
   - pytorch
-  - torchvision
   - pip
   - cpuonly
   - pip:
@@ -23,3 +22,4 @@ dependencies:
     - gitpython
     - termcolor
     - h5py
+    - seaborn

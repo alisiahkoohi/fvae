@@ -81,6 +81,19 @@ class Visualization(object):
 
         return features, clusters
 
+    def get_times(self, time_intervals, event_list):
+        event_times = []
+        for event, time_interval in zip(event_list, time_intervals):
+            if len(event) > 0:
+                time_interval = list(time_interval)
+                for inner_idx, _ in enumerate(time_interval):
+                    time_interval[inner_idx] = lmst_xtick(
+                        time_interval[inner_idx])
+                    time_interval[inner_idx] = matplotlib.dates.date2num(
+                        time_interval[inner_idx])
+                event_times.append(np.array(time_interval).mean())
+        return event_times
+
     def plot_waveforms(self, args, data_loader, sample_size=10):
         """Plot waveforms.
         """
@@ -124,7 +137,7 @@ class Visualization(object):
             for i in range(3)
         ]
 
-        fig_hist, ax_hist = plt.subplots(args.ncluster,
+        fig_hist, ax_hist = plt.subplots(args.ncluster + 2,
                                          1,
                                          figsize=(20, 4 * args.ncluster),
                                          sharex=True)
@@ -133,9 +146,53 @@ class Visualization(object):
         # Dictionary containing list of all the labels belonging to each
         # predicted cluster.
         cluster_labels = {str(i): [] for i in range(args.ncluster)}
+        cluster_drops = {str(i): [] for i in range(args.ncluster)}
+        cluster_glitches = {str(i): [] for i in range(args.ncluster)}
+        # Find pressure drop times.
+        drop_list = self.dataset.get_drops(range(len(data_loader.dataset)))
+        # Find glitch times.
+        glitch_list = self.dataset.get_glitches(range(len(
+            data_loader.dataset)))
+        
+        time_intervals = self.dataset.get_time_interval(
+            range(len(data_loader.dataset)))
+        
+        drop_times = self.get_times(time_intervals, drop_list)
+        glitch_times = self.get_times(time_intervals, glitch_list)
+        
+        sns.histplot(drop_times,
+                     ax=ax_hist[-2],
+                     color="k",
+                     element="step",
+                     alpha=0.3,
+                     binwidth=0.01,
+                     label='Pressure drops')
+        ax_hist[-2].xaxis.set_major_locator(
+            matplotlib.dates.HourLocator(interval=3))
+        ax_hist[-2].xaxis.set_major_formatter(
+            matplotlib.dates.DateFormatter('%H'))
+        ax_hist[-2].legend()
+
+        sns.histplot(glitch_times,
+                     ax=ax_hist[-1],
+                     color="k",
+                     element="step",
+                     alpha=0.3,
+                     binwidth=0.01,
+                     label='Glitches')
+        ax_hist[-1].xaxis.set_major_locator(
+            matplotlib.dates.HourLocator(interval=3))
+        ax_hist[-1].xaxis.set_major_formatter(
+            matplotlib.dates.DateFormatter('%H'))
+        ax_hist[-1].legend()
+        
         # Loop through all the clusters.
         for i in tqdm(range(args.ncluster)):
             cluster_labels[str(i)] = self.dataset.get_labels(
+                confident_idxs[np.where(cluster_membership == i)[0]])
+            cluster_drops[str(i)] = self.dataset.get_drops(
+                confident_idxs[np.where(cluster_membership == i)[0]])
+            cluster_glitches[str(i)] = self.dataset.get_glitches(
                 confident_idxs[np.where(cluster_membership == i)[0]])
             # Find the `sample_size` most confident data points belonging to
             # cluster `i`
@@ -230,6 +287,8 @@ class Visualization(object):
             plt.close(fig)
 
         label_count_per_cluster = {str(i): {} for i in range(args.ncluster)}
+        drop_count_per_cluster = {str(i): 0 for i in range(args.ncluster)}
+        glitch_count_per_cluster = {str(i): 0 for i in range(args.ncluster)}
         for i in range(args.ncluster):
             for label in self.labels:
                 label_count_per_cluster[str(i)][label] = 0
@@ -237,9 +296,51 @@ class Visualization(object):
             for label in cluster_labels[str(i)]:
                 for v in label:
                     per_cluster_label_list.append(v)
+            for drop in cluster_drops[str(i)]:
+                drop_count_per_cluster[str(i)] += len(drop)
+            for glitch in cluster_glitches[str(i)]:
+                glitch_count_per_cluster[str(i)] += len(glitch)
             count = dict(Counter(per_cluster_label_list))
             for key, value in count.items():
                 label_count_per_cluster[str(i)][key] = value
+
+            fig = plt.figure(figsize=(8, 6))
+            plt.bar(
+                range(args.ncluster),
+                [drop_count_per_cluster[str(i)] for i in range(args.ncluster)],
+                label='Pressure drops',
+                color="k")
+            plt.xlabel('Clusters')
+            plt.ylabel('Pressure drop count')
+            plt.title('Pressure drop count per cluster')
+            plt.legend(ncol=2, fontsize=12)
+            plt.gca().set_xticks(range(args.ncluster))
+            fig.savefig(os.path.join(plotsdir(args.experiment),
+                                     'pressure_drop_count.png'),
+                        format="png",
+                        bbox_inches="tight",
+                        dpi=200,
+                        pad_inches=.05)
+            plt.close(fig)
+
+            fig = plt.figure(figsize=(8, 6))
+            plt.bar(
+                range(args.ncluster),
+                [glitch_count_per_cluster[str(i)] for i in range(args.ncluster)],
+                label='Glitches',
+                color="k")
+            plt.xlabel('Clusters')
+            plt.ylabel('Glitch count')
+            plt.title('Glitch count per cluster')
+            plt.legend(ncol=2, fontsize=12)
+            plt.gca().set_xticks(range(args.ncluster))
+            fig.savefig(os.path.join(plotsdir(args.experiment),
+                                     'glitch_count.png'),
+                        format="png",
+                        bbox_inches="tight",
+                        dpi=200,
+                        pad_inches=.05)
+            plt.close(fig)
 
         for j, label in enumerate(self.labels):
             fig = plt.figure(figsize=(8, 6))

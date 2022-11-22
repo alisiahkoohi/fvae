@@ -12,7 +12,7 @@
     "w_gauss": 1.0,
     "w_rec": 0.15,
     "w_cat": 1.0,
-    "experiment_name": "bssa",
+    "experiment_name": "bssa_3c",
     "phase": "train",
     "wd": 0.0,
     "hidden_dim": 1024,
