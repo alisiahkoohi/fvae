@@ -94,7 +94,7 @@ class Visualization(object):
                 event_times.append(np.array(time_interval).mean())
         return event_times
 
-    def plot_waveforms(self, args, data_loader, sample_size=10):
+    def plot_waveforms(self, args, data_loader, sample_size=5):
         """Plot waveforms.
         """
         # Setup the batch index generator.
@@ -143,23 +143,27 @@ class Visualization(object):
                                          sharex=True)
         # List of file names for each the figures.
         names = ['waveform_samples', 'waveform_spectograms', 'scatcov_samples']
+        
         # Dictionary containing list of all the labels belonging to each
         # predicted cluster.
         cluster_labels = {str(i): [] for i in range(args.ncluster)}
         cluster_drops = {str(i): [] for i in range(args.ncluster)}
         cluster_glitches = {str(i): [] for i in range(args.ncluster)}
+        
         # Find pressure drop times.
         drop_list = self.dataset.get_drops(range(len(data_loader.dataset)))
         # Find glitch times.
         glitch_list = self.dataset.get_glitches(range(len(
             data_loader.dataset)))
-        
+        # Find time intervals.
         time_intervals = self.dataset.get_time_interval(
             range(len(data_loader.dataset)))
         
+        # Find the times of pressure drops and glitches.
         drop_times = self.get_times(time_intervals, drop_list)
         glitch_times = self.get_times(time_intervals, glitch_list)
         
+        # Plot the histogram of the pressure drop cluster membership.
         sns.histplot(drop_times,
                      ax=ax_hist[-2],
                      color="k",
@@ -173,6 +177,7 @@ class Visualization(object):
             matplotlib.dates.DateFormatter('%H'))
         ax_hist[-2].legend()
 
+        # Plot the histogram of the glitch cluster membership.
         sns.histplot(glitch_times,
                      ax=ax_hist[-1],
                      color="k",
