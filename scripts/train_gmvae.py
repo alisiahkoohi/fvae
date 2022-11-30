@@ -88,7 +88,7 @@ if __name__ == "__main__":
         if args.dataset == 'mars':
             vis = Visualization(network, dataset, args.window_size, device)
             vis.plot_waveforms(args, test_loader)
-            vis.random_generation(args)
+            # vis.random_generation(args)
             vis.reconstruct_data(args, train_loader)
             # vis.plot_latent_space(args, test_loader)
         else:

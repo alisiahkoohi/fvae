@@ -97,7 +97,7 @@ class Visualization(object):
                 event_times.append(np.array(time_interval).mean())
         return event_times
 
-    def plot_waveforms(self, args, data_loader, sample_size=5):
+    def plot_waveforms(self, args, data_loader, sample_size=10):
         """Plot waveforms.
         """
         # Setup the batch index generator.
@@ -261,20 +261,13 @@ class Visualization(object):
                     figs_axs[0][1][j, i].set_ylim([-5e-7, 5e-7])
                     figs_axs[0][1][j, i].set_title("Waveform from cluster " +
                                                    str(i))
-
-                    frequency, t, s = spectrogram(
-                        waveforms[j, 0, :],
-                        fs=SAMPLING_RATE,
-                        nperseg=waveforms.shape[-1],
-                        noverlap=waveforms.shape[-1] // 16)
-
+                    
                     figs_axs[1][1][j, i].set_ylim(0.1, SAMPLING_RATE / 2)
-                    figs_axs[1][1][j,
-                                   i].pcolormesh(t / 24 / 3600 + times[0][0],
-                                                 frequency,
-                                                 np.log(np.abs(s)),
-                                                 cmap="RdYlBu_r")
-                    figs_axs[1][1][j, i].set_ylim(0.1, sampling_rate / 2)
+                    figs_axs[1][1][j, i].specgram(waveforms[j, 0, :],
+                                                  Fs=SAMPLING_RATE,
+                                                  mode='magnitude',
+                                                  cmap='RdYlBu_r')
+                    figs_axs[1][1][j, i].set_ylim(0.1, SAMPLING_RATE / 2)
                     figs_axs[1][1][j, i].set_yscale("log")
                     figs_axs[1][1][j,
                                    i].set_title("Spectrogram from cluster " +
