@@ -6,6 +6,7 @@ import os
 from collections import Counter
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
+from scipy.signal import spectrogram
 import torch
 from tqdm import tqdm
 
@@ -17,6 +18,8 @@ matplotlib.rc('font', **font)
 sfmt = matplotlib.ticker.ScalarFormatter(useMathText=True)
 sfmt.set_powerlimits((0, 0))
 matplotlib.use("Agg")
+
+SAMPLING_RATE = 20
 
 
 class Visualization(object):
@@ -143,13 +146,13 @@ class Visualization(object):
                                          sharex=True)
         # List of file names for each the figures.
         names = ['waveform_samples', 'waveform_spectograms', 'scatcov_samples']
-        
+
         # Dictionary containing list of all the labels belonging to each
         # predicted cluster.
         cluster_labels = {str(i): [] for i in range(args.ncluster)}
         cluster_drops = {str(i): [] for i in range(args.ncluster)}
         cluster_glitches = {str(i): [] for i in range(args.ncluster)}
-        
+
         # Find pressure drop times.
         drop_list = self.dataset.get_drops(range(len(data_loader.dataset)))
         # Find glitch times.
@@ -158,11 +161,11 @@ class Visualization(object):
         # Find time intervals.
         time_intervals = self.dataset.get_time_interval(
             range(len(data_loader.dataset)))
-        
+
         # Find the times of pressure drops and glitches.
         drop_times = self.get_times(time_intervals, drop_list)
         glitch_times = self.get_times(time_intervals, glitch_list)
-        
+
         # Plot the histogram of the pressure drop cluster membership.
         sns.histplot(drop_times,
                      ax=ax_hist[-2],
@@ -190,7 +193,7 @@ class Visualization(object):
         ax_hist[-1].xaxis.set_major_formatter(
             matplotlib.dates.DateFormatter('%H'))
         ax_hist[-1].legend()
-        
+
         # Loop through all the clusters.
         for i in tqdm(range(args.ncluster)):
             cluster_labels[str(i)] = self.dataset.get_labels(
@@ -259,10 +262,20 @@ class Visualization(object):
                     figs_axs[0][1][j, i].set_title("Waveform from cluster " +
                                                    str(i))
 
-                    figs_axs[1][1][j, i].specgram(waveforms[j, 0, :],
-                                                  Fs=20.0,
-                                                  mode='magnitude',
-                                                  cmap='jet_r')
+                    frequency, t, s = spectrogram(
+                        waveforms[j, 0, :],
+                        fs=SAMPLING_RATE,
+                        nperseg=waveforms.shape[-1],
+                        noverlap=waveforms.shape[-1] // 16)
+
+                    figs_axs[1][1][j, i].set_ylim(0.1, SAMPLING_RATE / 2)
+                    figs_axs[1][1][j,
+                                   i].pcolormesh(t / 24 / 3600 + times[0][0],
+                                                 frequency,
+                                                 np.log(np.abs(s)),
+                                                 cmap="RdYlBu_r")
+                    figs_axs[1][1][j, i].set_ylim(0.1, sampling_rate / 2)
+                    figs_axs[1][1][j, i].set_yscale("log")
                     figs_axs[1][1][j,
                                    i].set_title("Spectrogram from cluster " +
                                                 str(i))
@@ -329,11 +342,11 @@ class Visualization(object):
             plt.close(fig)
 
             fig = plt.figure(figsize=(8, 6))
-            plt.bar(
-                range(args.ncluster),
-                [glitch_count_per_cluster[str(i)] for i in range(args.ncluster)],
-                label='Glitches',
-                color="k")
+            plt.bar(range(args.ncluster), [
+                glitch_count_per_cluster[str(i)] for i in range(args.ncluster)
+            ],
+                    label='Glitches',
+                    color="k")
             plt.xlabel('Clusters')
             plt.ylabel('Glitch count')
             plt.title('Glitch count per cluster')
