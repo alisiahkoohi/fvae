@@ -47,7 +47,7 @@ class MarsDataset(torch.utils.data.Dataset):
             self.idx_converter = lambda idx: np.array(
                 [idxs_dict[str(j)] for j in idx])
         else:
-            self.idx_converter: lambda idx: idx
+            self.idx_converter = lambda idx: idx
 
         self.data = {
             'waveform': None,
