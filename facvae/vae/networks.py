@@ -105,6 +105,87 @@ class InferenceMLPNet(torch.nn.Module):
         return output
 
 
+
+# Inference Network
+class MultiInputInferenceMLPNet(torch.nn.Module):
+
+    def __init__(self, x_shapes, z_dim, y_dim, hidden_dim, nlayer):
+        super(MultiInputInferenceMLPNet, self).__init__()
+
+        if len(x_shapes) != 2:
+            raise ValueError('Only two inputs are supported.')
+
+        # q(y|x)
+        self.inference_qyx = torch.nn.ModuleList([
+            torch.nn.Linear(x_shape[1], hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(x_shape[0]),
+            torch.nn.LeakyReLU(negative_slope=0.2),
+            View((-1, x_shape[0] * hidden_dim)),
+            torch.nn.Linear(x_shape[0] * hidden_dim, hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(hidden_dim),
+            torch.nn.LeakyReLU(negative_slope=0.2),
+        ])
+        for i in range(1, nlayer):
+            self.inference_qyx.append(
+                torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
+            self.inference_qyx.append(torch.nn.BatchNorm1d(hidden_dim))
+            self.inference_qyx.append(torch.nn.LeakyReLU(negative_slope=0.2))
+        self.inference_qyx.append(GumbelSoftmax(hidden_dim, y_dim))
+        self.inference_qyx = torch.nn.Sequential(*self.inference_qyx)
+
+        # q(z|y,x)
+        self.inference_qzyx = torch.nn.ModuleList([
+            torch.nn.Linear(x_shape[1] + y_dim, hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(x_shape[0]),
+            torch.nn.LeakyReLU(negative_slope=0.2),
+            View((-1, x_shape[0] * hidden_dim)),
+            torch.nn.Linear(x_shape[0] * hidden_dim, hidden_dim, bias=False),
+            torch.nn.BatchNorm1d(hidden_dim),
+            torch.nn.LeakyReLU(negative_slope=0.2)
+        ])
+        for i in range(1, nlayer):
+            self.inference_qzyx.append(
+                torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
+            self.inference_qzyx.append(torch.nn.BatchNorm1d(hidden_dim))
+            self.inference_qzyx.append(torch.nn.LeakyReLU(negative_slope=0.2))
+        self.inference_qzyx.append(Gaussian(hidden_dim, z_dim))
+        self.inference_qzyx = torch.nn.Sequential(*self.inference_qzyx)
+
+    # q(y|x)
+    def qyx(self, x, temperature, hard):
+        nlayer = len(self.inference_qyx)
+        for i, layer in enumerate(self.inference_qyx):
+            if i == nlayer - 1:
+                # last layer is gumbel softmax
+                x = layer(x, temperature, hard)
+            else:
+                x = layer(x)
+        return x
+
+    # q(z|x,y)
+    def qzxy(self, x, y):
+        concat = torch.cat((x, y.unsqueeze(1).repeat(1, x.shape[1], 1)), dim=2)
+        return self.inference_qzyx(concat)
+
+    def forward(self, x, temperature=1.0, hard=0):
+        # q(y|x)
+        logits, prob, y = self.qyx(x, temperature, hard)
+
+        # q(z|x,y)
+        mu, var, z = self.qzxy(x, y)
+
+        output = {
+            'mean': mu,
+            'var': var,
+            'gaussian': z,
+            'logits': logits,
+            'prob_cat': prob,
+            'categorical': y
+        }
+        return output
+
+
+
 class InferenceAttentionNet(torch.nn.Module):
 
     def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):

@@ -4,6 +4,8 @@ import torch
 import pickle
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
+from sklearn.decomposition import IncrementalPCA
+from sklearn.preprocessing import StandardScaler
 from typing import Optional
 from tqdm import tqdm
 
@@ -14,6 +16,8 @@ from facvae.utils import (GaussianDataset, CrescentDataset,
                           TwoMoonsDataset, RunningStats)
 
 NORMALIZATION_BATCH_SIZE = 10000
+IPCA_BATCH_SIZE = 65536
+IPCA_NUM_COMPONENTS = 512
 
 
 class MarsDataset(torch.utils.data.Dataset):
@@ -22,22 +26,26 @@ class MarsDataset(torch.utils.data.Dataset):
                  file_path,
                  train_proportion,
                  data_types=['scat_cov'],
-                 load_to_memory=False,
-                 normalize_data=True,
+                 load_to_memory=True,
+                 normalize_data=False,
                  filter_key=[]):
         self.load_to_memory = load_to_memory
         self.normalize_data = normalize_data
         self.filter_key = filter_key
 
         # HDF5 file.
+        self.file_path = file_path
         self.file = h5py.File(file_path, 'r')
         self.num_windows = self.file['scat_cov'].shape[0]
         self.shape = {
             'waveform':
             self.file['waveform'].shape[1:],
             'scat_cov': (np.prod(self.file['scat_cov'].shape[1]),
-                         np.prod(self.file['scat_cov'].shape[-2:]))
+                         np.prod(self.file['scat_cov'].shape[-2:])),
         }
+        if 'scat_cov_pca' in self.file.keys():
+            self.shape['scat_cov_pca'] = (
+                1, np.prod(self.file['scat_cov_pca'].shape[1]))
 
         (self.file_idx, self.train_idx, self.val_idx,
          self.test_idx) = self.split_data(train_proportion)
@@ -52,10 +60,12 @@ class MarsDataset(torch.utils.data.Dataset):
         self.data = {
             'waveform': None,
             'scat_cov': None,
+            'scat_cov_pca': None,
         }
         self.normalizer = {
             'waveform': None,
             'scat_cov': None,
+            'scat_cov_pca': None,
         }
 
         if self.load_to_memory:
@@ -66,6 +76,7 @@ class MarsDataset(torch.utils.data.Dataset):
         self.already_normalized = {
             'waveform': False,
             'scat_cov': False,
+            'scat_cov_pca': False,
         }
 
     def split_data(self, train_proportion):
@@ -190,7 +201,7 @@ class MarsDataset(torch.utils.data.Dataset):
                         glitch.append(v)
                 glitches.append(glitch)
         return glitches
-    
+
     def get_waveform_filename(self, idx):
         if hasattr(self, 'idx_converter'):
             filenames = [
@@ -209,6 +220,33 @@ class MarsDataset(torch.utils.data.Dataset):
                  UTCDateTime(e.decode('utf-8')))
                 for s, e in self.file['time_interval'][
                     self.idx_converter(np.sort(idx)), ...]]
+
+    def pca_dim_reduction(self,
+                          type='scat_cov',
+                          dim_reduced_type='scat_cov_pca'):
+        ipca = IncrementalPCA(n_components=IPCA_NUM_COMPONENTS)
+
+        for i in tqdm(range(0, self.num_windows, IPCA_BATCH_SIZE)):
+            batch = self.file[type][i:i + IPCA_BATCH_SIZE, ...]
+            batch = batch.reshape(batch.shape[0], -1)
+            batch = StandardScaler().fit_transform(batch)
+            ipca.partial_fit(batch)
+
+        self.file.close()
+        self.file = h5py.File(self.file_path, 'r+')
+        self.file.require_dataset(dim_reduced_type,
+                                  (self.num_windows, IPCA_NUM_COMPONENTS),
+                                  chunks=(128, IPCA_NUM_COMPONENTS),
+                                  dtype=np.float32)
+        
+        for i in tqdm(range(0, self.num_windows, IPCA_BATCH_SIZE)):
+            batch = self.file[type][i:i + IPCA_BATCH_SIZE, ...]
+            batch = batch.reshape(batch.shape[0], -1)
+            batch = StandardScaler().fit_transform(batch)
+            batch = ipca.transform(batch)
+            self.file[dim_reduced_type][i:i + batch.shape[0], :] = batch
+        self.file.close()
+        self.file = h5py.File(self.file_path, 'r')
 
 
 class ToyDataset(torch.utils.data.Dataset):

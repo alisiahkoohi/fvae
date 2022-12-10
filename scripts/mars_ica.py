@@ -4,7 +4,7 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib
-from sklearn.decomposition import PCA
+from sklearn.decomposition import FastICA
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import numpy as np
@@ -37,30 +37,24 @@ A = dataset.sample_data(data_idx, 'scat_cov')
 A = A.reshape(A.shape[0], -1).numpy()
 A = StandardScaler().fit_transform(A)
 
-pca = PCA(n_components=512)
-y = pca.fit_transform(A)
+ica = FastICA(n_components=25)
+y = ica.fit_transform(A)
 
 fig = plt.figure(figsize=(8, 6))
 plt.scatter(y[:, 0], y[:, 1])
 plt.title("2-dim PCA projection of scat coefs")
-fig.savefig(os.path.join(plotsdir('pca_coef_62'), '2dim-pca.png'),
+fig.savefig(os.path.join(plotsdir('ica'), '2dim-ica.png'),
             format="png",
             bbox_inches="tight",
             dpi=200,
             pad_inches=.05)
 plt.close(fig)
 
-fig = plt.figure(figsize=(8, 6))
-plt.plot(pca.explained_variance_ratio_)
-plt.title("Variance explained by each component")
-fig.savefig(os.path.join(plotsdir('pca_coef_62'), 'signular_val_decay.png'),
-            format="png",
-            bbox_inches="tight",
-            dpi=200,
-            pad_inches=.05)
-plt.close(fig)
+A_ = ica.inverse_transform(y)
+print(np.linalg.norm(A_ - A)/np.linalg.norm(A))
 
-n_cluster = 9
+
+n_cluster = 3
 # Create a KMeans instance with k clusters: model
 model = KMeans(n_clusters=n_cluster)
 # Fit model to samples
@@ -75,7 +69,7 @@ for j in range(n_cluster):
     plt.scatter(x_c[j][:, 0], x_c[j][:, 1], label=str(j))
 plt.legend()
 plt.title("K-mean clustering")
-fig.savefig(os.path.join(plotsdir('pca_coef_62'), 'k-means.png'),
+fig.savefig(os.path.join(plotsdir('ica'), 'k-means.png'),
             format="png",
             bbox_inches="tight",
             dpi=200,
@@ -225,7 +219,7 @@ for i in range(n_cluster):
                            i].set_title("Spectrogram from cluster " + str(i))
             figs_axs[1][1][j, i].grid(False)
 
-fig_hist.savefig(os.path.join(plotsdir('pca_coef_62'), 'cluster_time_dist.png'),
+fig_hist.savefig(os.path.join(plotsdir('ica'), 'cluster_time_dist.png'),
                  format="png",
                  bbox_inches="tight",
                  dpi=200,
@@ -233,7 +227,7 @@ fig_hist.savefig(os.path.join(plotsdir('pca_coef_62'), 'cluster_time_dist.png'),
 plt.close(fig_hist)
 
 for (fig, _), name in zip(figs_axs, names):
-    fig.savefig(os.path.join(plotsdir('pca_coef_62'), name + '.png'),
+    fig.savefig(os.path.join(plotsdir('ica'), name + '.png'),
                 format="png",
                 bbox_inches="tight",
                 dpi=100,
@@ -258,7 +252,7 @@ plt.ylabel('Pressure drop count')
 plt.title('Pressure drop count per cluster')
 plt.legend(ncol=2, fontsize=12)
 plt.gca().set_xticks(range(n_cluster))
-fig.savefig(os.path.join(plotsdir('pca_coef_62'), 'pressure_drop_count.png'),
+fig.savefig(os.path.join(plotsdir('ica'), 'pressure_drop_count.png'),
             format="png",
             bbox_inches="tight",
             dpi=200,
@@ -275,7 +269,7 @@ plt.ylabel('Glitch count')
 plt.title('Glitch count per cluster')
 plt.legend(ncol=2, fontsize=12)
 plt.gca().set_xticks(range(n_cluster))
-fig.savefig(os.path.join(plotsdir('pca_coef_62'), 'glitch_count.png'),
+fig.savefig(os.path.join(plotsdir('ica'), 'glitch_count.png'),
             format="png",
             bbox_inches="tight",
             dpi=200,
