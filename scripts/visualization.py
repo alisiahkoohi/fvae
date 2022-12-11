@@ -120,7 +120,7 @@ class Visualization(object):
                 y = self.network(x)
             # Sort indices based on  most confident cluster predictions by the
             # network (increasing).
-            per_batch_confident_idx = y['prob_cat'].max(axis=-1)[0].sort()[1]
+            per_batch_confident_idx = y['prob_cat'].max(axis=-1)[0].sort()[1].cpu()
             confident_idxs.append(idx[per_batch_confident_idx])
             # Extract the predicted cluster memberships.
             cluster_membership.append(

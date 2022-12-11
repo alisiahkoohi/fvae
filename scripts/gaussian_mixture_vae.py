@@ -21,6 +21,7 @@ class GaussianMixtureVAE(object):
         self.device = device
 
         # Network architecture.
+        print(dataset.shape[args.type])
         self.network = GMVAENetwork(
             dataset.shape[args.type] if args.type else dataset.shape,
             args.latent_dim,
@@ -168,7 +169,7 @@ class GaussianMixtureVAE(object):
                         args.init_temp * np.exp(-args.temp_decay * epoch),
                         args.min_temp)
 
-                if epoch == args.max_epoch - 1:
+                if epoch == args.max_epoch - 1 or epoch % 250 == 0:
                     torch.save(
                         {
                             'model_state_dict': self.network.state_dict(),

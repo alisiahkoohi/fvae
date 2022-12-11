@@ -46,6 +46,9 @@ class MarsDataset(torch.utils.data.Dataset):
         if 'scat_cov_pca' in self.file.keys():
             self.shape['scat_cov_pca'] = (
                 1, np.prod(self.file['scat_cov_pca'].shape[1]))
+        if 'scat_cov_pca_25' in self.file.keys():
+            self.shape['scat_cov_pca_25'] = (
+                1, np.prod(self.file['scat_cov_pca_25'].shape[1]))
 
         (self.file_idx, self.train_idx, self.val_idx,
          self.test_idx) = self.split_data(train_proportion)
@@ -61,11 +64,13 @@ class MarsDataset(torch.utils.data.Dataset):
             'waveform': None,
             'scat_cov': None,
             'scat_cov_pca': None,
+            'scat_cov_pca_25': None,
         }
         self.normalizer = {
             'waveform': None,
             'scat_cov': None,
             'scat_cov_pca': None,
+            'scat_cov_pca_25': None,
         }
 
         if self.load_to_memory:
@@ -77,6 +82,7 @@ class MarsDataset(torch.utils.data.Dataset):
             'waveform': False,
             'scat_cov': False,
             'scat_cov_pca': False,
+            'scat_cov_pca_25': False,
         }
 
     def split_data(self, train_proportion):

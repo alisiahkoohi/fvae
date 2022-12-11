@@ -50,7 +50,7 @@ if __name__ == "__main__":
     if args.dataset == 'mars':
         dataset = MarsDataset(os.path.join(MARS_SCAT_COV_PATH,
                                            args.h5_filename),
-                              0.99,
+                              0.80,
                               data_types=[args.type],
                               load_to_memory=args.load_to_memory,
                               normalize_data=args.normalize,
