@@ -37,18 +37,21 @@ class MarsDataset(torch.utils.data.Dataset):
         self.file_path = file_path
         self.file = h5py.File(file_path, 'r')
         self.num_windows = self.file['scat_cov'].shape[0]
+        dim_reduced_datasets = [
+            'scat_cov_pca', 'scat_cov_pca_25', 'scat_cov_pca_75',
+            'scat_cov_pca_125'
+        ]
         self.shape = {
             'waveform':
             self.file['waveform'].shape[1:],
             'scat_cov': (np.prod(self.file['scat_cov'].shape[1]),
                          np.prod(self.file['scat_cov'].shape[-2:])),
         }
-        if 'scat_cov_pca' in self.file.keys():
-            self.shape['scat_cov_pca'] = (
-                1, np.prod(self.file['scat_cov_pca'].shape[1]))
-        if 'scat_cov_pca_25' in self.file.keys():
-            self.shape['scat_cov_pca_25'] = (
-                1, np.prod(self.file['scat_cov_pca_25'].shape[1]))
+        for dim_red_ds in dim_reduced_datasets:
+            if dim_red_ds in self.file.keys():
+                self.shape[dim_red_ds] = (1,
+                                          np.prod(
+                                              self.file[dim_red_ds].shape[1]))
 
         (self.file_idx, self.train_idx, self.val_idx,
          self.test_idx) = self.split_data(train_proportion)
@@ -60,30 +63,20 @@ class MarsDataset(torch.utils.data.Dataset):
         else:
             self.idx_converter = lambda idx: idx
 
-        self.data = {
-            'waveform': None,
-            'scat_cov': None,
-            'scat_cov_pca': None,
-            'scat_cov_pca_25': None,
-        }
-        self.normalizer = {
-            'waveform': None,
-            'scat_cov': None,
-            'scat_cov_pca': None,
-            'scat_cov_pca_25': None,
-        }
+        self.data = {'waveform': None, 'scat_cov': None}
+        self.normalizer = {'waveform': None, 'scat_cov': None}
+        self.already_normalized = {'waveform': False, 'scat_cov': False}
+        for dim_red_ds in dim_reduced_datasets:
+            if dim_red_ds in self.file.keys():
+                self.data[dim_red_ds] = None
+                self.normalizer[dim_red_ds] = None
+                self.already_normalized[dim_red_ds] = None
 
         if self.load_to_memory:
             self.load_all_data(data_types)
 
         if self.normalize_data:
             self.setup_data_normalizer(data_types)
-        self.already_normalized = {
-            'waveform': False,
-            'scat_cov': False,
-            'scat_cov_pca': False,
-            'scat_cov_pca_25': False,
-        }
 
     def split_data(self, train_proportion):
         if self.filter_key:
@@ -244,7 +237,7 @@ class MarsDataset(torch.utils.data.Dataset):
                                   (self.num_windows, IPCA_NUM_COMPONENTS),
                                   chunks=(128, IPCA_NUM_COMPONENTS),
                                   dtype=np.float32)
-        
+
         for i in tqdm(range(0, self.num_windows, IPCA_BATCH_SIZE)):
             batch = self.file[type][i:i + IPCA_BATCH_SIZE, ...]
             batch = batch.reshape(batch.shape[0], -1)
