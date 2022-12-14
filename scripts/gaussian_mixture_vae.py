@@ -6,7 +6,8 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from facvae.utils import checkpointsdir, CustomLRScheduler, logsdir
-from facvae.vae import GMVAENetwork, GMMultiVAENetwork, LossFunctions, Metrics
+from facvae.vae import (GMVAENetwork, GMMultiIOVAENetwork, LossFunctions,
+                        Metrics)
 
 
 class GaussianMixtureVAE(object):
@@ -27,7 +28,7 @@ class GaussianMixtureVAE(object):
                 in_shape = [
                     dataset.shape[args.type[j]] for j in range(len(args.type))
                 ]
-                network = GMMultiVAENetwork
+                network = GMMultiIOVAENetwork
             else:
                 in_shape = dataset.shape[args.type[0]]
                 network = GMVAENetwork

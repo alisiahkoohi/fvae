@@ -449,7 +449,7 @@ class GMVAENetwork(torch.nn.Module):
         return output
 
 
-class GMMultiVAENetwork(torch.nn.Module):
+class GMMultiIOVAENetwork(torch.nn.Module):
 
     def __init__(
         self,
@@ -461,7 +461,7 @@ class GMMultiVAENetwork(torch.nn.Module):
         hidden_dim=512,
         nlayer=3,
     ):
-        super(GMMultiVAENetwork, self).__init__()
+        super(GMMultiIOVAENetwork, self).__init__()
 
         self.inference = MultiInputInferenceMLPNet(x_shape, z_dim, y_dim,
                                                    hidden_dim, nlayer)
