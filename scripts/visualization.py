@@ -68,7 +68,7 @@ class Visualization(object):
                 x = self.dataset.sample_data(idx, args.type)
 
                 # flatten data
-                x = x.to(self.device)
+                x = [x[i].to(self.device) for i in range(len(x))]
                 y = self.network.inference(x, self.network.gumbel_temp,
                                            self.network.hard_gumbel)
                 latent_feat = y['mean']
@@ -114,13 +114,14 @@ class Visualization(object):
             # Load data.
             x = self.dataset.sample_data(idx, args.type)
             # Move to `device`.
-            x = x.to(self.device)
+            x = [x[i].to(self.device) for i in range(len(x))]
             # Run the input data through the pretrained GMVAE network.
             with torch.no_grad():
                 y = self.network(x)
             # Sort indices based on  most confident cluster predictions by the
             # network (increasing).
-            per_batch_confident_idx = y['prob_cat'].max(axis=-1)[0].sort()[1].cpu()
+            per_batch_confident_idx = y['prob_cat'].max(
+                axis=-1)[0].sort()[1].cpu()
             confident_idxs.append(idx[per_batch_confident_idx])
             # Extract the predicted cluster memberships.
             cluster_membership.append(
@@ -129,7 +130,7 @@ class Visualization(object):
         # Moving back tensors to CPU for plotting.
         confident_idxs = torch.cat(confident_idxs).cpu().numpy()
         cluster_membership = torch.cat(cluster_membership).cpu().numpy()
-        x = x.cpu()
+        x = [x[i].cpu() for i in range(len(x))]
 
         # List of figures and `ax`s to plot waveforms, spectrograms, and
         # scattering covariances for each cluster.
@@ -235,15 +236,17 @@ class Visualization(object):
                 cluster_idxs = cluster_idxs[-sample_size:, ...]
 
                 waveforms = self.dataset.sample_data(cluster_idxs,
-                                                     type='waveform')
+                                                     type='waveform')[0]
                 x = self.dataset.sample_data(cluster_idxs, args.type)
 
-                x = self.dataset.unnormalize(x, args.type)
+                x = [
+                    self.dataset.unnormalize(x[i], args.type[i])
+                    for i in range(len(x))
+                ]
                 waveforms = self.dataset.unnormalize(waveforms, 'waveform')
                 waveform_times = self.dataset.get_time_interval(cluster_idxs)
 
                 for j in range(len(cluster_idxs)):
-
                     figs_axs[0][1][j, i].plot_date(create_lmst_xticks(
                         *waveform_times[j],
                         time_zone='LMST',
@@ -261,7 +264,7 @@ class Visualization(object):
                     figs_axs[0][1][j, i].set_ylim([-5e-7, 5e-7])
                     figs_axs[0][1][j, i].set_title("Waveform from cluster " +
                                                    str(i))
-                    
+
                     figs_axs[1][1][j, i].set_ylim(0.1, SAMPLING_RATE / 2)
                     figs_axs[1][1][j, i].specgram(waveforms[j, 0, :],
                                                   Fs=SAMPLING_RATE,
@@ -274,7 +277,7 @@ class Visualization(object):
                                                 str(i))
                     figs_axs[1][1][j, i].grid(False)
 
-                    figs_axs[2][1][j, i].plot(x[j, 0, :],
+                    figs_axs[2][1][j, i].plot(x[0][j, 0, :],
                                               color=self.colors[i % 10],
                                               lw=1.2,
                                               alpha=0.8)
@@ -427,7 +430,7 @@ class Visualization(object):
         x = self.dataset.sample_data(range(len(data_loader.dataset)),
                                      args.type)
         # Move to `device`.
-        x = x.to(self.device)
+        x = [x[i].to(self.device) for i in range(len(x))]
         # Placeholder list for cluster membership for all the data.
         cluster_membership = []
 
@@ -440,15 +443,18 @@ class Visualization(object):
 
         # Moving back tensors to CPU for plotting.
         cluster_membership = cluster_membership.cpu()
-        x = x.cpu()
+        x = [x[i].cpu() for i in range(len(x))]
         if args.dataset == 'mars':
-            x = self.dataset.unnormalize(x, args.type)
+            x = [
+                self.dataset.unnormalize(x[i], args.type[i])
+                for i in range(len(x))
+            ]
 
         fig = plt.figure(figsize=(8, 6))
         for i in range(args.ncluster):
             cluster_idxs = np.where(cluster_membership == i)[0]
-            plt.scatter(x[cluster_idxs, 0],
-                        x[cluster_idxs, 1],
+            plt.scatter(x[0][cluster_idxs, 0],
+                        x[0][cluster_idxs, 1],
                         color=self.colors[i % 10],
                         s=2,
                         alpha=0.5)
@@ -474,27 +480,27 @@ class Visualization(object):
         """
         # Sample random data from loader
         x = self.dataset.sample_data(next(iter(data_loader)), args.type)
-        indices = np.random.randint(0, x.shape[0], size=sample_size)
-        x = x[indices, ...]
-        x = x.to(self.device)
+        indices = np.random.randint(0, x[0].shape[0], size=sample_size)
+        x = [x[i][indices, ...] for i in range(len(x))]
+        x = [x[i].to(self.device) for i in range(len(x))]
 
         # Obtain reconstructed data.
         with torch.no_grad():
             y = self.network(x)
             x_rec = y['x_rec']
 
-        x = x.cpu()
-        x_rec = x_rec.cpu()
+        x = [x[i].cpu() for i in range(len(x))]
+        x_rec = [x_rec[i].cpu() for i in range(len(x_rec))]
 
-        if x.shape[-1] > 2:
+        if x[0].shape[-1] > 2:
             fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
             for i in range(sample_size):
-                ax[i].plot(x[i, 0, :],
+                ax[i].plot(x[0][i, 0, :],
                            lw=.8,
                            alpha=1,
                            color='k',
                            label='original')
-                ax[i].plot(x_rec[i, 0, :],
+                ax[i].plot(x_rec[0][i, 0, :],
                            lw=.8,
                            alpha=0.5,
                            color='r',
@@ -529,17 +535,23 @@ class Visualization(object):
             plt.close(fig)
 
         if args.dataset == 'mars':
-            x = self.dataset.unnormalize(x, args.type)
-            x_rec = self.dataset.unnormalize(x_rec, args.type)
+            x = [
+                self.dataset.unnormalize(x[i], args.type[i])
+                for i in range(len(x))
+            ]
+            x_rec = [
+                self.dataset.unnormalize(x_rec[i], args.type[i])
+                for i in range(len(x_rec))
+            ]
 
             fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
             for i in range(sample_size):
-                ax[i].plot(x[i, 0, :],
+                ax[i].plot(x[0][i, 0, :],
                            lw=.8,
                            alpha=1,
                            color='k',
                            label='original')
-                ax[i].plot(x_rec[i, 0, :],
+                ax[i].plot(x_rec[0][i, 0, :],
                            lw=.8,
                            alpha=0.5,
                            color='r',
