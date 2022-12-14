@@ -33,7 +33,7 @@ def make_experiment_name(args):
                 'temp_decay', 'min_temp', 'init_temp'
         ]:
             experiment_name += key + '-{}_'.format(value)
-    return experiment_name[:-1].replace(' ', '')
+    return experiment_name[:-1].replace(' ', '').replace(',', '-')
 
 
 def make_h5_file_name(args):

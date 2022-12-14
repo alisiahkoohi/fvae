@@ -20,7 +20,7 @@ MARS_PATH = datadir('mars')
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # GMVAE training default hyperparameters.
-MARS_CONFIG_FILE = 'mars.json'
+MARS_CONFIG_FILE = 'mars_multi-input-output.json'
 TOY_CONFIG_FILE = 'toy_checkerboard.json'
 
 # Random seed.
@@ -36,6 +36,8 @@ if __name__ == "__main__":
     args.experiment = make_experiment_name(args)
     if hasattr(args, 'filter_key'):
         args.filter_key = args.filter_key.replace(' ', '').split(',')
+    if hasattr(args, 'type'):
+        args.type = args.type.replace(' ', '').split(',')
 
     # Setting default device (cpu/cuda) depending on CUDA availability and
     # input arguments.
@@ -51,7 +53,7 @@ if __name__ == "__main__":
         dataset = MarsDataset(os.path.join(MARS_SCAT_COV_PATH,
                                            args.h5_filename),
                               0.80,
-                              data_types=[args.type],
+                              data_types=args.type,
                               load_to_memory=args.load_to_memory,
                               normalize_data=args.normalize,
                               filter_key=args.filter_key)

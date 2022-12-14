@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from facvae.utils import checkpointsdir, CustomLRScheduler, logsdir
-from facvae.vae import GMVAENetwork, LossFunctions, Metrics
+from facvae.vae import GMVAENetwork, GMMultiVAENetwork, LossFunctions, Metrics
 
 
 class GaussianMixtureVAE(object):
@@ -21,14 +21,25 @@ class GaussianMixtureVAE(object):
         self.device = device
 
         # Network architecture.
-        print(dataset.shape[args.type])
-        self.network = GMVAENetwork(
-            dataset.shape[args.type] if args.type else dataset.shape,
-            args.latent_dim,
-            args.ncluster,
-            args.init_temp,
-            hidden_dim=args.hidden_dim,
-            nlayer=args.nlayer).to(self.device)
+        print([dataset.shape[type] for type in args.type])
+        if args.type:
+            if len(args.type) > 1:
+                in_shape = [
+                    dataset.shape[args.type[j]] for j in range(len(args.type))
+                ]
+                network = GMMultiVAENetwork
+            else:
+                in_shape = dataset.shape[args.type]
+                network = GMVAENetwork
+        else:
+            in_shape = dataset.shape
+            network = GMVAENetwork
+        self.network = network(in_shape,
+                               args.latent_dim,
+                               args.ncluster,
+                               args.init_temp,
+                               hidden_dim=args.hidden_dim,
+                               nlayer=args.nlayer).to(self.device)
 
         # Tensorboard writer.
         if args.phase == 'train':
@@ -67,7 +78,10 @@ class GaussianMixtureVAE(object):
         mu, var = out_net['mean'], out_net['var']
 
         # Reconstruction loss.
-        rec_loss = self.losses.reconstruction_loss(data, data_recon, 'mse')
+        rec_loss = 0.0
+        for i in range(len(data_recon)):
+            rec_loss += self.losses.reconstruction_loss(
+                data[i], data_recon[i], 'mse')
 
         # Gaussian loss.
         gauss_loss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
@@ -135,7 +149,8 @@ class GaussianMixtureVAE(object):
 
                     # Load data batch.
                     x = self.dataset.sample_data(idx, args.type)
-                    x = x.to(self.device)
+                    x = [x[i].to(self.device) for i in range(len(x))]
+
                     # Forward call.
                     y = self.network(x)
                     # Compute loss.
@@ -158,7 +173,9 @@ class GaussianMixtureVAE(object):
                     with torch.no_grad():
                         x_val = self.dataset.sample_data(
                             next(iter(val_loader)), args.type)
-                        x_val = x_val.to(self.device)
+                        x_val = [
+                            x_val[i].to(self.device) for i in range(len(x_val))
+                        ]
                         y_val = self.network(x_val)
                         val_loss = self.compute_loss(x_val, y_val)
                         self.log_progress(args, epoch, train_loss, val_loss)
@@ -169,7 +186,8 @@ class GaussianMixtureVAE(object):
                         args.init_temp * np.exp(-args.temp_decay * epoch),
                         args.min_temp)
 
-                if epoch == args.max_epoch - 1 or epoch % 250 == 0:
+                if epoch == args.max_epoch - 1 or (self.steps_per_epoch > 10
+                                                   and epoch % 250 == 0):
                     torch.save(
                         {
                             'model_state_dict': self.network.state_dict(),

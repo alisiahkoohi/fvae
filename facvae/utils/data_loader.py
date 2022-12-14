@@ -148,17 +148,22 @@ class MarsDataset(torch.utils.data.Dataset):
         return x
 
     def sample_data(self, idx, type):
-        if self.data[type] is None:
-            x = self.file[type][self.idx_converter(np.sort(idx)),
-                                ...].reshape(len(idx), *self.shape[type])
-            x = torch.from_numpy(x)
-            x = self.normalize(x, type)
-            return x
-        else:
-            if (not self.already_normalized[type]) and self.normalize_data:
-                self.data[type] = self.normalize(self.data[type][...], type)
-                self.already_normalized[type] = True
-            return self.data[type][np.sort(idx), ...]
+        if not isinstance(type, list):
+            type = [type]
+        out = []
+        for t in type:
+            if self.data[t] is None:
+                x = self.file[t][self.idx_converter(np.sort(idx)),
+                                    ...].reshape(len(idx), *self.shape[t])
+                x = torch.from_numpy(x)
+                x = self.normalize(x, t)
+                out.append(x)
+            else:
+                if (not self.already_normalized[t]) and self.normalize_data:
+                    self.data[t] = self.normalize(self.data[t][...], t)
+                    self.already_normalized[t] = True
+                out.append(self.data[t][np.sort(idx), ...])
+        return out
 
     def get_labels(self, idx):
         labels = []

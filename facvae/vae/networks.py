@@ -73,6 +73,8 @@ class InferenceMLPNet(torch.nn.Module):
 
     # q(y|x)
     def qyx(self, x, temperature, hard):
+        if isinstance(x, list):
+            x = x[0]
         nlayer = len(self.inference_qyx)
         for i, layer in enumerate(self.inference_qyx):
             if i == nlayer - 1:
@@ -89,6 +91,8 @@ class InferenceMLPNet(torch.nn.Module):
 
     def forward(self, x, temperature=1.0, hard=0):
         # q(y|x)
+        if isinstance(x, list):
+            x = x[0]
         logits, prob, y = self.qyx(x, temperature, hard)
 
         # q(z|x,y)
@@ -115,7 +119,7 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
             raise ValueError('Only two inputs are supported.')
 
         # q(y|x)
-        self.inference_qyx = [
+        self.inference_qyx = torch.nn.ModuleList([
             torch.nn.ModuleList([
                 torch.nn.Linear(x_shape[j][1], hidden_dim, bias=False),
                 torch.nn.BatchNorm1d(x_shape[j][0]),
@@ -127,7 +131,7 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
                 torch.nn.BatchNorm1d(hidden_dim),
                 torch.nn.LeakyReLU(negative_slope=0.2),
             ]) for j in range(2)
-        ]
+        ])
         for j in range(2):
             for i in range(1, nlayer):
                 self.inference_qyx[j].append(
@@ -140,7 +144,7 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
         self.gumbel_softmax = GumbelSoftmax(2 * hidden_dim, y_dim)
 
         # q(z|y,x)
-        self.inference_qzyx = [
+        self.inference_qzyx = torch.nn.ModuleList([
             torch.nn.ModuleList([
                 torch.nn.Linear(x_shape[j][1] + y_dim, hidden_dim, bias=False),
                 torch.nn.BatchNorm1d(x_shape[j][0]),
@@ -152,7 +156,7 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
                 torch.nn.BatchNorm1d(hidden_dim),
                 torch.nn.LeakyReLU(negative_slope=0.2)
             ]) for j in range(2)
-        ]
+        ])
         for j in range(2):
             for i in range(1, nlayer):
                 self.inference_qzyx[j].append(
@@ -235,8 +239,8 @@ class InferenceAttentionNet(torch.nn.Module):
 
     # q(z|x,y)
     def qzxy(self, x, y):
-        concat = torch.cat((x, y.unsqueeze(1).repeat(1, x.shape[1], 1)), dim=2)
-        return self.inference_qzyx(concat)
+        xy = torch.cat((x, y.unsqueeze(1).repeat(1, x.shape[1], 1)), dim=2)
+        return self.inference_qzyx(xy)
 
     def forward(self, x, temperature=1.0, hard=0):
         # q(y|x)
@@ -270,7 +274,7 @@ class MultiOutputGenerativeMLPNet(torch.nn.Module):
         self.y_var = torch.nn.Linear(y_dim, z_dim)
 
         # p(x|z)
-        self.generative_pxz = [
+        self.generative_pxz = torch.nn.ModuleList([
             torch.nn.ModuleList([
                 torch.nn.Linear(z_dim, hidden_dim, bias=False),
                 torch.nn.BatchNorm1d(hidden_dim),
@@ -281,7 +285,7 @@ class MultiOutputGenerativeMLPNet(torch.nn.Module):
                 torch.nn.BatchNorm1d(x_shape[j][0] * hidden_dim),
                 torch.nn.LeakyReLU(negative_slope=0.2),
             ]) for j in range(2)
-        ]
+        ])
         for j in range(2):
             for i in range(1, nlayer):
                 self.generative_pxz[j].append(
@@ -359,7 +363,7 @@ class GenerativeMLPNet(torch.nn.Module):
 
     # p(x|z)
     def pxz(self, z):
-        return self.generative_pxz(z)
+        return [self.generative_pxz(z)]
 
     def forward(self, z, y):
         # p(z|y)
@@ -398,7 +402,7 @@ class GenerativeAttentionNet(torch.nn.Module):
 
     # p(x|z)
     def pxz(self, z):
-        return self.generative_pxz(z)
+        return [self.generative_pxz(z)]
 
     def forward(self, z, y):
         # p(z|y)
