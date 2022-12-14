@@ -39,7 +39,8 @@ class MarsDataset(torch.utils.data.Dataset):
         self.num_windows = self.file['scat_cov'].shape[0]
         dim_reduced_datasets = [
             'scat_cov_pca', 'scat_cov_pca_25', 'scat_cov_pca_75',
-            'scat_cov_pca_125'
+            'scat_cov_pca_125', 'cov_pca', 'cov_pca_25', 'cov_pca_75',
+            'cov_pca_125'
         ]
         self.shape = {
             'waveform':
