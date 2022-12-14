@@ -115,8 +115,7 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
     def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):
         super(MultiInputInferenceMLPNet, self).__init__()
 
-        if len(x_shape) != 2:
-            raise ValueError('Only two inputs are supported.')
+        print('Number of inputs: ', len(x_shape))
 
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleList([
@@ -130,9 +129,9 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
                                 bias=False),
                 torch.nn.BatchNorm1d(hidden_dim),
                 torch.nn.LeakyReLU(negative_slope=0.2),
-            ]) for j in range(2)
+            ]) for j in range(len(x_shape))
         ])
-        for j in range(2):
+        for j in range(len(x_shape)):
             for i in range(1, nlayer):
                 self.inference_qyx[j].append(
                     torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
@@ -141,7 +140,7 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
                     torch.nn.LeakyReLU(negative_slope=0.2))
             self.inference_qyx[j] = torch.nn.Sequential(*self.inference_qyx[j])
 
-        self.gumbel_softmax = GumbelSoftmax(2 * hidden_dim, y_dim)
+        self.gumbel_softmax = GumbelSoftmax(len(x_shape) * hidden_dim, y_dim)
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleList([
@@ -155,9 +154,9 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
                                 bias=False),
                 torch.nn.BatchNorm1d(hidden_dim),
                 torch.nn.LeakyReLU(negative_slope=0.2)
-            ]) for j in range(2)
+            ]) for j in range(len(x_shape))
         ])
-        for j in range(2):
+        for j in range(len(x_shape)):
             for i in range(1, nlayer):
                 self.inference_qzyx[j].append(
                     torch.nn.Linear(hidden_dim, hidden_dim, bias=False))
@@ -167,20 +166,20 @@ class MultiInputInferenceMLPNet(torch.nn.Module):
             self.inference_qzyx[j] = torch.nn.Sequential(
                 *self.inference_qzyx[j])
 
-        self.gaussian = Gaussian(2 * hidden_dim, z_dim)
+        self.gaussian = Gaussian(len(x_shape) * hidden_dim, z_dim)
 
     # q(y|x)
     def qyx(self, x, temperature, hard):
-        x = [self.inference_qyx[j](x[j]) for j in range(2)]
+        x = [self.inference_qyx[j](x[j]) for j in range(len(x))]
         return self.gumbel_softmax(torch.cat(x, dim=1), temperature, hard)
 
     # q(z|x,y)
     def qzxy(self, x, y):
         xy = [
             torch.cat((x[j], y.unsqueeze(1).repeat(1, x[j].shape[1], 1)),
-                      dim=2) for j in range(2)
+                      dim=2) for j in range(len(x))
         ]
-        xy = [self.inference_qzyx[j](xy[j]) for j in range(2)]
+        xy = [self.inference_qzyx[j](xy[j]) for j in range(len(x))]
         return self.gaussian(torch.cat(xy, dim=1))
 
     def forward(self, x, temperature=1.0, hard=0):
@@ -266,8 +265,7 @@ class MultiOutputGenerativeMLPNet(torch.nn.Module):
     def __init__(self, x_shape, z_dim, y_dim, hidden_dim, nlayer):
         super(MultiOutputGenerativeMLPNet, self).__init__()
 
-        if len(x_shape) != 2:
-            raise ValueError('Only two outputs are supported.')
+        print('Number of outputs: ', len(x_shape))
 
         # p(z|y)
         self.y_mu = torch.nn.Linear(y_dim, z_dim)
@@ -284,9 +282,9 @@ class MultiOutputGenerativeMLPNet(torch.nn.Module):
                                 bias=False),
                 torch.nn.BatchNorm1d(x_shape[j][0] * hidden_dim),
                 torch.nn.LeakyReLU(negative_slope=0.2),
-            ]) for j in range(2)
+            ]) for j in range(len(x_shape))
         ])
-        for j in range(2):
+        for j in range(len(x_shape)):
             for i in range(1, nlayer):
                 self.generative_pxz[j].append(
                     torch.nn.Linear(x_shape[j][0] * hidden_dim,
@@ -311,7 +309,9 @@ class MultiOutputGenerativeMLPNet(torch.nn.Module):
 
     # p(x|z)
     def pxz(self, z):
-        return [self.generative_pxz[j](z) for j in range(2)]
+        return [
+            self.generative_pxz[j](z) for j in range(len(self.generative_pxz))
+        ]
 
     def forward(self, z, y):
         # p(z|y)

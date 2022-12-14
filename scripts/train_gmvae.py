@@ -20,7 +20,8 @@ MARS_PATH = datadir('mars')
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # GMVAE training default hyperparameters.
-MARS_CONFIG_FILE = 'mars_multi-input-output.json'
+MARS_CONFIG_FILE = 'mars.json'
+MULTI_MARS_CONFIG_FILE = 'mars_multi-input-output.json'
 TOY_CONFIG_FILE = 'toy_checkerboard.json'
 
 # Random seed.
@@ -31,7 +32,7 @@ torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
     # Command line arguments.
-    args = read_config(os.path.join(configsdir(), MARS_CONFIG_FILE))
+    args = read_config(os.path.join(configsdir(), MULTI_MARS_CONFIG_FILE))
     args = parse_input_args(args)
     args.experiment = make_experiment_name(args)
     if hasattr(args, 'filter_key'):

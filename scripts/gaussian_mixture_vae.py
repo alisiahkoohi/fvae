@@ -29,7 +29,7 @@ class GaussianMixtureVAE(object):
                 ]
                 network = GMMultiVAENetwork
             else:
-                in_shape = dataset.shape[args.type]
+                in_shape = dataset.shape[args.type[0]]
                 network = GMVAENetwork
         else:
             in_shape = dataset.shape
