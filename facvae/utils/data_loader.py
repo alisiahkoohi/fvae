@@ -16,7 +16,7 @@ from facvae.utils import (GaussianDataset, CrescentDataset,
                           TwoMoonsDataset, RunningStats)
 
 NORMALIZATION_BATCH_SIZE = 10000
-IPCA_BATCH_SIZE = 65536
+IPCA_BATCH_SIZE = 16384
 IPCA_NUM_COMPONENTS = 512
 
 
@@ -40,7 +40,8 @@ class MarsDataset(torch.utils.data.Dataset):
         dim_reduced_datasets = [
             'scat_cov_pca', 'scat_cov_pca_25', 'scat_cov_pca_75',
             'scat_cov_pca_125', 'cov_pca', 'cov_pca_25', 'cov_pca_75',
-            'cov_pca_125'
+            'cov_pca_125', 'cov_pca_6-6', 'cov_pca_6-6_25', 'cov_pca_6-6_75',
+            'cov_pca_6-6_125'
         ]
         self.shape = {
             'waveform':
