@@ -119,7 +119,7 @@ def finalize_dataset_size(path, scat_cov_filename, num_windows):
 def compute_scat_cov(args):
 
     # Path to raw data and directory for creating scattering dataset.
-    waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms'))
+    waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms_UVW_raw'))
     scat_cov_path = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
     raw_data_files = os.listdir(waveform_path)
 
@@ -318,7 +318,7 @@ if __name__ == "__main__":
     parser.add_argument('--filename',
                         dest='filename',
                         type=str,
-                        default='3c',
+                        default='3c_raw',
                         help='filename prefix to be created')
     args = parser.parse_args()
     args.q = [int(j) for j in args.q.replace(' ', '').split(',')]
