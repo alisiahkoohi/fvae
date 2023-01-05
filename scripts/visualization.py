@@ -6,7 +6,7 @@ import os
 from collections import Counter
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
-from scipy.signal import spectrogram
+from scipy.signal import spectrogram, correlate, correlation_lags
 import torch
 from tqdm import tqdm
 
@@ -25,7 +25,6 @@ SAMPLING_RATE = 20
 class Visualization(object):
     """Class visualizing results of a GMVAE training.
     """
-
     def __init__(self, network, dataset, window_size, device):
         # Pretrained GMVAE network.
         self.network = network
@@ -97,7 +96,7 @@ class Visualization(object):
                 event_times.append(np.array(time_interval).mean())
         return event_times
 
-    def plot_waveforms(self, args, data_loader, sample_size=10):
+    def plot_waveforms(self, args, data_loader, sample_size=5):
         """Plot waveforms.
         """
         # Setup the batch index generator.
@@ -106,30 +105,31 @@ class Visualization(object):
                                                  batch_size=args.batchsize,
                                                  shuffle=False,
                                                  drop_last=False)
+
         # Placeholder list for cluster membership for all the data.
         cluster_membership = []
-        confident_idxs = []
+        cluster_membership_prob = []
         # Extract cluster memberships.
         for idx in idx_loader:
             # Load data.
             x = self.dataset.sample_data(idx, args.type)
             # Move to `device`.
             x = [x[i].to(self.device) for i in range(len(x))]
+            # x = [x[0].to(self.device), x[1].to(self.device)]
             # Run the input data through the pretrained GMVAE network.
             with torch.no_grad():
                 y = self.network(x)
-            # Sort indices based on  most confident cluster predictions by the
-            # network (increasing).
-            per_batch_confident_idx = y['prob_cat'].max(
-                axis=-1)[0].sort()[1].cpu()
-            confident_idxs.append(idx[per_batch_confident_idx])
             # Extract the predicted cluster memberships.
-            cluster_membership.append(
-                y['logits'][per_batch_confident_idx, :].argmax(axis=1))
+            cluster_membership.append(y['logits'].argmax(axis=1))
+            cluster_membership_prob.append(y['prob_cat'].max(axis=1)[0])
+        # Sort indices based on  most confident cluster predictions by the
+        # network (increasing).
+        confident_idxs = torch.cat(
+            cluster_membership_prob).cpu().sort()[1].numpy()
+        cluster_membership = torch.cat(
+            cluster_membership).cpu().numpy()[confident_idxs]
 
         # Moving back tensors to CPU for plotting.
-        confident_idxs = torch.cat(confident_idxs).cpu().numpy()
-        cluster_membership = torch.cat(cluster_membership).cpu().numpy()
         x = [x[i].cpu() for i in range(len(x))]
 
         # List of figures and `ax`s to plot waveforms, spectrograms, and
@@ -137,7 +137,7 @@ class Visualization(object):
         figs_axs = [
             plt.subplots(sample_size,
                          args.ncluster,
-                         figsize=(8 * args.ncluster, 8 * args.ncluster))
+                         figsize=(8 * args.ncluster, 4 * args.ncluster))
             for i in range(3)
         ]
 
@@ -233,10 +233,13 @@ class Visualization(object):
                     matplotlib.dates.DateFormatter('%H'))
                 ax_hist[i].legend()
 
+                waveforms = self.dataset.sample_data(
+                    cluster_idxs, type='waveform')[0].numpy()
+                # Call the function to find the centroid waveform.
+                self.centroid_waveform(args, waveforms, i)
+
                 cluster_idxs = cluster_idxs[-sample_size:, ...]
 
-                waveforms = self.dataset.sample_data(cluster_idxs,
-                                                     type='waveform')[0]
                 x = self.dataset.sample_data(cluster_idxs, args.type)
 
                 x = [
@@ -247,42 +250,43 @@ class Visualization(object):
                 waveform_times = self.dataset.get_time_interval(cluster_idxs)
 
                 for j in range(len(cluster_idxs)):
-                    figs_axs[0][1][j, i].plot_date(create_lmst_xticks(
-                        *waveform_times[j],
-                        time_zone='LMST',
-                        window_size=self.window_size),
-                                                   waveforms[j, 0, :],
-                                                   xdate=True,
-                                                   color=self.colors[i % 10],
-                                                   lw=1.2,
-                                                   alpha=0.8,
-                                                   fmt='')
+                    figs_axs[0][1][j, i].plot_date(
+                        create_lmst_xticks(*waveform_times[j],
+                                           time_zone='LMST',
+                                           window_size=self.window_size),
+                        waveforms[j, -1, :] /
+                        np.linalg.norm(waveforms[j, :, :]),
+                        xdate=True,
+                        color=self.colors[i % 10],
+                        lw=1.2,
+                        alpha=0.8,
+                        fmt='')
                     figs_axs[0][1][j, i].xaxis.set_major_locator(
                         matplotlib.dates.MinuteLocator(interval=10))
                     figs_axs[0][1][j, i].xaxis.set_major_formatter(
                         matplotlib.dates.DateFormatter('%H:%M'))
-                    figs_axs[0][1][j, i].set_ylim([-5e-7, 5e-7])
-                    figs_axs[0][1][j, i].set_title("Waveform from cluster " +
-                                                   str(i))
+                    # figs_axs[0][1][j, i].set_ylim([-5e-7, 5e-7])
+                    # figs_axs[0][1][j, i].set_title("Waveform from cluster " +
+                    #                                str(i))
 
                     figs_axs[1][1][j, i].set_ylim(0.1, SAMPLING_RATE / 2)
-                    figs_axs[1][1][j, i].specgram(waveforms[j, 0, :],
+                    figs_axs[1][1][j, i].specgram(waveforms[j, -1, :],
                                                   Fs=SAMPLING_RATE,
                                                   mode='magnitude',
                                                   cmap='RdYlBu_r')
                     figs_axs[1][1][j, i].set_ylim(0.1, SAMPLING_RATE / 2)
                     figs_axs[1][1][j, i].set_yscale("log")
-                    figs_axs[1][1][j,
-                                   i].set_title("Spectrogram from cluster " +
-                                                str(i))
+                    # figs_axs[1][1][j,
+                    #                i].set_title("Spectrogram from cluster " +
+                    #                             str(i))
                     figs_axs[1][1][j, i].grid(False)
 
                     figs_axs[2][1][j, i].plot(x[0][j, 0, :],
                                               color=self.colors[i % 10],
                                               lw=1.2,
                                               alpha=0.8)
-                    figs_axs[2][1][j, i].set_title("Scat covs from cluster " +
-                                                   str(i))
+                    # figs_axs[2][1][j, i].set_title("Scat covs from cluster " +
+                    #                                str(i))
 
         fig_hist.savefig(os.path.join(plotsdir(args.experiment),
                                       'cluster_time_dist.png'),
@@ -462,6 +466,133 @@ class Visualization(object):
         # ax[i].axis('off')
         plt.savefig(os.path.join(plotsdir(args.experiment),
                                  'clustered_samples.png'),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
+
+    def centroid_waveform(self, args, waveforms, cluster_idx):
+        """Compute centroid waveform for each cluster.
+
+        Args:
+            waveforms: (array) array containing the waveforms
+
+        Returns:
+            centroid_waveforms: (array) array containing the centroid waveforms
+        """
+
+        rolled_waveforms = np.zeros_like(waveforms)
+        corr_coefs = np.ones((waveforms.shape[0], waveforms.shape[1]))
+        rolled_waveforms[-1, ...] = waveforms[-1, ...]
+        waveforms = np.pad(waveforms,
+                           ((0, 0), (0, 0),
+                            (waveforms.shape[-1], waveforms.shape[-1])))
+        bs_waveform = waveforms[-1, ...]
+
+        for i in range(waveforms.shape[0] - 1):
+            for j in range(waveforms.shape[1]):
+                correlation = correlate(bs_waveform[j, :],
+                                        waveforms[i, j, :],
+                                        mode="full")
+                lags = correlation_lags(bs_waveform[j, :].size,
+                                        waveforms[i, j, :].size,
+                                        mode="full")
+                lag = lags[np.argmax(correlation)]
+                rolled_waveforms[i, j, :] = np.roll(
+                    waveforms[i, j, :], lag
+                )[rolled_waveforms.shape[-1]:-rolled_waveforms.shape[-1]]
+                corr_coefs[i, j] = np.corrcoef(bs_waveform[j, :],
+                                               waveforms[i, j, :])[0, 1]
+
+        centroid_waveforms = np.zeros(
+            (rolled_waveforms.shape[1], rolled_waveforms.shape[2]))
+        for i in range(centroid_waveforms.shape[0]):
+            centroid_waveforms[i, :] = np.average(rolled_waveforms[:, i, :],
+                                                  weights=corr_coefs[:, i],
+                                                  axis=0)
+
+        fig, ax = plt.subplots(centroid_waveforms.shape[0],
+                               1,
+                               figsize=(12, 12),
+                               sharex=True)
+
+        ax[0].plot(
+            np.linspace(0,
+                        centroid_waveforms.shape[1] / 20,
+                        num=centroid_waveforms.shape[1],
+                        endpoint=True),
+            centroid_waveforms[0, :],
+            color=self.colors[cluster_idx % 10],
+            linewidth=1,
+        )
+        ax[0].set_ylabel('U')
+        ax[0].set_title('Centroid Waveform for cluster {}'.format(cluster_idx))
+        ax[1].plot(
+            np.linspace(0,
+                        centroid_waveforms.shape[1] / 20,
+                        num=centroid_waveforms.shape[1],
+                        endpoint=True),
+            centroid_waveforms[1, :],
+            color=self.colors[cluster_idx % 10],
+            linewidth=1,
+        )
+        ax[1].set_ylabel('V')
+        ax[2].plot(
+            np.linspace(0,
+                        centroid_waveforms.shape[1] / 20,
+                        num=centroid_waveforms.shape[1],
+                        endpoint=True),
+            centroid_waveforms[2, :],
+            color=self.colors[cluster_idx % 10],
+            linewidth=1,
+        )
+        ax[2].set_xlabel('Time (s)')
+        ax[2].set_ylabel('W')
+        ax[2].set_xlim(0, centroid_waveforms.shape[1] / 20)
+        fig.savefig(os.path.join(
+            plotsdir(args.experiment),
+            'centroid_waveform_{}.png'.format(cluster_idx)),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05)
+        plt.close(fig)
+
+        num_waveforms = 20
+        dy = 1.8
+        largest_corr = np.argsort(corr_coefs, axis=0)[::-1][:num_waveforms, :]
+        fig, ax = plt.subplots(1,
+                               centroid_waveforms.shape[0],
+                               figsize=(18, 12),
+                               sharey=True)
+        for i in range(rolled_waveforms.shape[1]):
+            for j in range(num_waveforms):
+                ax[i].plot(
+                    np.linspace(0,
+                                rolled_waveforms.shape[2] / 20,
+                                num=rolled_waveforms.shape[2],
+                                endpoint=True),
+                    rolled_waveforms[largest_corr[j, i], i, :] /
+                    np.max(rolled_waveforms[largest_corr[j, i], :, :]) -
+                    j * dy,
+                    color=self.colors[cluster_idx % 10],
+                    linewidth=1,
+                    alpha=0.7,
+                )
+                ax[i].axes.yaxis.set_visible(False)
+                ax[i].set_xlabel('Time (s)')
+                ax[2].set_xlim(0, centroid_waveforms.shape[1] / 20)
+                ax[2].set_ylim(-(num_waveforms - 1) * dy - 1.5, 1.5)
+        ax[0].set_title('U')
+        ax[1].set_title('V')
+        ax[2].set_title('W')
+        fig.suptitle('Cluster {}, aligned waveforms'.format(cluster_idx))
+        fig.subplots_adjust(top=0.80)
+        fig.tight_layout()
+        fig.savefig(os.path.join(
+            plotsdir(args.experiment),
+            'aligned_waveforms_cluster_{}.png'.format(cluster_idx)),
                     format="png",
                     bbox_inches="tight",
                     dpi=300,
