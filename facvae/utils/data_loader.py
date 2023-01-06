@@ -8,15 +8,16 @@ from sklearn.decomposition import IncrementalPCA
 from sklearn.preprocessing import StandardScaler
 from typing import Optional
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from facvae.utils import (GaussianDataset, CrescentDataset,
                           CrescentCubedDataset, SineWaveDataset, AbsDataset,
                           SignDataset, FourCirclesDataset, DiamondDataset,
                           TwoSpiralsDataset, CheckerboardDataset,
-                          TwoMoonsDataset, RunningStats)
+                          TwoMoonsDataset, RunningStats, plotsdir)
 
 NORMALIZATION_BATCH_SIZE = 10000
-IPCA_BATCH_SIZE = 65536
+IPCA_BATCH_SIZE = 65536//4
 IPCA_NUM_COMPONENTS = 512
 
 
@@ -259,6 +260,21 @@ class MarsDataset(torch.utils.data.Dataset):
                 IPCA_NUM_COMPONENTS, IPCA_BATCH_SIZE), 'wb')
         pickle.dump(ipca, pca_pkl_file)
         pca_pkl_file.close()
+
+    def plot_pca_var_ratio(self):
+
+        pca_pkl_filename = (''.join(self.file_path.split('.')[:-1]) +
+                            '_pca-n-comp-{}_pca-batchsize-{}.pkl'.format(
+                                IPCA_NUM_COMPONENTS, IPCA_BATCH_SIZE))
+
+        with open(pca_pkl_filename, 'rb') as f:
+            ipca = pickle.load(f)
+
+        plt.figure()
+        plt.plot(np.cumsum(ipca.explained_variance_ratio_))
+        plt.xlabel('number of components')
+        plt.ylabel('cumulative explained variance')
+        plt.show()
 
 
 class ToyDataset(torch.utils.data.Dataset):
