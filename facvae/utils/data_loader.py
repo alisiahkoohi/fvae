@@ -16,12 +16,11 @@ from facvae.utils import (GaussianDataset, CrescentDataset,
                           TwoMoonsDataset, RunningStats)
 
 NORMALIZATION_BATCH_SIZE = 10000
-IPCA_BATCH_SIZE = 16384
+IPCA_BATCH_SIZE = 65536
 IPCA_NUM_COMPONENTS = 512
 
 
 class MarsDataset(torch.utils.data.Dataset):
-
     def __init__(self,
                  file_path,
                  train_proportion,
@@ -155,7 +154,7 @@ class MarsDataset(torch.utils.data.Dataset):
         for t in type:
             if self.data[t] is None:
                 x = self.file[t][self.idx_converter(np.sort(idx)),
-                                    ...].reshape(len(idx), *self.shape[t])
+                                 ...].reshape(len(idx), *self.shape[t])
                 x = torch.from_numpy(x)
                 x = self.normalize(x, t)
                 out.append(x)
@@ -254,9 +253,15 @@ class MarsDataset(torch.utils.data.Dataset):
         self.file.close()
         self.file = h5py.File(self.file_path, 'r')
 
+        pca_pkl_file = open(
+            ''.join(self.file_path.split('.')[:-1]) +
+            '_pca-n-comp-{}_pca-batchsize-{}.pkl'.format(
+                IPCA_NUM_COMPONENTS, IPCA_BATCH_SIZE), 'wb')
+        pickle.dump(ipca, pca_pkl_file)
+        pca_pkl_file.close()
+
 
 class ToyDataset(torch.utils.data.Dataset):
-
     def __init__(self, num_points, train_proportion, dataset_name):
         self.num_points = num_points
         self.train_proportion = train_proportion
@@ -311,7 +316,6 @@ class Normalizer():
         std: A torch.Tensor containing the standard deviation over the
         training. eps: A small float to avoid dividing by 0.
     """
-
     def __init__(self,
                  mean: torch.Tensor,
                  std: torch.Tensor,
@@ -355,7 +359,6 @@ class Normalizer():
 
 
 class CatalogReader(torch.utils.data.Dataset):
-
     def __init__(self, path_to_catalog, window_size, frequency=20.0):
 
         self.window_size = window_size
