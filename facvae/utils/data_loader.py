@@ -261,17 +261,22 @@ class MarsDataset(torch.utils.data.Dataset):
         pickle.dump(ipca, pca_pkl_file)
         pca_pkl_file.close()
 
-    def plot_pca_var_ratio(self):
+    def plot_pca_var_ratio(self, n_comp=None, batchsize=None):
+
+        if n_comp is None:
+            n_comp = IPCA_NUM_COMPONENTS
+        if batchsize is None:
+            batchsize = IPCA_BATCH_SIZE
 
         pca_pkl_filename = (''.join(self.file_path.split('.')[:-1]) +
                             '_pca-n-comp-{}_pca-batchsize-{}.pkl'.format(
-                                IPCA_NUM_COMPONENTS, IPCA_BATCH_SIZE))
+                                n_comp, batchsize))
 
         with open(pca_pkl_filename, 'rb') as f:
             ipca = pickle.load(f)
 
         plt.figure()
-        plt.plot(np.cumsum(ipca.explained_variance_ratio_))
+        plt.plot(ipca.explained_variance_ratio_)
         plt.xlabel('number of components')
         plt.ylabel('cumulative explained variance')
         plt.show()
