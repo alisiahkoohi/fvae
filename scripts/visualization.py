@@ -10,7 +10,7 @@ from scipy.signal import spectrogram, correlate, correlation_lags
 import torch
 from tqdm import tqdm
 
-from facvae.utils import plotsdir, create_lmst_xticks, lmst_xtick
+from facvae.utils import plotsdir, create_lmst_xticks, lmst_xtick, roll_zeropad
 
 sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}
@@ -481,29 +481,30 @@ class Visualization(object):
         Returns:
             centroid_waveforms: (array) array containing the centroid waveforms
         """
-
+        for i in range(waveforms.shape[0]):
+            for j in range(waveforms.shape[1]):
+                waveforms[i, j, :] = waveforms[i, j, :] - np.mean(
+                    waveforms[i, j, :])
+                waveforms[i, j, :] = waveforms[i, j, :] / np.std(
+                    waveforms[i, j, :])
         rolled_waveforms = np.zeros_like(waveforms)
         corr_coefs = np.ones((waveforms.shape[0], waveforms.shape[1]))
         rolled_waveforms[-1, ...] = waveforms[-1, ...]
-        waveforms = np.pad(waveforms,
-                           ((0, 0), (0, 0),
-                            (waveforms.shape[-1], waveforms.shape[-1])))
         bs_waveform = waveforms[-1, ...]
 
         for i in range(waveforms.shape[0] - 1):
             for j in range(waveforms.shape[1]):
                 correlation = correlate(bs_waveform[j, :],
                                         waveforms[i, j, :],
-                                        mode="full")
+                                        mode="same")
                 lags = correlation_lags(bs_waveform[j, :].size,
                                         waveforms[i, j, :].size,
-                                        mode="full")
+                                        mode="same")
                 lag = lags[np.argmax(correlation)]
-                rolled_waveforms[i, j, :] = np.roll(
-                    waveforms[i, j, :], lag
-                )[rolled_waveforms.shape[-1]:-rolled_waveforms.shape[-1]]
-                corr_coefs[i, j] = np.corrcoef(bs_waveform[j, :],
-                                               waveforms[i, j, :])[0, 1]
+                rolled_waveforms[i,
+                                 j, :] = roll_zeropad(waveforms[i, j, :], lag)
+                corr_coefs[i, j] = np.corrcoef(bs_waveform[j, ],
+                                               rolled_waveforms[i, j, :])[0, 1]
 
         centroid_waveforms = np.zeros(
             (rolled_waveforms.shape[1], rolled_waveforms.shape[2]))
@@ -574,8 +575,8 @@ class Visualization(object):
                                 num=rolled_waveforms.shape[2],
                                 endpoint=True),
                     rolled_waveforms[largest_corr[j, i], i, :] /
-                    np.max(rolled_waveforms[largest_corr[j, i], :, :]) -
-                    j * dy,
+                    np.max(np.abs(rolled_waveforms[largest_corr[j, i], i, :]))
+                    - j * dy,
                     color=self.colors[cluster_idx % 10],
                     linewidth=1,
                     alpha=0.7,
