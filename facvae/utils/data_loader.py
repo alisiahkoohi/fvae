@@ -245,6 +245,13 @@ class MarsDataset(torch.utils.data.Dataset):
                                   chunks=(128, IPCA_NUM_COMPONENTS),
                                   dtype=np.float32)
 
+        pca_pkl_file = open(
+            ''.join(self.file_path.split('.')[:-1]) +
+            '_pca-n-comp-{}_pca-batchsize-{}.pkl'.format(
+                IPCA_NUM_COMPONENTS, IPCA_BATCH_SIZE), 'wb')
+        pickle.dump(ipca, pca_pkl_file)
+        pca_pkl_file.close()
+
         for i in tqdm(range(0, self.num_windows, IPCA_BATCH_SIZE)):
             batch = self.file[type][i:i + IPCA_BATCH_SIZE, ...]
             batch = batch.reshape(batch.shape[0], -1)
@@ -253,13 +260,6 @@ class MarsDataset(torch.utils.data.Dataset):
             self.file[dim_reduced_type][i:i + batch.shape[0], :] = batch
         self.file.close()
         self.file = h5py.File(self.file_path, 'r')
-
-        pca_pkl_file = open(
-            ''.join(self.file_path.split('.')[:-1]) +
-            '_pca-n-comp-{}_pca-batchsize-{}.pkl'.format(
-                IPCA_NUM_COMPONENTS, IPCA_BATCH_SIZE), 'wb')
-        pickle.dump(ipca, pca_pkl_file)
-        pca_pkl_file.close()
 
     def plot_pca_var_ratio(self, n_comp=None, batchsize=None):
 
