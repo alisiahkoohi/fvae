@@ -304,7 +304,7 @@ class MultiOutputGenerativeMLPNet(torch.nn.Module):
     # p(z|y)
     def pzy(self, y):
         y_mu = self.y_mu(y)
-        y_var = F.softplus(self.y_var(y))
+        y_var = F.softplus(self.y_var(y)) + 1.0
         return y_mu, y_var
 
     # p(x|z)
@@ -358,7 +358,7 @@ class GenerativeMLPNet(torch.nn.Module):
     # p(z|y)
     def pzy(self, y):
         y_mu = self.y_mu(y)
-        y_var = F.softplus(self.y_var(y))
+        y_var = F.softplus(self.y_var(y)) + 1.0
         return y_mu, y_var
 
     # p(x|z)
