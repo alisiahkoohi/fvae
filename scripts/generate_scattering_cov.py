@@ -8,10 +8,14 @@ from tqdm import tqdm
 import torch
 
 from scatcov.frontend import analyze
-from facvae.utils import datadir, is_night_time_event, make_h5_file_name
+from facvae.utils import (configsdir, datadir, parse_input_args, read_config,
+                          is_night_time_event, make_h5_file_name)
 
 # Path to Mars data directory.
 MARS_PATH = datadir('mars')
+
+# Scattering covariance generation parameters.
+SCATCOV_CONFIG_FILE = 'generate_scatcov.json'
 
 # Datastream merge method.
 MERGE_METHOD = 1
@@ -23,18 +27,32 @@ OFFSET = 0
 
 
 class Pooling(torch.nn.Module):
-
     def __init__(self, kernel_size):
         super(Pooling, self).__init__()
         self.pool = torch.nn.AvgPool1d(kernel_size)
 
     def forward(self, x):
-        y = self.pool(x.view(x.shape[0], -1, x.shape[-1]))
+        if x.dtype in [torch.complex64, torch.complex128]:
+
+            # Separate real and imaginary parts.
+            x_real = x.real
+            x_imag = x.imag
+
+            # Perform average pooling on real and imaginary parts separately.
+            x_real = self.pool(x_real.view(x.shape[0], -1, x.shape[-1]))
+            x_imag = self.pool(x_imag.view(x.shape[0], -1, x.shape[-1]))
+
+            # Combine real and imaginary parts back into a complex tensor.
+            y = torch.view_as_complex(torch.stack([x_real, x_imag], dim=-1))
+        else:
+            y = self.pool(x.view(x.shape[0], -1, x.shape[-1]))
+
         return y.view(x.shape[:-1] + (-1, ))
 
 
 def setup_hdf5_file(path, scat_cov_filename, window_size, max_win_num,
-                    num_components, scat_cov_size, filter_key):
+                    num_components, scatcov_size_list, kernel_size_list,
+                    filter_key):
     """
     Setting up an HDF5 file to write scattering covariances.
     """
@@ -53,10 +71,13 @@ def setup_hdf5_file(path, scat_cov_filename, window_size, max_win_num,
     # the actual number of windows in the data. Chunks are chosen to be
     # efficient for extracting single-component scattering covariances for each
     # window.
-    file.require_dataset('scat_cov',
-                         (max_win_num, num_components, scat_cov_size, 2),
-                         chunks=(1, 1, scat_cov_size, 2),
-                         dtype=np.float32)
+    scatcov_group = file.require_group('scat_cov')
+    for kernel_size, scatcov_size in zip(kernel_size_list, scatcov_size_list):
+        scatcov_group.require_dataset(
+            str(kernel_size), (max_win_num, num_components * scatcov_size[1],
+                               scatcov_size[0], 2),
+            chunks=(1, num_components * scatcov_size[1], scatcov_size[0], 2),
+            dtype=np.float32)
     # Raw waveforms dataset of size `max_win_num x window_size`. The dataset
     # will be resized at the end to reflect the actual number of windows in the
     # data. Chunks are chosen to be efficient for extracting a single-component
@@ -79,7 +100,7 @@ def setup_hdf5_file(path, scat_cov_filename, window_size, max_win_num,
 
 
 def update_hdf5_file(path, scat_cov_filename, filename, window_idx, waveform,
-                     scat_covariances, time_intervals):
+                     scat_covariances_list, kernel_size_list, time_intervals):
     """
     Update the HDF5 file by writing new scattering covariances.
     """
@@ -90,7 +111,9 @@ def update_hdf5_file(path, scat_cov_filename, filename, window_idx, waveform,
     file = h5py.File(file_path, 'r+')
 
     # Write `scat_covariances` to the HDF5 file.
-    file['scat_cov'][window_idx, ...] = scat_covariances
+    for kernel_size, scat_covariances in zip(kernel_size_list,
+                                             scat_covariances_list):
+        file['scat_cov'][str(kernel_size)][window_idx, ...] = scat_covariances
     # Write `waveform` to the HDF5 file.
     file['waveform'][window_idx, ...] = waveform
     # Write `time_intervals` to the HDF5 file.
@@ -110,8 +133,11 @@ def finalize_dataset_size(path, scat_cov_filename, num_windows):
     file = h5py.File(file_path, 'r+')
 
     for key in file.keys():
-        if key != 'filter_key':
+        if key not in ['filter_key', 'scat_cov']:
             file[key].resize(num_windows, axis=0)
+        elif key == 'scat_cov':
+            for dset_name in file[key].keys():
+                file[key][dset_name].resize(num_windows, axis=0)
 
     file.close()
 
@@ -136,19 +162,29 @@ def compute_scat_cov(args):
     num_components = len(data_stream)
     # Data sampling rate.
     sampling_rate = data_stream[0].meta.sampling_rate
+
     # Shape of the scattering covariance for one window size.
-    scat_cov_size = np.prod(
-        analyze(data_stream[0][:args.window_size].astype(np.float32),
-                Q=args.q,
-                J=args.j,
-                r=len(args.q),
-                keep_ps=True,
-                model_type=args.model_type,
-                cuda=args.cuda,
-                normalize='each_ps',
-                estim_operator=args.avg_pool,
-                qs=[1.0] if args.model_type == 'scat' else None,
-                nchunks=1).y.shape[1:])
+    scatcov_size_list = []
+    kernel_size_list = []
+    avg_pool_list = []
+
+    print('Setting up HDF5 file for various time averaging kernel sizes ...')
+    for avgpool_exp in tqdm(args.avgpool_exp):
+        kernel_size_list.append(args.avgpool_base**avgpool_exp)
+        avg_pool_list.append(Pooling(kernel_size=kernel_size_list[-1]))
+        scatcov_size_list.append(
+            analyze(data_stream[0][:args.window_size].astype(np.float32),
+                    Q=args.q,
+                    J=args.j,
+                    r=len(args.q),
+                    keep_ps=True,
+                    model_type=args.model_type,
+                    cuda=args.cuda,
+                    normalize='each_ps',
+                    estim_operator=avg_pool_list[-1],
+                    qs=[1.0] if args.model_type == 'scat' else None,
+                    nchunks=1).y.shape[1:])
+
     # Max window number.
     max_win_num = int(
         len(raw_data_files) * 24 * 3600 * sampling_rate / args.window_size /
@@ -156,8 +192,8 @@ def compute_scat_cov(args):
 
     # Setup HDF5 file.
     setup_hdf5_file(scat_cov_path, args.scat_cov_filename, args.window_size,
-                    max_win_num, num_components, scat_cov_size,
-                    args.filter_key)
+                    max_win_num, num_components, scatcov_size_list,
+                    kernel_size_list, args.filter_key)
 
     discarded_files = 0
     num_windows = 0
@@ -213,34 +249,46 @@ def compute_scat_cov(args):
                             window_num * num_components,
                             args.window_size).astype(np.float32)
 
-                        # Compute scattering covariance.
-                        y = analyze(
-                            batched_window,
-                            Q=args.q,
-                            J=args.j,
-                            r=len(args.q),
-                            keep_ps=True,
-                            model_type=args.model_type,
-                            cuda=args.cuda,
-                            normalize='each_ps',
-                            estim_operator=args.avg_pool,
-                            qs=[1.0] if args.model_type == 'scat' else None,
-                            nchunks=args.nchunks).y
+                        y_list = []
+                        for avg_pool, scatcov_size, kernel_size in tqdm(
+                                zip(avg_pool_list, scatcov_size_list,
+                                    kernel_size_list)):
+                            # Compute scattering covariance.
+                            y = analyze(batched_window,
+                                        Q=args.q,
+                                        J=args.j,
+                                        r=len(args.q),
+                                        keep_ps=True,
+                                        model_type=args.model_type,
+                                        cuda=args.cuda,
+                                        normalize='each_ps',
+                                        estim_operator=avg_pool,
+                                        qs=[1.0]
+                                        if args.model_type == 'scat' else None,
+                                        nchunks=args.nchunks).y
 
-                        y = y.reshape(window_num, num_components,
-                                      scat_cov_size).numpy()
+                            y = y.reshape(window_num, num_components,
+                                          *scatcov_size)
+                            y = torch.permute(y, (0, 1, 3, 2))
+                            y = y.reshape(window_num,
+                                          num_components * scatcov_size[1],
+                                          scatcov_size[0]).numpy()
+                            y_list.append(y)
+
                         batched_window = batched_window.reshape(
                             window_num, num_components, args.window_size)
 
-                        # Compute the average of the scattering covariance
-                        # over the time axis.
                         for b in range(window_num):
-
                             # CASE 1: keep real and imag parts by considering
                             # it as different real coefficients
-                            scat_covariances = np.stack(
-                                [y[b, ...].real, y[b, ...].imag],
-                                axis=-1).astype(np.float32)
+                            scat_covariances_list = []
+                            for avgpool_idx in range(len(avg_pool_list)):
+                                scat_covariances_list.append(
+                                    np.stack([
+                                        y_list[avgpool_idx][b, ...].real,
+                                        y_list[avgpool_idx][b, ...].imag
+                                    ],
+                                             axis=-1).astype(np.float32))
 
                             # CASE 2: only keeps the modulus of the scattering
                             # covariance, hence discarding time asymmetry info
@@ -258,12 +306,11 @@ def compute_scat_cov(args):
                                              args.scat_cov_filename, filename,
                                              num_windows, batched_window[b,
                                                                          ...],
-                                             scat_covariances,
+                                             scat_covariances_list,
+                                             kernel_size_list,
                                              time_intervals[b])
                             num_windows += 1
                             pb.set_postfix({
-                                'shape':
-                                scat_covariances.shape,
                                 'discarded':
                                 f'{discarded_files/(file_idx + 1):.4f}'
                             })
@@ -275,57 +322,15 @@ def compute_scat_cov(args):
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--window_size',
-                        dest='window_size',
-                        type=int,
-                        default=2**11,
-                        help='Window size of raw waveforms')
-    parser.add_argument('--q', dest='q', type=str, default='6,2,2')
-    parser.add_argument('--j', dest='j', type=str, default='6,7,7')
-    parser.add_argument('--cuda',
-                        dest='cuda',
-                        type=int,
-                        default=1,
-                        help='set to 1 for running on GPU, 0 for CPU')
-    parser.add_argument('--nchunks',
-                        dest='nchunks',
-                        type=int,
-                        default=16,
-                        help='set higher for less memory usage.')
-    parser.add_argument('--use_day_data',
-                        dest='use_day_data',
-                        type=int,
-                        default=1,
-                        help='set to 0 for extracting only night time data')
-    parser.add_argument(
-        '--avg_pool',
-        dest='avg_pool',
-        type=int,
-        default=512,
-        help='use average pooling instead of integration over time')
-    parser.add_argument('--model_type',
-                        dest='model_type',
-                        type=str,
-                        default='scat',
-                        help='model types to be extracted')
-    parser.add_argument('--filter_key',
-                        dest='filter_key',
-                        type=str,
-                        default='',
-                        help='filter ket to filter filenames')
-    parser.add_argument('--filename',
-                        dest='filename',
-                        type=str,
-                        default='3c_raw',
-                        help='filename prefix to be created')
-    args = parser.parse_args()
+    # Command line arguments.
+    args = read_config(os.path.join(configsdir(), SCATCOV_CONFIG_FILE))
+    args = parse_input_args(args)
     args.q = [int(j) for j in args.q.replace(' ', '').split(',')]
     args.j = [int(j) for j in args.j.replace(' ', '').split(',')]
+    args.avgpool_exp = [
+        int(j) for j in args.avgpool_exp.replace(' ', '').split(',')
+    ]
     args.filter_key = args.filter_key.replace(' ', '').split(',')
     args.scat_cov_filename = make_h5_file_name(args)
-    args.avg_pool = Pooling(
-        kernel_size=args.avg_pool) if args.avg_pool else None
 
     compute_scat_cov(args)
