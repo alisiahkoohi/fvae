@@ -4,15 +4,8 @@ for Q in 1,1
 do
     IFS=","
     set -- $Q
-    CUDA_VISIBLE_DEVICES=0 python scripts/generate_scattering_cov.py \
-        --window_size 4096 \
+    CUDA_VISIBLE_DEVICES=3 python scripts/generate_scattering_cov.py \
         --q $1,$2 \
-        --j '8,8' \
-        --cuda 1 \
-        --nchunks 16 \
-        --use_day_data 1 \
-        --avg_pool 8 \
-        --model_type scat+cov \
-        --filter_key "" \
-        --filename test_avgpool
+        --filter_key "2020" \
+        --filename neurips_2020
 done
