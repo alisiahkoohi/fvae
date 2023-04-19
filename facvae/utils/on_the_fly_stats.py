@@ -1,7 +1,7 @@
 import torch
 from mpire import WorkerPool
 import numpy as np
-
+from typing import Optional
 
 class RunningStats(object):
     """Running first- and second-order statistics.
@@ -66,3 +66,55 @@ class RunningStats(object):
         """
         return self.running_mean, torch.sqrt(self.running_sum_of_differences /
                                              self.num_samples)
+
+
+class Normalizer():
+    """Normalizer a tensor image with training mean and standard deviation.
+    Extracts the mean and standard deviation from the training dataset, and
+    uses them to normalize an input image.
+
+    Attributes:
+        mean: A torch.Tensor containing the mean over the training dataset.
+        std: A torch.Tensor containing the standard deviation over the
+        training. eps: A small float to avoid dividing by 0.
+    """
+    def __init__(self,
+                 mean: torch.Tensor,
+                 std: torch.Tensor,
+                 eps: Optional[int] = 1e-6):
+        """Initializes a Normalizer object.
+        Args:
+            mean: A torch.Tensor that contains the mean of input data.
+            std: A torch.Tensor that contains the standard deviation of input.
+            dimension. eps: A optional small float to avoid dividing by 0.
+        """
+        super().__init__()
+
+        # Compute the training dataset mean and standard deviation over the
+        # batch dimensions.
+        self.mean = mean
+        self.std = std
+        self.eps = eps
+
+    def normalize(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply normalization to input sample.
+        Args:
+            x: A torch.Tensor with the same dimension organization as
+            `dataset`.
+        Returns:
+            A torch.Tensor with the same dimension organization as `x` but
+            normalized with the mean and standard deviation of the training
+            dataset.
+        """
+        return (x - self.mean) / (self.std + self.eps)
+
+    def unnormalize(self, x: torch.Tensor) -> torch.Tensor:
+        """Restore the normalization from the input sample.
+        Args:
+            x: A normalized torch.Tensor with the same dimension organization
+            as `dataset`.
+        Returns:
+            A torch.Tensor with the same dimension organization as `x` that has
+            been unnormalized.
+        """
+        return x * (self.std + self.eps) + self.mean

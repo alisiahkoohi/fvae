@@ -74,9 +74,9 @@ def setup_hdf5_file(path, scat_cov_filename, window_size, max_win_num,
     scatcov_group = file.require_group('scat_cov')
     for kernel_size, scatcov_size in zip(kernel_size_list, scatcov_size_list):
         scatcov_group.require_dataset(
-            str(kernel_size), (max_win_num, num_components, scatcov_size[1],
-                               scatcov_size[0], 2),
-            chunks=(1, num_components, scatcov_size[1], scatcov_size[0], 2),
+            str(kernel_size),
+            (max_win_num, scatcov_size[1], num_components, scatcov_size[0], 2),
+            chunks=(1, scatcov_size[1], num_components, scatcov_size[0], 2),
             dtype=np.float32)
     # Raw waveforms dataset of size `max_win_num x window_size`. The dataset
     # will be resized at the end to reflect the actual number of windows in the
@@ -269,7 +269,7 @@ def compute_scat_cov(args):
 
                             y = y.reshape(window_num, num_components,
                                           *scatcov_size)
-                            y = torch.permute(y, (0, 1, 3, 2)).numpy()
+                            y = torch.permute(y, (0, 3, 1, 2)).numpy()
                             y_list.append(y)
 
                         batched_window = batched_window.reshape(
