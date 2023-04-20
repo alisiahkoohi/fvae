@@ -6,14 +6,12 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from facvae.utils import checkpointsdir, CustomLRScheduler, logsdir
-from facvae.vae import (GMVAENetwork, GMMultiIOVAENetwork, LossFunctions,
-                        Metrics)
+from facvae.vae import FactorialVAE, LossFunctions, Metrics
 
 
-class FACVAETrainer(object):
+class FactorialVAETrainer(object):
     """Class training a Gaussian mixture variational autoencoder model.
     """
-
     def __init__(self, args, dataset, device):
         self.w_rec = args.w_rec
         self.w_gauss = args.w_gauss
@@ -22,25 +20,18 @@ class FACVAETrainer(object):
         self.device = device
 
         # Network architecture.
-        print([dataset.shape[type] for type in args.type])
-        if args.type:
-            if len(args.type) > 1:
-                in_shape = [
-                    dataset.shape[args.type[j]] for j in range(len(args.type))
-                ]
-                network = GMMultiIOVAENetwork
-            else:
-                in_shape = dataset.shape[args.type[0]]
-                network = GMVAENetwork
-        else:
-            in_shape = dataset.shape
-            network = GMVAENetwork
-        self.network = network(in_shape,
-                               args.latent_dim,
-                               args.ncluster,
-                               args.init_temp,
-                               hidden_dim=args.hidden_dim,
-                               nlayer=args.nlayer).to(self.device)
+        self.in_shape = {
+            scale: dataset.shape['scat_cov'][scale]
+            for scale in args.scales
+        }
+        print('waveform shape: ', dataset.shape['waveform'])
+        print('Multiscale scattering covariance shapes: ', self.in_shape)
+        self.network = FactorialVAE(self.in_shape,
+                                    args.latent_dim,
+                                    args.ncluster,
+                                    args.init_temp,
+                                    hidden_dim=args.hidden_dim,
+                                    nlayer=args.nlayer).to(self.device)
 
         # Tensorboard writer.
         if args.phase == 'train':
@@ -78,31 +69,38 @@ class FACVAETrainer(object):
         y_mu, y_var = out_net['y_mean'], out_net['y_var']
         mu, var = out_net['mean'], out_net['var']
 
-        # Reconstruction loss.
         rec_loss = 0.0
-        for i in range(len(data_recon)):
+        gauss_loss = 0.0
+        cat_loss = 0.0
+        cat_loss_prior = 0.0
+        for scale in data.keys():
+            # Reconstruction loss.
             rec_loss += self.losses.reconstruction_loss(
-                data[i], data_recon[i], 'mse')
+                data[scale], data_recon[scale], 'mse')
 
-        # Gaussian loss.
-        gauss_loss = self.losses.gaussian_loss(z, mu, var, y_mu, y_var)
-        # gauss_loss = self.losses.gaussian_closed_form_loss(
-        #     mu, var, y_mu, y_var)
+            # Gaussian loss.
+            gauss_loss += self.losses.gaussian_loss(z[scale], mu[scale],
+                                                    var[scale], y_mu[scale],
+                                                    y_var[scale])
+            # gauss_loss = self.losses.gaussian_closed_form_loss(
+            #     mu[scale], var[scale], y_mu[scale], y_var[scale])
 
-        # Categorical loss (posterior)
-        cat_loss = -self.losses.entropy(logits, prob_cat)
-        # Categorical prior.
-        pi = torch.ones_like(prob_cat)
-        # pi[:, 0] = 0.1
-        # pi[:, 1] = 0.1
-        cat_loss_prior = self.losses.entropy(pi, prob_cat)
+            # Categorical loss (posterior).
+            cat_loss -= self.losses.entropy(logits[scale], prob_cat[scale])
+
+            # Categorical prior.
+            pi = torch.ones_like(prob_cat[scale])
+            cat_loss_prior += self.losses.entropy(pi, prob_cat[scale])
 
         # Total loss.
         vae_loss = (self.w_rec * rec_loss + self.w_gauss * gauss_loss +
                     self.w_cat * (cat_loss + cat_loss_prior))
 
         # Obtain predictions.
-        _, clusters = torch.max(logits, dim=1)
+        clusters = {
+            scale: torch.max(logits[scale], dim=1)[1]
+            for scale in logits.keys()
+        }
 
         return {
             'vae': vae_loss,
@@ -141,6 +139,7 @@ class FACVAETrainer(object):
                   colour='#B5F2A9',
                   dynamic_ncols=True) as pb:
             for epoch in pb:
+                self.network.train()
                 # iterate over the dataset
                 for i_idx, idx in enumerate(train_loader):
                     # Reset gradient attributes.
@@ -149,11 +148,15 @@ class FACVAETrainer(object):
                     scheduler.step()
 
                     # Load data batch.
-                    x = self.dataset.sample_data(idx, args.type)
-                    x = [x[i].to(self.device) for i in range(len(x))]
+                    x = self.dataset.sample_data(idx, 'scat_cov')
+                    x = {
+                        scale: x[scale].to(self.device)
+                        for scale in self.in_shape.keys()
+                    }
 
                     # Forward call.
                     y = self.network(x)
+
                     # Compute loss.
                     train_loss = self.compute_loss(x, y)
                     # Compute gradients.
@@ -171,14 +174,18 @@ class FACVAETrainer(object):
 
                 # Log progress.
                 if epoch % 1 == 0:
+                    self.network.eval()
                     with torch.no_grad():
                         x_val = self.dataset.sample_data(
-                            next(iter(val_loader)), args.type)
-                        x_val = [
-                            x_val[i].to(self.device) for i in range(len(x_val))
-                        ]
+                            next(iter(val_loader)), 'scat_cov')
+                        x_val = {
+                            scale: x_val[scale].to(self.device)
+                            for scale in self.in_shape.keys()
+                        }
+
                         y_val = self.network(x_val)
                         val_loss = self.compute_loss(x_val, y_val)
+
                         self.log_progress(args, epoch, train_loss, val_loss)
 
                 # Decay gumbel temperature
@@ -218,19 +225,20 @@ class FACVAETrainer(object):
             if key != 'clusters':
                 self.val_log[key].append(item.item())
 
-        self.writer.add_scalars(
-            'classes_train', {
-                str(i): (train_loss['clusters']
-                         == i).cpu().numpy().astype(float).mean()
-                for i in range(args.ncluster)
-            }, epoch)
+        for scale in self.in_shape.keys():
+            self.writer.add_scalars(
+                'classes_train_' + scale, {
+                    str(i): (train_loss['clusters'][scale]
+                             == i).cpu().numpy().astype(float).mean()
+                    for i in range(args.ncluster)
+                }, epoch)
 
-        self.writer.add_scalars(
-            'classes_val', {
-                str(i):
-                (val_loss['clusters'] == i).cpu().numpy().astype(float).mean()
-                for i in range(args.ncluster)
-            }, epoch)
+            self.writer.add_scalars(
+                'classes_val_' + scale, {
+                    str(i): (val_loss['clusters'][scale]
+                             == i).cpu().numpy().astype(float).mean()
+                    for i in range(args.ncluster)
+                }, epoch)
 
         self.writer.add_scalars('vae_loss', {
             'train': train_loss['vae'],

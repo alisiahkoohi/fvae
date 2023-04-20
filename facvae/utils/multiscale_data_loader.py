@@ -13,6 +13,7 @@ class MarsMultiscaleDataset(torch.utils.data.Dataset):
                  file_path,
                  train_proportion,
                  data_types=['scat_cov'],
+                 scatcov_datasets = None,
                  load_to_memory=True,
                  normalize_data=False,
                  filter_key=[]):
@@ -24,7 +25,8 @@ class MarsMultiscaleDataset(torch.utils.data.Dataset):
         self.file_path = file_path
         self.file = h5py.File(file_path, 'r')
         self.num_windows = self.file['waveform'].shape[0]
-        scatcov_datasets = list(self.file['scat_cov'].keys())
+        if not scatcov_datasets:
+            scatcov_datasets = list(self.file['scat_cov'].keys())
         self.scatcov_datasets = scatcov_datasets
         self.shape = {
             'waveform': self.file['waveform'].shape[1:],
@@ -181,47 +183,41 @@ class MarsMultiscaleDataset(torch.utils.data.Dataset):
         return x
 
     def sample_data(self, idx, type):
-        if not isinstance(type, list):
-            type = [type]
-        out = []
-        for t in type:
-            if t == 'scat_cov':
-                scatcov_out = {}
-                for dset_name in self.scatcov_datasets:
-                    if self.data['scat_cov'][dset_name] is None:
-                        x = self.file['scat_cov'][dset_name][
-                            self.idx_converter(np.sort(idx)),
-                            ...].reshape(-1,
-                                         *self.shape['scat_cov'][dset_name])
-                        x = torch.from_numpy(x)
-                        x = self.normalize(x, 'scat_cov', dset_name=dset_name)
-                        scatcov_out[dset_name] = x
-                    else:
-                        if (not self.already_normalized['scat_cov'][dset_name]
-                            ) and self.normalize_data:
-                            self.data['scat_cov'][dset_name] = self.normalize(
-                                self.data['scat_cov'][dset_name][...],
-                                'scat_cov',
-                                dset_name=dset_name)
-                            self.already_normalized['scat_cov'][
-                                dset_name] = True
-                        scatcov_out[dset_name] = self.data['scat_cov'][
-                            dset_name][np.sort(idx), ...].reshape(
-                                -1, *self.shape['scat_cov'][dset_name])
-                out.append(scatcov_out)
-            else:
-                if self.data[t] is None:
-                    x = self.file[t][self.idx_converter(np.sort(idx)),
-                                     ...].reshape(len(idx), *self.shape[t])
+        if type == 'scat_cov':
+            out = {}
+            for dset_name in self.scatcov_datasets:
+                if self.data['scat_cov'][dset_name] is None:
+                    x = self.file['scat_cov'][dset_name][
+                        self.idx_converter(np.sort(idx)),
+                        ...].reshape(-1,
+                                        *self.shape['scat_cov'][dset_name])
                     x = torch.from_numpy(x)
-                    x = self.normalize(x, t)
-                    out.append(x)
+                    x = self.normalize(x, 'scat_cov', dset_name=dset_name)
+                    out[dset_name] = x
                 else:
-                    if (not self.already_normalized[t]
+                    if (not self.already_normalized['scat_cov'][dset_name]
                         ) and self.normalize_data:
-                        self.data[t] = self.normalize(self.data[t][...], t)
-                        self.already_normalized[t] = True
-                    out.append(self.data[t][np.sort(idx), ...])
+                        self.data['scat_cov'][dset_name] = self.normalize(
+                            self.data['scat_cov'][dset_name][...],
+                            'scat_cov',
+                            dset_name=dset_name)
+                        self.already_normalized['scat_cov'][
+                            dset_name] = True
+                    out[dset_name] = self.data['scat_cov'][
+                        dset_name][np.sort(idx), ...].reshape(
+                            -1, *self.shape['scat_cov'][dset_name])
+        else:
+            if self.data[t] is None:
+                x = self.file[t][self.idx_converter(np.sort(idx)),
+                                    ...].reshape(len(idx), *self.shape[t])
+                x = torch.from_numpy(x)
+                out = self.normalize(x, t)
+            else:
+                if (not self.already_normalized[t]
+                    ) and self.normalize_data:
+                    self.data[t] = self.normalize(self.data[t][...], t)
+                    self.already_normalized[t] = True
+                out = self.data[t][np.sort(idx), ...]
         return out
 
     def get_labels(self, idx):

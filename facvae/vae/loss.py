@@ -63,6 +63,7 @@ class LossFunctions(object):
             output: (array/float) depending on average parameters the result will be the mean
                 of all the sample losses or an array with the losses per sample
         """
+
         loss = self.log_normal(z, z_mu, z_var) - self.log_normal(
             z, z_mu_prior, z_var_prior)
         return loss.mean()

@@ -12,7 +12,7 @@ import torch
 from facvae.utils import (configsdir, datadir, parse_input_args, read_config,
                           make_experiment_name, MarsMultiscaleDataset,
                           upload_results)
-from scripts.facvae_trainer import FACVAETrainer
+from scripts.facvae_trainer import FactorialVAETrainer
 from scripts.visualization import Visualization
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
@@ -30,13 +30,13 @@ torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
     # Command line arguments.
-    args = read_config(os.path.join(configsdir(), MULTI_MARS_CONFIG_FILE))
+    args = read_config(os.path.join(configsdir(), MARS_CONFIG_FILE))
     args = parse_input_args(args)
     args.experiment = make_experiment_name(args)
     if hasattr(args, 'filter_key'):
         args.filter_key = args.filter_key.replace(' ', '').split(',')
-    if hasattr(args, 'type'):
-        args.type = args.type.replace(' ', '').split(',')
+    if hasattr(args, 'scales'):
+        args.scales = args.scales.replace(' ', '').split(',')
 
     # Setting default device (cpu/cuda) depending on CUDA availability and
     # input arguments.
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     dataset = MarsMultiscaleDataset(os.path.join(MARS_SCAT_COV_PATH,
                                                  args.h5_filename),
                                     0.90,
-                                    data_types=args.type,
+                                    scatcov_datasets=args.scales,
                                     load_to_memory=args.load_to_memory,
                                     normalize_data=args.normalize,
                                     filter_key=args.filter_key)
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     train_loader = torch.utils.data.DataLoader(dataset.train_idx,
                                                batch_size=args.batchsize,
                                                shuffle=True,
-                                               drop_last=False)
+                                               drop_last=True)
     val_loader = torch.utils.data.DataLoader(dataset.val_idx,
                                              batch_size=args.batchsize,
                                              shuffle=True,
@@ -70,7 +70,7 @@ if __name__ == "__main__":
                                               shuffle=False,
                                               drop_last=False)
 
-    facvae_trainer = FACVAETrainer(args, dataset, device)
+    facvae_trainer = FactorialVAETrainer(args, dataset, device)
 
     if args.phase == 'train':
         # Training Phase.
