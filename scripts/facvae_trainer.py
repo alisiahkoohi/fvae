@@ -10,7 +10,7 @@ from facvae.vae import (GMVAENetwork, GMMultiIOVAENetwork, LossFunctions,
                         Metrics)
 
 
-class GaussianMixtureVAE(object):
+class FACVAETrainer(object):
     """Class training a Gaussian mixture variational autoencoder model.
     """
 
