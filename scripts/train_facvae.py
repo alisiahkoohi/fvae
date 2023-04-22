@@ -29,10 +29,17 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
-    # Command line arguments.
+    # Read configuration from the JSON file specified by MARS_CONFIG_FILE.
     args = read_config(os.path.join(configsdir(), MARS_CONFIG_FILE))
+
+    # Parse input arguments from the command line
     args = parse_input_args(args)
+
+    # Set experiment name based on input arguments
     args.experiment = make_experiment_name(args)
+
+    # Process filter_key and scales arguments to remove spaces and split by
+    # comma
     if hasattr(args, 'filter_key'):
         args.filter_key = args.filter_key.replace(' ', '').split(',')
     if hasattr(args, 'scales'):
@@ -42,12 +49,10 @@ if __name__ == "__main__":
     # input arguments.
     if torch.cuda.is_available() and args.cuda:
         device = torch.device('cuda')
-        # Read in all the data into CPU memory to avoid slowing down GPU.
     else:
         device = torch.device('cpu')
-        # Read the data from disk batch by batch.
 
-    # Read Data
+    # Load data from the Mars dataset
     dataset = MarsMultiscaleDataset(os.path.join(MARS_SCAT_COV_PATH,
                                                  args.h5_filename),
                                     0.90,
@@ -70,22 +75,35 @@ if __name__ == "__main__":
                                               shuffle=False,
                                               drop_last=False)
 
+    # Initialize facvae trainer with the input arguments, dataset, and device
     facvae_trainer = FactorialVAETrainer(args, dataset, device)
 
-    if args.phase == 'train':
-        # Training Phase.
-        facvae_trainer.train(args, train_loader, val_loader)
-    elif args.phase == 'test':
-        network = facvae_trainer.load_checkpoint(args, args.max_epoch - 1)
-        network.gumbel_temp = np.maximum(
-            args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
-            args.min_temp)
-        args.experiment = args.experiment + '_' + str(len(dataset.test_idx))
+if args.phase == 'train':
+    # Training Phase.
+    # Create an instance of FactorialVAETrainer class.
+    facvae_trainer = FactorialVAETrainer(args, dataset, device)
+    # Train the model using train_loader and val_loader.
+    facvae_trainer.train(args, train_loader, val_loader)
 
-        vis = Visualization(network, dataset, args.window_size, device)
-        vis.plot_waveforms(args, test_loader)
-        # vis.random_generation(args)
-        vis.reconstruct_data(args, train_loader)
-        # vis.plot_latent_space(args, test_loader)
+elif args.phase == 'test':
+    # Load a saved checkpoint for testing.
+    network = facvae_trainer.load_checkpoint(args, args.max_epoch - 1)
+    # Set the gumbel temperature for sampling from the categorical distribution.
+    network.gumbel_temp = np.maximum(
+        args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
+        args.min_temp)
+    # Append the number of test samples to the experiment name.
+    args.experiment = args.experiment + '_' + str(len(dataset.test_idx))
+    # Create an instance of Visualization class.
+    vis = Visualization(network, dataset, args.window_size, device)
+    # Plot waveforms from the test set.
+    vis.plot_waveforms(args, test_loader)
+    # Reconstruct a sample of the training data.
+    vis.reconstruct_data(args, train_loader)
+    # Uncomment the following line to generate random samples.
+    # vis.random_generation(args)
+    # Uncomment the following line to plot the latent space.
+    # vis.plot_latent_space(args, test_loader)
 
-    upload_results(args, flag='--progress')
+# Upload results to Weights & Biases for tracking training progress.
+upload_results(args, flag='--progress')
