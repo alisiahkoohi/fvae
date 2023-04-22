@@ -1,18 +1,18 @@
+from typing import Optional, Tuple, List, Dict, Union
+
 import h5py
 import numpy as np
 import torch
 from obspy.core import UTCDateTime
-from typing import Optional, Tuple, List, Dict, Union
 
 from facvae.utils import RunningStats, Normalizer
 
 NORMALIZATION_BATCH_SIZE = 10000
 
 
-class MarsMultiscaleDataset(torch.utils.data.Dataset):
+class MarsMultiscaleDataset():
     """
-    A PyTorch Dataset class to load data from a HDF5 file containing multiscale
-    Martian seismic data.
+    A lass to load data from a HDF5 file containing multiscale Martian  data.
 
     Args:
         file_path (str): Path to the HDF5 file containing the seismic data.
@@ -397,19 +397,20 @@ class MarsMultiscaleDataset(torch.utils.data.Dataset):
                         np.sort(idx),
                         ...].reshape(-1, *self.shape['scat_cov'][dset_name])
         else:
-            if self.data[t] is None:
+            if self.data[type] is None:
                 # If the data is not in memory, read a chunk of data from the
                 # file.
-                x = self.file[t][self.idx_converter(np.sort(idx)),
-                                 ...].reshape(len(idx), *self.shape[t])
+                x = self.file[type][self.idx_converter(np.sort(idx)),
+                                    ...].reshape(len(idx), *self.shape[type])
                 x = torch.from_numpy(x)
-                out = self.normalize(x, t)
+                out = self.normalize(x, type)
             else:
-                if (not self.already_normalized[t]) and self.normalize_data:
+                if (not self.already_normalized[type]) and self.normalize_data:
                     # Normalize the data if it hasn't already been normalized.
-                    self.data[t] = self.normalize(self.data[t][...], t)
-                    self.already_normalized[t] = True
-                out = self.data[t][np.sort(idx), ...]
+                    self.data[type] = self.normalize(self.data[type][...],
+                                                     type)
+                    self.already_normalized[type] = True
+                out = self.data[type][np.sort(idx), ...]
         return out
 
     def get_labels(self, idx: List[int]) -> List[List[str]]:

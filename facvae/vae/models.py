@@ -1,6 +1,7 @@
+from typing import Tuple, Dict
+
 import torch
 from torch.nn import functional as F
-from typing import Optional, Tuple, List, Dict
 
 from facvae.vae.layers import GumbelSoftmax, Gaussian
 
@@ -36,6 +37,9 @@ class View(torch.nn.Module):
 
 
 class Encoder(torch.nn.Module):
+    """
+    A module to create an encoder network for the FactorialVAE.
+    """
     def __init__(
         self,
         x_shape: dict,
@@ -300,6 +304,9 @@ class Encoder(torch.nn.Module):
 
 
 class Decoder(torch.nn.Module):
+    """
+    A module to create a decoder network for the FactorialVAE.
+    """
     def __init__(self, x_shape: Dict[str, Tuple[int, int, int]], z_dim: int,
                  y_dim: int, hidden_dim: int, nlayer: int) -> None:
         """

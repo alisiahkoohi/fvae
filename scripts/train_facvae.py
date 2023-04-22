@@ -78,32 +78,31 @@ if __name__ == "__main__":
     # Initialize facvae trainer with the input arguments, dataset, and device
     facvae_trainer = FactorialVAETrainer(args, dataset, device)
 
-if args.phase == 'train':
-    # Training Phase.
-    # Create an instance of FactorialVAETrainer class.
-    facvae_trainer = FactorialVAETrainer(args, dataset, device)
-    # Train the model using train_loader and val_loader.
-    facvae_trainer.train(args, train_loader, val_loader)
+    if args.phase == 'train':
+        # Training Phase.
+        # Train the model using train_loader and val_loader.
+        facvae_trainer.train(args, train_loader, val_loader)
 
-elif args.phase == 'test':
-    # Load a saved checkpoint for testing.
-    network = facvae_trainer.load_checkpoint(args, args.max_epoch - 1)
-    # Set the gumbel temperature for sampling from the categorical distribution.
-    network.gumbel_temp = np.maximum(
-        args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
-        args.min_temp)
-    # Append the number of test samples to the experiment name.
-    args.experiment = args.experiment + '_' + str(len(dataset.test_idx))
-    # Create an instance of Visualization class.
-    vis = Visualization(network, dataset, args.window_size, device)
-    # Plot waveforms from the test set.
-    vis.plot_waveforms(args, test_loader)
-    # Reconstruct a sample of the training data.
-    vis.reconstruct_data(args, train_loader)
-    # Uncomment the following line to generate random samples.
-    # vis.random_generation(args)
-    # Uncomment the following line to plot the latent space.
-    # vis.plot_latent_space(args, test_loader)
+    elif args.phase == 'test':
+        # Load a saved checkpoint for testing.
+        network = facvae_trainer.load_checkpoint(args, args.max_epoch - 1)
+        # Set the gumbel temperature for sampling from the categorical
+        # distribution.
+        network.gumbel_temp = np.maximum(
+            args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
+            args.min_temp)
+        # Append the number of test samples to the experiment name.
+        args.experiment = args.experiment + '_' + str(len(dataset.test_idx))
+        # Create an instance of Visualization class.
+        vis = Visualization(network, dataset, args.window_size, device)
+        # Plot waveforms from the test set.
+        vis.plot_waveforms(args, test_loader)
+        # Reconstruct a sample of the training data.
+        vis.reconstruct_data(args, train_loader)
+        # Uncomment the following line to generate random samples.
+        # vis.random_generation(args)
+        # Uncomment the following line to plot the latent space.
+        # vis.plot_latent_space(args, test_loader)
 
-# Upload results to Weights & Biases for tracking training progress.
-upload_results(args, flag='--progress')
+    # Upload results to Weights & Biases for tracking training progress.
+    upload_results(args, flag='--progress')
