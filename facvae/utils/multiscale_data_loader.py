@@ -7,7 +7,7 @@ from obspy.core import UTCDateTime
 
 from facvae.utils import RunningStats, Normalizer
 
-NORMALIZATION_BATCH_SIZE = 10000
+NORMALIZATION_BATCH_SIZE = 8192
 
 
 class MarsMultiscaleDataset():
@@ -247,11 +247,14 @@ class MarsMultiscaleDataset():
                     if self.load_to_memory:
                         # If the data is loaded in memory, add the samples to
                         # the running_stats object.
-                        running_stats.input_samples(
-                            self.data['scat_cov'][dset_name]
-                            [self.train_idx,
-                             ...].reshape(-1,
-                                          *self.shape['scat_cov'][dset_name]))
+                        for i in range(0, len(self.train_idx),
+                                       NORMALIZATION_BATCH_SIZE):
+                            batch = self.data['scat_cov'][dset_name][
+                                self.train_idx[i:i + NORMALIZATION_BATCH_SIZE],
+                                ...]
+                            running_stats.input_samples(batch.reshape(
+                                -1, *self.shape['scat_cov'][dset_name]),
+                                                        n_workers=16)
                     else:
                         # If the data is not loaded in memory, load it from the
                         # file in batches and add the samples to the
@@ -388,10 +391,20 @@ class MarsMultiscaleDataset():
                         ) and self.normalize_data:
                         # Normalize the data if it hasn't already been
                         # normalized.
-                        self.data['scat_cov'][dset_name] = self.normalize(
-                            self.data['scat_cov'][dset_name][...],
-                            'scat_cov',
-                            dset_name=dset_name)
+                        for i in range(
+                                0, self.data['scat_cov'][dset_name].shape[0],
+                                NORMALIZATION_BATCH_SIZE):
+                            self.data['scat_cov'][dset_name][
+                                i:i + NORMALIZATION_BATCH_SIZE,
+                                ...] = self.normalize(
+                                    self.data['scat_cov'][dset_name][
+                                        i:i + NORMALIZATION_BATCH_SIZE, ...],
+                                    'scat_cov',
+                                    dset_name=dset_name)
+                        # self.data['scat_cov'][dset_name] = self.normalize(
+                        #     self.data['scat_cov'][dset_name][...],
+                        #     'scat_cov',
+                        #     dset_name=dset_name)
                         self.already_normalized['scat_cov'][dset_name] = True
                     out[dset_name] = self.data['scat_cov'][dset_name][
                         np.sort(idx),
