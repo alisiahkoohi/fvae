@@ -143,12 +143,10 @@ def create_lmst_xticks(start_time,
     if int(end_day) > int(start_day):
         end_time = end_time + datetime.timedelta(days=1)
 
-    times = np.arange(
-        np.datetime64(start_time), np.datetime64(end_time),
-        np.timedelta64((np.datetime64(end_time) - np.datetime64(start_time)) /
-                       window_size,
-                       'us')).astype('datetime64[s]')[:window_size]
-
+    times = np.linspace(start_time.timestamp(),
+                        end_time.timestamp(),
+                        num=window_size)
+    times = np.array([datetime.datetime.fromtimestamp(ts) for ts in times])
     return times
 
 
