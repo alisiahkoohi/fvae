@@ -313,6 +313,7 @@ class Visualization(object):
                                 pad_inches=.02)
                     plt.close(fig)
 
+    # TDOD: Fix THE FOLLOWING
     #     # List of figures and `ax`s to plot waveforms, spectrograms, and
     #     # scattering covariances for each cluster.
     #     figs_axs = [
