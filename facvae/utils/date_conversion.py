@@ -116,36 +116,64 @@ def is_night_time_event(event_start, event_end):
     return False
 
 
-def create_lmst_xticks(start_time,
-                       end_time,
-                       window_size=2**17,
-                       frequency=20.0,
-                       time_zone='LMST'):
+def create_lmst_xticks(start_time: str,
+                       end_time: str,
+                       window_size: int = 2**17,
+                       frequency: float = 20.0,
+                       time_zone: str = 'LMST') -> np.ndarray:
+    """
+    Create an array of datetime objects at regular intervals.
 
+    Args:
+        start_time: A string representing the start time in the format
+            'YYYY-MM-DDTHH:MM:SS.ssssss'.
+        end_time: A string representing the end time in the format
+            'YYYY-MM-DDTHH:MM:SS.ssssss'.
+        window_size: An integer specifying the number of datetime objects to
+            create.
+        time_zone: A string specifying the time zone of the input times. Can be
+            either 'LMST' or 'UTC'.
+
+    Returns:
+        An array of datetime objects between start_time and end_time with a
+        regular interval.
+
+    Raises:
+        NotImplementedError: If the time_zone is not 'LMST' or 'UTC'.
+    """
     if time_zone == 'LMST':
+        # Convert start_time and end_time from UTC to Local Mean Solar Time
+        # (LMST) of Mars.
         mars_date = MarsConverter()
         start_time = mars_date.get_utc_2_lmst(utc_date=start_time)
         end_time = mars_date.get_utc_2_lmst(utc_date=end_time)
     elif time_zone == 'UTC':
-        pass
+        pass  # No conversion needed.
     else:
         raise NotImplementedError('Time zone not implemented')
 
+    # Extract the day portion of start_time and end_time.
     start_day = start_time.split('T')[0]
     end_day = end_time.split('T')[0]
 
+    # Extract the time portion of start_time and end_time and convert them to
+    # datetime objects.
     start_time = start_time.split('T')[1]
     end_time = end_time.split('T')[1]
-
     start_time = datetime.datetime.strptime(start_time, '%H:%M:%S.%f')
     end_time = datetime.datetime.strptime(end_time, '%H:%M:%S.%f')
 
+    # If end_day is greater than start_day, add a day to end_time to include
+    # the entire day.
     if int(end_day) > int(start_day):
         end_time = end_time + datetime.timedelta(days=1)
 
+    # Create an array of timestamp values between start_time and end_time with
+    # a regular interval.
     times = np.linspace(start_time.timestamp(),
                         end_time.timestamp(),
                         num=window_size)
+    # Convert the timestamp values to datetime objects and return the array.
     times = np.array([datetime.datetime.fromtimestamp(ts) for ts in times])
     return times
 

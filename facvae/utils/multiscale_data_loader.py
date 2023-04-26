@@ -7,7 +7,7 @@ from obspy.core import UTCDateTime
 
 from facvae.utils import RunningStats, Normalizer
 
-NORMALIZATION_BATCH_SIZE = 8192
+NORMALIZATION_BATCH_SIZE = 4096
 
 
 class MarsMultiscaleDataset():

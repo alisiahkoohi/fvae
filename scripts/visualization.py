@@ -2,12 +2,14 @@ import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
 import numpy as np
+from mpire import WorkerPool
 from obspy.core import UTCDateTime
 import os
 from collections import Counter
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from scipy.signal import spectrogram, correlate, correlation_lags
+import scipy.signal as signal
 import torch
 from tqdm import tqdm
 
@@ -110,7 +112,7 @@ class Visualization(object):
         # Return the required subwindow.
         return waveform[:, subwindow_idx, :]
 
-    def get_time_interval(self, window_idx, subwindow_idx, scale):
+    def get_time_interval(self, window_idx, subwindow_idx, scale, lmst=True):
         # Extract window time interval.
         window_time_interval = self.dataset.get_time_interval([window_idx])[0]
         # Number of subwindows in the given scale.
@@ -135,26 +137,14 @@ class Visualization(object):
         # Select the time interval associated with the given subwindow_idx.
         window_time_interval = subintervals[subwindow_idx]
 
-        # Convert to LMST format, usable by matplotlib.
-        window_time_interval = create_lmst_xticks(*window_time_interval,
-                                                  time_zone='LMST',
-                                                  window_size=int(scale))
+        if lmst:
+            # Convert to LMST format, usable by matplotlib.
+            window_time_interval = create_lmst_xticks(*window_time_interval,
+                                                      time_zone='LMST',
+                                                      window_size=int(scale))
 
         # Return the required time interval.
         return window_time_interval
-
-    def get_times(self, time_intervals, event_list):
-        event_times = []
-        for event, time_interval in zip(event_list, time_intervals):
-            if len(event) > 0:
-                time_interval = list(time_interval)
-                for inner_idx, _ in enumerate(time_interval):
-                    time_interval[inner_idx] = lmst_xtick(
-                        time_interval[inner_idx])
-                    time_interval[inner_idx] = matplotlib.dates.date2num(
-                        time_interval[inner_idx])
-                event_times.append(np.array(time_interval).mean())
-        return event_times
 
     def evaluate_model(self, args, data_loader):
         """
@@ -268,6 +258,74 @@ class Visualization(object):
                         self.get_time_interval(window_idx, subwindow_idx,
                                                scale))
 
+        # Plot Fourier transforms for each cluster.
+        for cluster in range(args.ncluster):
+            print('Plotting Fourier transforms for cluster {}'.format(cluster))
+            for scale in tqdm(self.scales):
+                for sample_idx, waveform in enumerate(
+                        waveforms[scale][str(cluster)]):
+                    for comp in range(waveform.shape[0]):
+                        fig = plt.figure(figsize=(7, 2))
+                        # Compute the Fourier transform.
+                        freqs = np.fft.fftfreq(waveform.shape[1],
+                                               d=1 / SAMPLING_RATE)
+                        ft = np.fft.fft(waveform[comp, :], norm='forward')
+                        # Plot the Fourier transform.
+                        plt.plot(np.fft.fftshift(freqs),
+                                 np.fft.fftshift(np.abs(ft)))
+                        ax = plt.gca()
+                        plt.xlim([0, SAMPLING_RATE / 2])
+                        ax.set_ylabel('Amplitude', fontsize=10)
+                        ax.set_xlabel('Frequency (Hz)', fontsize=10)
+                        ax.set_yscale("log")
+                        ax.grid(True)
+                        ax.tick_params(axis='both', which='major', labelsize=8)
+                        plt.savefig(os.path.join(
+                            plotsdir(
+                                os.path.join(args.experiment, 'scale_' + scale,
+                                             'cluster_' + str(cluster),
+                                             'component_' + str(comp))),
+                            'fourier_transform_{}.png'.format(sample_idx)),
+                                    format="png",
+                                    bbox_inches="tight",
+                                    dpi=200,
+                                    pad_inches=.02)
+                        plt.close(fig)
+
+        # Plot spectrograms for each cluster.
+        for cluster in range(args.ncluster):
+            print('Plotting spectrograms for cluster {}'.format(cluster))
+            for scale in tqdm(self.scales):
+                for sample_idx, waveform in enumerate(
+                        waveforms[scale][str(cluster)]):
+                    for comp in range(waveform.shape[0]):
+                        fig = plt.figure(figsize=(7, 2))
+                        # Plot spectrogram.
+                        nperseg = min(256, int(scale) // 4)
+                        plt.specgram(waveform[comp, :],
+                                     NFFT=nperseg,
+                                     noverlap=nperseg // 8,
+                                     Fs=SAMPLING_RATE,
+                                     mode='magnitude',
+                                     cmap='RdYlBu_r')
+                        ax = plt.gca()
+                        plt.ylim([0, SAMPLING_RATE / 2])
+                        ax.set_xticklabels([])
+                        ax.set_ylabel('Frequency (Hz)', fontsize=10)
+                        ax.grid(False)
+                        ax.tick_params(axis='both', which='major', labelsize=8)
+                        plt.savefig(os.path.join(
+                            plotsdir(
+                                os.path.join(args.experiment, 'scale_' + scale,
+                                             'cluster_' + str(cluster),
+                                             'component_' + str(comp))),
+                            'spectrogram_{}.png'.format(sample_idx)),
+                                    format="png",
+                                    bbox_inches="tight",
+                                    dpi=200,
+                                    pad_inches=.02)
+                        plt.close(fig)
+
         # Plot waveforms for each cluster.
         for cluster in range(args.ncluster):
             print('Plotting waveforms for cluster {}'.format(cluster))
@@ -313,72 +371,86 @@ class Visualization(object):
                                 pad_inches=.02)
                     plt.close(fig)
 
-    # TDOD: Fix THE FOLLOWING
-    #     # List of figures and `ax`s to plot waveforms, spectrograms, and
-    #     # scattering covariances for each cluster.
-    #     figs_axs = [
-    #         plt.subplots(sample_size,
-    #                      args.ncluster,
-    #                      figsize=(8 * args.ncluster, 4 * args.ncluster))
-    #         for i in range(3)
-    #     ]
+    def compute_per_cluster_mid_time_intervals(self, args, num_workers=30):
+        def serial_job(shared_in, scale, i, sample_idxs):
+            per_cluster_confident_idxs, get_time_interval = shared_in
 
-    #     fig_hist, ax_hist = plt.subplots(args.ncluster,
-    #                                      1,
-    #                                      figsize=(20, 4 * args.ncluster),
-    #                                      sharex=True)
-    #     # List of file names for each the figures.
-    #     names = ['waveform_samples', 'waveform_spectograms', 'scatcov_samples']
+            mid_time_intervals = []
+            for sample_idx in sample_idxs:
+                (window_idx, subwindow_idx
+                 ) = per_cluster_confident_idxs[scale][str(i)][sample_idx]
+                time_interval = get_time_interval(window_idx,
+                                                  subwindow_idx,
+                                                  scale,
+                                                  lmst=False)
+                time_interval = [lmst_xtick(t) for t in time_interval]
+                time_interval = [
+                    matplotlib.dates.date2num(t) for t in time_interval
+                ]
+                time_interval = np.array(time_interval).mean(-1)
+                mid_time_intervals.append(time_interval)
 
-    #     # Dictionary containing list of all the labels belonging to each
-    #     # predicted cluster.
-    #     cluster_labels = {str(i): [] for i in range(args.ncluster)}
+            return np.array(mid_time_intervals)
 
-    #     # Find time intervals.
-    #     time_intervals = self.dataset.get_time_interval(
-    #         range(len(data_loader.dataset)))
+        mid_time_intervals = {
+            scale: {str(i): []
+                    for i in range(args.ncluster)}
+            for scale in self.scales
+        }
+        for cluster in range(args.ncluster):
+            for scale in tqdm(self.scales):
+                split_idxs = np.array_split(np.arange(
+                    len(self.per_cluster_confident_idxs[scale][str(cluster)])),
+                                            num_workers,
+                                            axis=0)
+                worker_in = [(scale, cluster, idxs) for idxs in split_idxs]
 
-    #     # Find the times of pressure drops and glitches.
-    #     drop_times = self.get_times(time_intervals, drop_list)
-    #     glitch_times = self.get_times(time_intervals, glitch_list)
+                with WorkerPool(
+                        n_jobs=num_workers,
+                        shared_objects=(self.per_cluster_confident_idxs,
+                                        self.get_time_interval),
+                        start_method='fork') as pool:
+                    mid_time_intervals[scale][str(cluster)] = pool.map(
+                        serial_job, worker_in, progress_bar=True)
+        return mid_time_intervals
 
-    #     # Loop through all the clusters.
-    #     for i in tqdm(range(args.ncluster)):
-    #         cluster_labels[str(i)] = self.dataset.get_labels(
-    #             confident_idxs[np.where(cluster_membership == i)[0]])
-    #         cluster_drops[str(i)] = self.dataset.get_drops(
-    #             confident_idxs[np.where(cluster_membership == i)[0]])
-    #         cluster_glitches[str(i)] = self.dataset.get_glitches(
-    #             confident_idxs[np.where(cluster_membership == i)[0]])
-    #         # Find the `sample_size` most confident data points belonging to
-    #         # cluster `i`
+    def plot_cluster_time_histograms(self, args):
 
-    #         cluster_idxs = confident_idxs[np.where(cluster_membership == i)[0]]
+        mid_time_intervals = self.compute_per_cluster_mid_time_intervals(args)
 
-    #         if len(cluster_idxs) > 0:
-    #             cluster_times = self.dataset.get_time_interval(cluster_idxs)
-    #             for outer_idx, _ in enumerate(cluster_times):
-    #                 cluster_times[outer_idx] = list(cluster_times[outer_idx])
-    #                 for inner_idx in range(len(cluster_times[outer_idx])):
-    #                     cluster_times[outer_idx][inner_idx] = lmst_xtick(
-    #                         cluster_times[outer_idx][inner_idx])
-    #                     cluster_times[outer_idx][
-    #                         inner_idx] = matplotlib.dates.date2num(
-    #                             cluster_times[outer_idx][inner_idx])
-    #             cluster_times = np.array(cluster_times).mean(-1)
-    #             sns.histplot(cluster_times,
-    #                          ax=ax_hist[i],
-    #                          color=self.colors[i % 10],
-    #                          element="step",
-    #                          alpha=0.3,
-    #                          binwidth=0.005,
-    #                          label='cluster ' + str(i) + ' - ' +
-    #                          str(len(cluster_times)))
-    #             ax_hist[i].xaxis.set_major_locator(
-    #                 matplotlib.dates.HourLocator(interval=3))
-    #             ax_hist[i].xaxis.set_major_formatter(
-    #                 matplotlib.dates.DateFormatter('%H'))
-    #             ax_hist[i].legend()
+        from IPython import embed
+        embed()
+
+        # Plot histogram of cluster times.
+        for cluster in range(args.ncluster):
+            print('Plotting time histograms for cluster {}'.format(cluster))
+            for scale in tqdm(self.scales):
+                fig = plt.figure(figsize=(12, 2))
+                sns.histplot(mid_time_intervals[scale][str(cluster)],
+                             color=self.colors[cluster % len(self.colors)],
+                             element="step",
+                             alpha=0.3,
+                             binwidth=0.005,
+                             label='cluster ' + str(cluster) + ' - ' +
+                             str(len(cluster_times)))
+                ax = plt.gca()
+                ax.xaxis.set_major_locator(
+                    matplotlib.dates.HourLocator(interval=2))
+                ax.xaxis.set_major_formatter(
+                    matplotlib.dates.DateFormatter('%H'))
+                ax.legend()
+                ax.set_yticklabels([])
+                ax.tick_params(axis='both', which='major', labelsize=8)
+                plt.savefig(os.path.join(
+                    plotsdir(
+                        os.path.join(args.experiment, 'scale_' + scale,
+                                     'cluster_' + str(cluster))),
+                    'time_histogram.png'),
+                            format="png",
+                            bbox_inches="tight",
+                            dpi=200,
+                            pad_inches=.02)
+                plt.close(fig)
 
     #             waveforms = self.dataset.sample_data(
     #                 cluster_idxs, type='waveform')[0].numpy()
@@ -417,10 +489,10 @@ class Visualization(object):
     #                 #                                str(i))
 
     #                 figs_axs[1][1][j, i].set_ylim(0.1, SAMPLING_RATE / 2)
-    #                 figs_axs[1][1][j, i].specgram(waveforms[j, -1, :],
-    #                                               Fs=SAMPLING_RATE,
-    #                                               mode='magnitude',
-    #                                               cmap='RdYlBu_r')
+    # figs_axs[1][1][j, i].specgram(waveforms[j, -1, :],
+    #                               Fs=SAMPLING_RATE,
+    #                               mode='magnitude',
+    #                               cmap='RdYlBu_r')
     #                 figs_axs[1][1][j, i].set_ylim(0.1, SAMPLING_RATE / 2)
     #                 figs_axs[1][1][j, i].set_yscale("log")
     #                 # figs_axs[1][1][j,
