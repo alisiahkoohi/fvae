@@ -308,7 +308,7 @@ class Decoder(torch.nn.Module):
     A module to create a decoder network for the FactorialVAE.
     """
     def __init__(self, x_shape: Dict[str, Tuple[int, int, int]], z_dim: int,
-                 y_dim: int, hidden_dim: int, nlayer: int) -> None:
+                 y_dim: int, hidden_dim: int, nlayer: int, mix: bool) -> None:
         """
         Decoder network that generates an image given the latent variables z
         and label y.
@@ -321,6 +321,7 @@ class Decoder(torch.nn.Module):
             y_dim (int): Dimensionality of the label variable y.
             hidden_dim (int): Dimensionality of the hidden layers.
             nlayer (int): Number of hidden layers.
+            mix (bool): Whether to mix latent variables from different scales.
         """
         super(Decoder, self).__init__()
 
@@ -332,36 +333,37 @@ class Decoder(torch.nn.Module):
             {scale: torch.nn.Linear(y_dim, z_dim)
              for scale in x_shape.keys()})
 
-        # Latent variable nonlinear combination.
-        self.generative_mix_z = torch.nn.Sequential(
-            # Fully connected layer with no bias, output: len(x_shape) * z_dim.
-            torch.nn.Linear(len(x_shape) * z_dim,
-                            len(x_shape) * z_dim,
-                            bias=False),
-            # Batch normalization for each output feature, input shape: (N,
-            # len(x_shape) * z_dim).
-            torch.nn.BatchNorm1d(len(x_shape) * z_dim),
-            # Leaky ReLU activation function.
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            # Fully connected layer with no bias, output: len(x_shape) * z_dim.
-            torch.nn.Linear(len(x_shape) * z_dim,
-                            len(x_shape) * z_dim,
-                            bias=False),
-            # Batch normalization for each output feature, input shape: (N,
-            # len(x_shape) * z_dim).
-            torch.nn.BatchNorm1d(len(x_shape) * z_dim),
-            # Leaky ReLU activation function.
-            torch.nn.LeakyReLU(negative_slope=0.2),
-            # Fully connected layer with no bias, output: len(x_shape) * z_dim.
-            torch.nn.Linear(len(x_shape) * z_dim,
-                            len(x_shape) * z_dim,
-                            bias=False),
-            # Batch normalization for each output feature, input shape: (N,
-            # len(x_shape) * z_dim).
-            torch.nn.BatchNorm1d(len(x_shape) * z_dim),
-            # Leaky ReLU activation function.
-            torch.nn.LeakyReLU(negative_slope=0.2),
-        )
+        if mix:
+            # Latent variable nonlinear combination.
+            self.generative_mix_z = torch.nn.Sequential(
+                # Fully connected layer with no bias, output: len(x_shape) * z_dim.
+                torch.nn.Linear(len(x_shape) * z_dim,
+                                len(x_shape) * z_dim,
+                                bias=False),
+                # Batch normalization for each output feature, input shape: (N,
+                # len(x_shape) * z_dim).
+                torch.nn.BatchNorm1d(len(x_shape) * z_dim),
+                # Leaky ReLU activation function.
+                torch.nn.LeakyReLU(negative_slope=0.2),
+                # Fully connected layer with no bias, output: len(x_shape) * z_dim.
+                torch.nn.Linear(len(x_shape) * z_dim,
+                                len(x_shape) * z_dim,
+                                bias=False),
+                # Batch normalization for each output feature, input shape: (N,
+                # len(x_shape) * z_dim).
+                torch.nn.BatchNorm1d(len(x_shape) * z_dim),
+                # Leaky ReLU activation function.
+                torch.nn.LeakyReLU(negative_slope=0.2),
+                # Fully connected layer with no bias, output: len(x_shape) * z_dim.
+                torch.nn.Linear(len(x_shape) * z_dim,
+                                len(x_shape) * z_dim,
+                                bias=False),
+                # Batch normalization for each output feature, input shape: (N,
+                # len(x_shape) * z_dim).
+                torch.nn.BatchNorm1d(len(x_shape) * z_dim),
+                # Leaky ReLU activation function.
+                torch.nn.LeakyReLU(negative_slope=0.2),
+            )
 
         # Define the p(x|z) generative network architecture.
         self.generative_pxz = torch.nn.ModuleDict({
@@ -526,8 +528,9 @@ class Decoder(torch.nn.Module):
         # Compute the probability distribution of the condition
         y_mu, y_var = self.pzy(y)
 
-        # Transform and mix the latent variable
-        z = self.nonlinear_z_mix(z)
+        if hasattr(self, 'generative_mix_z'):
+            # Transform and mix the latent variable
+            z = self.nonlinear_z_mix(z)
 
         # Compute the probability distribution of the data given the latent
         # variable
@@ -551,6 +554,7 @@ class FactorialVAE(torch.nn.Module):
         hard_gumbel (bool): Whether to use the hard Gumbel-Softmax estimator.
         hidden_dim (int): The dimensionality of the hidden layers.
         nlayer (int): The number of hidden layers.
+        mix (bool): Whether to mix latent variables from different scales.
 
     Attributes:
         inference (Encoder): The encoder network.
@@ -558,21 +562,25 @@ class FactorialVAE(torch.nn.Module):
         gumbel_temp (float): The Gumbel-Softmax temperature parameter.
         hard_gumbel (bool): Whether to use the hard Gumbel-Softmax estimator.
     """
-    def __init__(
-        self,
-        x_shape: tuple,
-        z_dim: int,
-        y_dim: int,
-        init_temp: float,
-        hard_gumbel: bool = False,
-        hidden_dim: int = 512,
-        nlayer: int = 3,
-    ) -> None:
+    def __init__(self,
+                 x_shape: tuple,
+                 z_dim: int,
+                 y_dim: int,
+                 init_temp: float,
+                 hard_gumbel: bool = False,
+                 hidden_dim: int = 512,
+                 nlayer: int = 3,
+                 mix: bool = True) -> None:
         super(FactorialVAE, self).__init__()
 
         # Instantiate the encoder and decoder networks.
         self.inference = Encoder(x_shape, z_dim, y_dim, hidden_dim, nlayer)
-        self.generative = Decoder(x_shape, z_dim, y_dim, hidden_dim, nlayer)
+        self.generative = Decoder(x_shape,
+                                  z_dim,
+                                  y_dim,
+                                  hidden_dim,
+                                  nlayer,
+                                  mix=mix)
 
         # Initialize the Gumbel-Softmax temperature parameter and hard Gumbel
         # flag.

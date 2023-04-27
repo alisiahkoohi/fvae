@@ -97,7 +97,7 @@ if __name__ == "__main__":
         vis = Visualization(args, network, dataset, test_loader, device)
         # Plot waveforms from the test set.
         vis.plot_cluster_time_histograms(args)
-        vis.plot_waveforms(args)
+        # vis.plot_waveforms(args)
         # Reconstruct a sample of the training data.
         # vis.reconstruct_data(args, train_loader)
         # Uncomment the following line to generate random samples.
