@@ -6,12 +6,23 @@ from torch.nn import functional as F
 from facvae.vae.layers import GumbelSoftmax, Gaussian
 
 
+class SkipConnection(torch.nn.Module):
+
+    def __init__(self, module):
+        super(SkipConnection, self).__init__()
+        self.module = module
+
+    def forward(self, x):
+        return x + self.module(x)
+
+
 class View(torch.nn.Module):
     """
     A module to create a view of an existing torch.Tensor (avoids copying).
     Attributes:
         shape: A tuple containing the desired shape of the view.
     """
+
     def __init__(self, *shape: int) -> None:
         """
         Initializes a Concat module.
@@ -40,6 +51,7 @@ class Encoder(torch.nn.Module):
     """
     A module to create an encoder network for the FactorialVAE.
     """
+
     def __init__(
         self,
         x_shape: dict,
@@ -66,10 +78,28 @@ class Encoder(torch.nn.Module):
         """
         super(Encoder, self).__init__()
 
+        # Common component multiscale data representation
+        self.common = torch.nn.ModuleList([
+            SkipConnection(
+                torch.nn.Sequential(
+                    torch.nn.Linear(sum(
+                        [x_shape[scale][1] for scale in x_shape.keys()]),
+                                    hidden_dim,
+                                    bias=False),
+                    torch.nn.BatchNorm1d(list(x_shape.values())[0][0]),
+                    torch.nn.LeakyReLU(negative_slope=0.2),
+                    torch.nn.Linear(
+                        hidden_dim,
+                        sum([x_shape[scale][1] for scale in x_shape.keys()]),
+                        bias=False))) for _ in range(nlayer)
+        ])
+        self.common = torch.nn.Sequential(*self.common)
+
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleDict({
             # Iterate over each scale in x_shape dictionary
-            scale: torch.nn.ModuleList([
+            scale:
+            torch.nn.ModuleList([
                 # Create linear layer to map x to hidden_dim features
                 torch.nn.Linear(x_shape[scale][1], hidden_dim, bias=False),
                 # Batch normalization layer to normalize the output of previous
@@ -116,13 +146,15 @@ class Encoder(torch.nn.Module):
         # Create a dictionary of GumbelSoftmax modules for each scale in
         # x_shape
         self.gumbel_softmax = torch.nn.ModuleDict({
-            scale: GumbelSoftmax(hidden_dim, y_dim)
+            scale:
+            GumbelSoftmax(hidden_dim, y_dim)
             for scale in x_shape.keys()
         })
 
         # q(z|y,x)
         self.inference_qzyx = torch.nn.ModuleDict({
-            scale: torch.nn.ModuleList([
+            scale:
+            torch.nn.ModuleList([
                 # Add a linear layer to the current scale's ModuleList with
                 # input dimensions of y_dim + x_shape[scale][1] and output
                 # dimensions of hidden_dim
@@ -179,6 +211,25 @@ class Encoder(torch.nn.Module):
             {scale: Gaussian(hidden_dim, z_dim)
              for scale in x_shape.keys()})
 
+    def common_encoder(self, x: Dict[str,
+                                     torch.Tensor]) -> Dict[str, torch.Tensor]:
+        # Get the sizes of the input tensors
+        split_sizes = [x[scale].shape[-1] for scale in x.keys()]
+
+        # Concatenate the input tensors along the last dimension
+        x_out = torch.cat([x[scale] for scale in x.keys()], dim=-1)
+
+        # Pass through the common component multiscale data representation.
+        x_out = self.common(x_out)
+
+        # Split the concatenated tensor back into individual tensors and
+        # reshape them
+        x_out = torch.split(x_out, split_sizes, dim=-1)
+        x_out = {scale: x_out[i] for i, scale in enumerate(x.keys())}
+
+        # Return the mixed and transformed tensors
+        return x_out
+
     def qyx(self, x: Dict[str, torch.Tensor], temperature: float,
             hard: bool) -> Dict[str, torch.Tensor]:
         """
@@ -228,9 +279,10 @@ class Encoder(torch.nn.Module):
         # Concatenate x and y tensors along the channel dimension for each
         # scale
         xy = {
-            scale: torch.cat((x[scale], y[scale].unsqueeze(1).repeat(
+            scale:
+            torch.cat((x[scale], y[scale].unsqueeze(1).repeat(
                 1, x[scale].shape[1], 1)),
-                             dim=2)
+                      dim=2)
             for scale in x.keys()
         }
         # Pass the concatenated tensors through the q(z|y,x) network
@@ -275,6 +327,9 @@ class Encoder(torch.nn.Module):
                 - 'categorical': Dictionary containing the sampled categorical
                       variable tensors at different scales.
         """
+        # Common encoder.
+        x = self.common_encoder(x)
+
         # q(y|x)
         qyx = self.qyx(x, temperature, hard)
         # Get logits, probabilities, and samples from categorical distribution
@@ -307,8 +362,9 @@ class Decoder(torch.nn.Module):
     """
     A module to create a decoder network for the FactorialVAE.
     """
+
     def __init__(self, x_shape: Dict[str, Tuple[int, int, int]], z_dim: int,
-                 y_dim: int, hidden_dim: int, nlayer: int, mix: bool) -> None:
+                 y_dim: int, hidden_dim: int, nlayer: int) -> None:
         """
         Decoder network that generates an image given the latent variables z
         and label y.
@@ -321,7 +377,6 @@ class Decoder(torch.nn.Module):
             y_dim (int): Dimensionality of the label variable y.
             hidden_dim (int): Dimensionality of the hidden layers.
             nlayer (int): Number of hidden layers.
-            mix (bool): Whether to mix latent variables from different scales.
         """
         super(Decoder, self).__init__()
 
@@ -333,41 +388,10 @@ class Decoder(torch.nn.Module):
             {scale: torch.nn.Linear(y_dim, z_dim)
              for scale in x_shape.keys()})
 
-        if mix:
-            # Latent variable nonlinear combination.
-            self.generative_mix_z = torch.nn.Sequential(
-                # Fully connected layer with no bias, output: len(x_shape) * z_dim.
-                torch.nn.Linear(len(x_shape) * z_dim,
-                                len(x_shape) * z_dim,
-                                bias=False),
-                # Batch normalization for each output feature, input shape: (N,
-                # len(x_shape) * z_dim).
-                torch.nn.BatchNorm1d(len(x_shape) * z_dim),
-                # Leaky ReLU activation function.
-                torch.nn.LeakyReLU(negative_slope=0.2),
-                # Fully connected layer with no bias, output: len(x_shape) * z_dim.
-                torch.nn.Linear(len(x_shape) * z_dim,
-                                len(x_shape) * z_dim,
-                                bias=False),
-                # Batch normalization for each output feature, input shape: (N,
-                # len(x_shape) * z_dim).
-                torch.nn.BatchNorm1d(len(x_shape) * z_dim),
-                # Leaky ReLU activation function.
-                torch.nn.LeakyReLU(negative_slope=0.2),
-                # Fully connected layer with no bias, output: len(x_shape) * z_dim.
-                torch.nn.Linear(len(x_shape) * z_dim,
-                                len(x_shape) * z_dim,
-                                bias=False),
-                # Batch normalization for each output feature, input shape: (N,
-                # len(x_shape) * z_dim).
-                torch.nn.BatchNorm1d(len(x_shape) * z_dim),
-                # Leaky ReLU activation function.
-                torch.nn.LeakyReLU(negative_slope=0.2),
-            )
-
         # Define the p(x|z) generative network architecture.
         self.generative_pxz = torch.nn.ModuleDict({
-            scale: torch.nn.ModuleList([
+            scale:
+            torch.nn.ModuleList([
                 # First layer: linear transformation from z_dim to hidden_dim.
                 torch.nn.Linear(z_dim, hidden_dim, bias=False),
                 # Batch normalization layer.
@@ -441,58 +465,6 @@ class Decoder(torch.nn.Module):
         }
         return y_mu, y_var
 
-    def nonlinear_z_mix(self,
-                        z: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        """Mixes the input tensors and applies a non-linear transformation.
-
-        Args:
-            z (Dict[str, torch.Tensor]): A dictionary of tensors with keys
-                representing the different scales of the inputs.
-
-        Returns:
-            Dict[str, torch.Tensor]: A dictionary of mixed and transformed
-                tensors with keys representing the different scales of the
-                outputs.
-        """
-        # Get the sizes of the input tensors
-        split_sizes = [z[scale].shape[1] for scale in z.keys()]
-
-        # Get the number of batches for each input tensor and compute the
-        # number of repetitions
-        nb = {scale: z[scale].shape[0] for scale in z.keys()}
-        nrepeat = {scale: max(nb.values()) // nb[scale] for scale in z.keys()}
-
-        # Generate indices to repeat the input tensors based on the number of
-        # repetitions
-        repeat_idx = {
-            scale: torch.arange(z[scale].shape[0],
-                                device=z[scale].device).repeat_interleave(
-                                    nrepeat[scale])
-            for scale in z.keys()
-        }
-
-        # Repeat the input tensors and concatenate them
-        z_out = {
-            scale: torch.index_select(z[scale], 0, repeat_idx[scale])
-            for scale in z.keys()
-        }
-        z_out = self.generative_mix_z(
-            torch.cat([z_out[scale] for scale in z.keys()], dim=1))
-
-        # Split the concatenated tensor back into individual tensors and
-        # reshape them
-        z_out = torch.split(z_out, split_sizes, dim=1)
-        z_out = {scale: z_out[i] for i, scale in enumerate(z.keys())}
-        z_out = {
-            scale: torch.mean(z_out[scale].view(-1, nrepeat[scale],
-                                                z[scale].shape[-1]),
-                              dim=1)
-            for scale in z.keys()
-        }
-
-        # Return the mixed and transformed tensors
-        return z_out
-
     def pxz(self, z: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """Computes the likelihood of data given the latent variable z.
 
@@ -528,10 +500,6 @@ class Decoder(torch.nn.Module):
         # Compute the probability distribution of the condition
         y_mu, y_var = self.pzy(y)
 
-        if hasattr(self, 'generative_mix_z'):
-            # Transform and mix the latent variable
-            z = self.nonlinear_z_mix(z)
-
         # Compute the probability distribution of the data given the latent
         # variable
         x_rec = self.pxz(z)
@@ -554,7 +522,6 @@ class FactorialVAE(torch.nn.Module):
         hard_gumbel (bool): Whether to use the hard Gumbel-Softmax estimator.
         hidden_dim (int): The dimensionality of the hidden layers.
         nlayer (int): The number of hidden layers.
-        mix (bool): Whether to mix latent variables from different scales.
 
     Attributes:
         inference (Encoder): The encoder network.
@@ -562,6 +529,7 @@ class FactorialVAE(torch.nn.Module):
         gumbel_temp (float): The Gumbel-Softmax temperature parameter.
         hard_gumbel (bool): Whether to use the hard Gumbel-Softmax estimator.
     """
+
     def __init__(self,
                  x_shape: tuple,
                  z_dim: int,
@@ -569,18 +537,12 @@ class FactorialVAE(torch.nn.Module):
                  init_temp: float,
                  hard_gumbel: bool = False,
                  hidden_dim: int = 512,
-                 nlayer: int = 3,
-                 mix: bool = True) -> None:
+                 nlayer: int = 3) -> None:
         super(FactorialVAE, self).__init__()
 
         # Instantiate the encoder and decoder networks.
         self.inference = Encoder(x_shape, z_dim, y_dim, hidden_dim, nlayer)
-        self.generative = Decoder(x_shape,
-                                  z_dim,
-                                  y_dim,
-                                  hidden_dim,
-                                  nlayer,
-                                  mix=mix)
+        self.generative = Decoder(x_shape, z_dim, y_dim, hidden_dim, nlayer)
 
         # Initialize the Gumbel-Softmax temperature parameter and hard Gumbel
         # flag.

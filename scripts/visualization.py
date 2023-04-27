@@ -29,6 +29,7 @@ SAMPLING_RATE = 20
 class Visualization(object):
     """Class visualizing results of a GMVAE training.
     """
+
     def __init__(self, args, network, dataset, data_loader, device):
         # Pretrained GMVAE network.
         self.network = network
@@ -112,11 +113,12 @@ class Visualization(object):
         # Return the required subwindow.
         return waveform[:, subwindow_idx, :]
 
-    def get_time_interval(self, window_idx, subwindow_idx, scale, lmst=True):
+    def get_time_interval(self, window_idx, scale, lmst=True):
         # Extract window time interval.
         window_time_interval = self.dataset.get_time_interval([window_idx])[0]
         # Number of subwindows in the given scale.
-        num_sub_windows = self.dataset.data['scat_cov'][scale].shape[1]
+        scales = [int(s) for s in self.scales]
+        num_sub_windows = max(scales) // int(scale)
 
         # Example start and end times.
         start_time = window_time_interval[0]
@@ -135,7 +137,7 @@ class Visualization(object):
         ]
 
         # Select the time interval associated with the given subwindow_idx.
-        window_time_interval = subintervals[subwindow_idx]
+        window_time_interval = subintervals[-1]
 
         if lmst:
             # Convert to LMST format, usable by matplotlib.
@@ -162,15 +164,17 @@ class Visualization(object):
 
         # Placeholder for cluster membership and probablity for all the data.
         cluster_membership = {
-            scale: torch.zeros(len(data_loader.dataset),
-                               self.dataset.data['scat_cov'][scale].shape[1],
-                               dtype=torch.long)
+            scale:
+            torch.zeros(len(data_loader.dataset),
+                        self.dataset.data['scat_cov'][scale].shape[1],
+                        dtype=torch.long)
             for scale in self.scales
         }
         cluster_membership_prob = {
-            scale: torch.zeros(len(data_loader.dataset),
-                               self.dataset.data['scat_cov'][scale].shape[1],
-                               dtype=torch.float)
+            scale:
+            torch.zeros(len(data_loader.dataset),
+                        self.dataset.data['scat_cov'][scale].shape[1],
+                        dtype=torch.float)
             for scale in self.scales
         }
 
@@ -204,27 +208,23 @@ class Visualization(object):
 
             # Sort the values in the flattened tensor in descending order and
             # return the indices.
-            sorted_idxs = torch.argsort(prob_flat, descending=True).numpy()
-
-            # Convert the indices to row and column indices in the original 2D
-            # tensor.
-            confident_idxs[scale] = np.unravel_index(
-                sorted_idxs, cluster_membership_prob[scale].shape)
+            confident_idxs[scale] = torch.argsort(prob_flat,
+                                                  descending=True).numpy()
 
         per_cluster_confident_idxs = {
-            scale: {str(i): []
-                    for i in range(args.ncluster)}
+            scale: {
+                str(i): []
+                for i in range(args.ncluster)
+            }
             for scale in self.scales
         }
 
         for scale in self.scales:
-            for i in range(len(confident_idxs[scale][0])):
+            for i in range(len(confident_idxs[scale])):
                 per_cluster_confident_idxs[scale][str(
-                    cluster_membership[scale][
-                        confident_idxs[scale][0][i],
-                        confident_idxs[scale][1][i]].item())].append(
-                            (confident_idxs[scale][0][i],
-                             confident_idxs[scale][1][i]))
+                    cluster_membership[scale][confident_idxs[scale]
+                                              [i]].item())].append(
+                                                  confident_idxs[scale][i])
 
         return (cluster_membership, cluster_membership_prob, confident_idxs,
                 per_cluster_confident_idxs)
@@ -232,9 +232,6 @@ class Visualization(object):
     def plot_waveforms(self, args, sample_size=5):
         """Plot waveforms.
         """
-
-        # from IPython import embed
-        # embed()
 
         waveforms = {}
         time_intervals = {}
@@ -371,16 +368,16 @@ class Visualization(object):
                                 pad_inches=.02)
                     plt.close(fig)
 
-    def compute_per_cluster_mid_time_intervals(self, args, num_workers=30):
+    def compute_per_cluster_mid_time_intervals(self, args, num_workers=8):
+
         def serial_job(shared_in, scale, i, sample_idxs):
             per_cluster_confident_idxs, get_time_interval = shared_in
 
             mid_time_intervals = []
             for sample_idx in sample_idxs:
-                (window_idx, subwindow_idx
-                 ) = per_cluster_confident_idxs[scale][str(i)][sample_idx]
+                window_idx = per_cluster_confident_idxs[scale][str(
+                    i)][sample_idx]
                 time_interval = get_time_interval(window_idx,
-                                                  subwindow_idx,
                                                   scale,
                                                   lmst=False)
                 time_interval = [lmst_xtick(t) for t in time_interval]
@@ -393,10 +390,13 @@ class Visualization(object):
             return np.array(mid_time_intervals)
 
         mid_time_intervals = {
-            scale: {str(i): []
-                    for i in range(args.ncluster)}
+            scale: {
+                str(i): []
+                for i in range(args.ncluster)
+            }
             for scale in self.scales
         }
+
         for cluster in range(args.ncluster):
             for scale in tqdm(self.scales):
                 split_idxs = np.array_split(np.arange(
@@ -449,7 +449,6 @@ class Visualization(object):
                             pad_inches=.02)
                 plt.close(fig)
 
-
     def centroid_waveform(self, args, waveforms, cluster_idx):
         """Compute centroid waveform for each cluster.
 
@@ -481,8 +480,9 @@ class Visualization(object):
                 lag = lags[np.argmax(correlation)]
                 rolled_waveforms[i,
                                  j, :] = roll_zeropad(waveforms[i, j, :], lag)
-                corr_coefs[i, j] = np.corrcoef(bs_waveform[j, ],
-                                               rolled_waveforms[i, j, :])[0, 1]
+                corr_coefs[i, j] = np.corrcoef(bs_waveform[
+                    j,
+                ], rolled_waveforms[i, j, :])[0, 1]
 
         centroid_waveforms = np.zeros(
             (rolled_waveforms.shape[1], rolled_waveforms.shape[2]))

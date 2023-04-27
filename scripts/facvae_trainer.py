@@ -24,7 +24,7 @@ class FactorialVAETrainer(object):
             scale: dataset.shape['scat_cov'][scale]
             for scale in args.scales
         }
-        print('waveform shape: ', dataset.shape['waveform'])
+        # print('waveform shape: ', dataset.shape['waveform'])
         print('Multiscale scattering covariance shapes: ', self.in_shape)
         self.network = FactorialVAE(self.in_shape,
                                     args.latent_dim,

@@ -1,13 +1,13 @@
 {
-    "window_size": 262144,
+    "window_size": 65536,
     "q": "1,1",
     "j": "8,8",
     "cuda": 1,
-    "nchunks": 2,
+    "nchunks": 64,
     "use_day_data": 1,
     "avgpool_base": 4,
-    "avgpool_exp": "4,5,6,7,8,9",
+    "avgpool_exp": "5,6,7,8",
     "model_type": "scat+cov",
-    "filter_key": "2019-JUN-03,2019-JUN-04,2019-JUN-05,2019-JUN-06,2019-JUN-07,2019-JUN-08,2019-JUN-09,2019-JUN-10,2019-JUN-11",
-    "filename": "neurips"
+    "filter_key": "",
+    "filename": "pyramid"
 }

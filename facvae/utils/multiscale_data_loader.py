@@ -55,6 +55,7 @@ class MarsMultiscaleDataset():
             data has already been normalized.
 
     """
+
     def __init__(
         self,
         file_path: str,
@@ -77,19 +78,20 @@ class MarsMultiscaleDataset():
         self.file_path = file_path
         self.file = h5py.File(file_path, 'r')
 
-        # Get the number of windows in the waveform dataset.
-        self.num_windows = self.file['waveform'].shape[0]
-
         # If scatcov_datasets is not specified, get a list of all datasets in
         # the scat_cov group.
         if not scatcov_datasets:
             scatcov_datasets = list(self.file['scat_cov'].keys())
         self.scatcov_datasets = scatcov_datasets
 
+        # Get the number of windows in the waveform dataset.
+        self.num_windows = self.file['scat_cov'][
+            self.scatcov_datasets[0]].shape[0]
+
         # Create a dictionary that stores the shape of the waveform and
         # scat_cov datasets.
         self.shape = {
-            'waveform': self.file['waveform'].shape[1:],
+            # 'waveform': self.file['waveform'].shape[1:],
             'scat_cov': {}
         }
 
@@ -97,8 +99,8 @@ class MarsMultiscaleDataset():
         # dictionary.
         for dset_name in scatcov_datasets:
             self.shape['scat_cov'][dset_name] = (
-                self.file['scat_cov'][dset_name].shape[2],
-                np.prod(self.file['scat_cov'][dset_name].shape[3:]))
+                self.file['scat_cov'][dset_name].shape[1],
+                np.prod(self.file['scat_cov'][dset_name].shape[2:]))
 
         # Split the data into training, validation, and test sets using the
         # specified proportion.
@@ -118,18 +120,24 @@ class MarsMultiscaleDataset():
         # for each dataset.
         self.data = {
             'waveform': None,
-            'scat_cov': {dset_name: None
-                         for dset_name in scatcov_datasets}
+            'scat_cov': {
+                dset_name: None
+                for dset_name in scatcov_datasets
+            }
         }
         self.normalizer = {
             'waveform': None,
-            'scat_cov': {dset_name: None
-                         for dset_name in scatcov_datasets}
+            'scat_cov': {
+                dset_name: None
+                for dset_name in scatcov_datasets
+            }
         }
         self.already_normalized = {
             'waveform': False,
-            'scat_cov': {dset_name: False
-                         for dset_name in scatcov_datasets}
+            'scat_cov': {
+                dset_name: False
+                for dset_name in scatcov_datasets
+            }
         }
 
         # If load_to_memory is True, load all data into memory.
@@ -214,7 +222,7 @@ class MarsMultiscaleDataset():
                     self.data['scat_cov'][dset_name] = torch.from_numpy(
                         self.file['scat_cov'][dset_name][
                             self.file_idx,
-                            ...].reshape(self.file_idx.shape[0], -1,
+                            ...].reshape(self.file_idx.shape[0], 1,
                                          *self.shape['scat_cov'][dset_name]))
             else:
                 # Load other data types
@@ -247,14 +255,12 @@ class MarsMultiscaleDataset():
                     if self.load_to_memory:
                         # If the data is loaded in memory, add the samples to
                         # the running_stats object.
-                        for i in range(0, len(self.train_idx),
-                                       NORMALIZATION_BATCH_SIZE):
-                            batch = self.data['scat_cov'][dset_name][
-                                self.train_idx[i:i + NORMALIZATION_BATCH_SIZE],
-                                ...]
-                            running_stats.input_samples(batch.reshape(
-                                -1, *self.shape['scat_cov'][dset_name]),
-                                                        n_workers=16)
+                        running_stats.input_samples(
+                            self.data['scat_cov'][dset_name]
+                            [self.train_idx,
+                             ...].reshape(-1,
+                                          *self.shape['scat_cov'][dset_name]),
+                            n_workers=16)
                     else:
                         # If the data is not loaded in memory, load it from the
                         # file in batches and add the samples to the
@@ -301,7 +307,7 @@ class MarsMultiscaleDataset():
                                             ...])
                         running_stats.input_samples(batch.reshape(
                             batch.shape[0], *self.shape[type]),
-                                                    n_workers=1)
+                                                    n_workers=16)
                 # Compute the mean and standard deviation of the samples.
                 mean, std = running_stats.compute_stats()
                 # Create a Normalizer object with the computed mean and
@@ -391,20 +397,10 @@ class MarsMultiscaleDataset():
                         ) and self.normalize_data:
                         # Normalize the data if it hasn't already been
                         # normalized.
-                        for i in range(
-                                0, self.data['scat_cov'][dset_name].shape[0],
-                                NORMALIZATION_BATCH_SIZE):
-                            self.data['scat_cov'][dset_name][
-                                i:i + NORMALIZATION_BATCH_SIZE,
-                                ...] = self.normalize(
-                                    self.data['scat_cov'][dset_name][
-                                        i:i + NORMALIZATION_BATCH_SIZE, ...],
-                                    'scat_cov',
-                                    dset_name=dset_name)
-                        # self.data['scat_cov'][dset_name] = self.normalize(
-                        #     self.data['scat_cov'][dset_name][...],
-                        #     'scat_cov',
-                        #     dset_name=dset_name)
+                        self.data['scat_cov'][dset_name] = self.normalize(
+                            self.data['scat_cov'][dset_name],
+                            'scat_cov',
+                            dset_name=dset_name)
                         self.already_normalized['scat_cov'][dset_name] = True
                     out[dset_name] = self.data['scat_cov'][dset_name][
                         np.sort(idx),
