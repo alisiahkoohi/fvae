@@ -141,11 +141,11 @@ class FactorialVAETrainer(object):
             for epoch in pb:
                 self.network.train()
                 # iterate over the dataset
+                # Update learning rate.
+                scheduler.step()
                 for i_idx, idx in enumerate(train_loader):
                     # Reset gradient attributes.
                     optim.zero_grad()
-                    # Update learning rate.
-                    scheduler.step()
 
                     # Load data batch.
                     x = self.dataset.sample_data(idx, 'scat_cov')

@@ -117,7 +117,7 @@ def update_hdf5_file(path, scat_cov_filename, filename, window_idx, waveform,
         file['scat_cov'][str(subwindow_size)][window_idx,
                                               ...] = scat_covariances
     # Write `waveform` to the HDF5 file.
-    file['waveform'][window_idx, ...] = waveform
+    # file['waveform'][window_idx, ...] = waveform
     # Write `time_intervals` to the HDF5 file.
     file['time_interval'][window_idx, ...] = [
         str(event_time) for event_time in time_intervals
