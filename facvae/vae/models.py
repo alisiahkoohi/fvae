@@ -59,6 +59,7 @@ class Encoder(torch.nn.Module):
         y_dim: int,
         hidden_dim: int,
         nlayer: int,
+        common: bool = True
     ) -> None:
         """
         Initializes the Encoder module.
@@ -78,22 +79,23 @@ class Encoder(torch.nn.Module):
         """
         super(Encoder, self).__init__()
 
-        # Common component multiscale data representation
-        self.common = torch.nn.ModuleList([
-            SkipConnection(
-                torch.nn.Sequential(
-                    torch.nn.Linear(sum(
-                        [x_shape[scale][1] for scale in x_shape.keys()]),
-                                    hidden_dim,
-                                    bias=False),
-                    torch.nn.BatchNorm1d(list(x_shape.values())[0][0]),
-                    torch.nn.LeakyReLU(negative_slope=0.2),
-                    torch.nn.Linear(
-                        hidden_dim,
-                        sum([x_shape[scale][1] for scale in x_shape.keys()]),
-                        bias=False))) for _ in range(nlayer)
-        ])
-        self.common = torch.nn.Sequential(*self.common)
+        if common:
+            # Common component multiscale data representation
+            self.common = torch.nn.ModuleList([
+                SkipConnection(
+                    torch.nn.Sequential(
+                        torch.nn.Linear(sum(
+                            [x_shape[scale][1] for scale in x_shape.keys()]),
+                                        hidden_dim,
+                                        bias=False),
+                        torch.nn.BatchNorm1d(list(x_shape.values())[0][0]),
+                        torch.nn.LeakyReLU(negative_slope=0.2),
+                        torch.nn.Linear(
+                            hidden_dim,
+                            sum([x_shape[scale][1] for scale in x_shape.keys()]),
+                            bias=False))) for _ in range(nlayer)
+            ])
+            self.common = torch.nn.Sequential(*self.common)
 
         # q(y|x)
         self.inference_qyx = torch.nn.ModuleDict({
@@ -327,8 +329,9 @@ class Encoder(torch.nn.Module):
                 - 'categorical': Dictionary containing the sampled categorical
                       variable tensors at different scales.
         """
-        # Common encoder.
-        x = self.common_encoder(x)
+        if hasattr(self, 'common'):
+            # Common encoder.
+            x = self.common_encoder(x)
 
         # q(y|x)
         qyx = self.qyx(x, temperature, hard)
