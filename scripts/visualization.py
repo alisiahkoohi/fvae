@@ -162,7 +162,7 @@ class Visualization(object):
             data_loader: (DataLoader) loader containing the data.
         """
 
-        import pdb; pdb.set_trace()
+        breakpoint()
 
         # Placeholder for cluster membership and probablity for all the data.
         cluster_membership = {
