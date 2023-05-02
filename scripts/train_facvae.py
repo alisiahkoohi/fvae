@@ -62,6 +62,10 @@ if __name__ == "__main__":
                                     filter_key=args.filter_key)
 
     # Create data loaders for train, validation and test datasets
+
+    if len(dataset.train_idx) < args.batchsize:
+        args.batchsize = len(dataset.train_idx)
+
     train_loader = torch.utils.data.DataLoader(dataset.train_idx,
                                                batch_size=args.batchsize,
                                                shuffle=True,

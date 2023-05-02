@@ -162,6 +162,8 @@ class Visualization(object):
             data_loader: (DataLoader) loader containing the data.
         """
 
+        import pdb; pdb.set_trace()
+
         # Placeholder for cluster membership and probablity for all the data.
         cluster_membership = {
             scale:
@@ -198,9 +200,9 @@ class Visualization(object):
                         len(idx),
                         self.dataset.data['scat_cov'][scale].shape[1]).cpu()
 
-        # Sort indices based on  most confident cluster predictions by the
+        # Sort indices based on most confident cluster predictions by the
         # network (increasing). The outcome is a dictionary with a key for each
-        # scale, where the window index and subwindow index are stored.
+        # scale, where the window indices are stored.
         confident_idxs = {}
         for scale in self.scales:
             # Flatten cluster_membership_prob into a 1D tensor.
@@ -397,7 +399,7 @@ class Visualization(object):
             for scale in self.scales
         }
 
-        for cluster in range(args.ncluster):
+        for cluster in tqdm(range(args.ncluster)):
             for scale in tqdm(self.scales):
                 split_idxs = np.array_split(np.arange(
                     len(self.per_cluster_confident_idxs[scale][str(cluster)])),
@@ -411,12 +413,14 @@ class Visualization(object):
                                         self.get_time_interval),
                         start_method='fork') as pool:
                     mid_time_intervals[scale][str(cluster)] = pool.map(
-                        serial_job, worker_in, progress_bar=True)
+                        serial_job, worker_in, progress_bar=False)
         return mid_time_intervals
 
     def plot_cluster_time_histograms(self, args):
 
         mid_time_intervals = self.compute_per_cluster_mid_time_intervals(args)
+
+        from IPython import embed; embed()
 
         # Plot histogram of cluster times.
         for cluster in range(args.ncluster):
@@ -439,15 +443,15 @@ class Visualization(object):
                 ax.set_yticklabels([])
                 ax.tick_params(axis='both', which='major', labelsize=8)
                 plt.savefig(os.path.join(
-                    plotsdir(
-                        os.path.join(args.experiment, 'scale_' + scale,
-                                     'cluster_' + str(cluster))),
-                    'time_histogram.png'),
+                    plotsdir(os.path.join(args.experiment, 'scale_' + scale)),
+                    'time_histogram_cluster-' + str(cluster) + '.png'),
                             format="png",
                             bbox_inches="tight",
                             dpi=200,
                             pad_inches=.02)
                 plt.close(fig)
+        from facvae.utils import upload_results
+        upload_results(args, flag='--progress')
 
     def centroid_waveform(self, args, waveforms, cluster_idx):
         """Compute centroid waveform for each cluster.
