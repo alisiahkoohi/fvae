@@ -12,6 +12,7 @@ from facvae.vae import FactorialVAE, LossFunctions, Metrics
 class FactorialVAETrainer(object):
     """Class training a Gaussian mixture variational autoencoder model.
     """
+
     def __init__(self, args, dataset, device):
         self.w_rec = args.w_rec
         self.w_gauss = args.w_gauss
@@ -76,21 +77,23 @@ class FactorialVAETrainer(object):
         for scale in data.keys():
             # Reconstruction loss.
             rec_loss += self.losses.reconstruction_loss(
-                data[scale], data_recon[scale], 'mse')
+                data[scale], data_recon[scale], 'mse') / len(data.keys())
 
             # Gaussian loss.
-            gauss_loss += self.losses.gaussian_loss(z[scale], mu[scale],
-                                                    var[scale], y_mu[scale],
-                                                    y_var[scale])
+            gauss_loss += self.losses.gaussian_loss(
+                z[scale], mu[scale], var[scale], y_mu[scale],
+                y_var[scale]) / len(data.keys())
             # gauss_loss = self.losses.gaussian_closed_form_loss(
             #     mu[scale], var[scale], y_mu[scale], y_var[scale])
 
             # Categorical loss (posterior).
-            cat_loss -= self.losses.entropy(logits[scale], prob_cat[scale])
+            cat_loss -= self.losses.entropy(logits[scale],
+                                            prob_cat[scale]) / len(data.keys())
 
             # Categorical prior.
             pi = torch.ones_like(prob_cat[scale])
-            cat_loss_prior += self.losses.entropy(pi, prob_cat[scale])
+            cat_loss_prior += self.losses.entropy(pi, prob_cat[scale]) / len(
+                data.keys())
 
         # Total loss.
         vae_loss = (self.w_rec * rec_loss + self.w_gauss * gauss_loss +
