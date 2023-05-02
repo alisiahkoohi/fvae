@@ -1,8 +1,14 @@
 import datetime
 from obspy.core.utcdatetime import UTCDateTime
 import numpy as np
+import os
 
 from facvae.marsconverter import MarsConverter
+
+from .project_path import datadir
+
+# Path to Mars data directory.
+MARS_PATH = datadir('mars')
 
 MARS_TO_MONTH_INT_CONVERSION = {
     'JAN': '1',
@@ -56,6 +62,35 @@ def date_conv_stand_to_mars(date, suffix='.UVW_calib_ACC.mseed'):
 def yyyy_mm_dd_to_datetime(yyyy_mm_dd):
     return datetime.datetime.strptime(yyyy_mm_dd,
                                       '%Y-%m-%d').strftime("%Y-%b-%d")
+
+
+def get_waveform_path_from_time_interval(start_time, end_time):
+
+    # Path to raw data and directory for creating scattering dataset.
+    waveform_path = datadir(os.path.join(MARS_PATH, 'waveforms_UVW_raw'))
+    raw_data_files = os.listdir(waveform_path)
+
+    # By design this should not trigger (as windows are seleted within one day)
+    # but a sanity check that the start and end times have the same year,
+    # month, and day.
+    if start_time.year != end_time.year:
+        raise ValueError("Start and end times have different years")
+
+    if start_time.month != end_time.month:
+        raise ValueError("Start and end times have different months")
+
+    if start_time.day != end_time.day:
+        raise ValueError("Start and end times have different days")
+
+    # Construct the file name.
+    file_name = (str(start_time.year) + '-' +
+                 STAND_TO_MARS_MONTH_CONVERSION[datetime.date(
+                     1900, start_time.month, 1).strftime('%b')] + '-' +
+                 str(start_time.day).zfill(2) + '.UVW.mseed')
+
+    filepath = os.path.join(waveform_path, file_name)
+
+    return filepath
 
 
 def get_time_interval(window_key,

@@ -100,8 +100,8 @@ if __name__ == "__main__":
         # Create an instance of Visualization class.
         vis = Visualization(args, network, dataset, test_loader, device)
         # Plot waveforms from the test set.
+        vis.plot_waveforms(args)
         vis.plot_cluster_time_histograms(args)
-        # vis.plot_waveforms(args)
         # Reconstruct a sample of the training data.
         # vis.reconstruct_data(args, train_loader)
         # Uncomment the following line to generate random samples.
@@ -110,4 +110,4 @@ if __name__ == "__main__":
         # vis.plot_latent_space(args, test_loader)
 
     # Upload results to Weights & Biases for tracking training progress.
-    upload_results(args, flag='--progress')
+    upload_results(args, flag='--progress --transfers 8')
