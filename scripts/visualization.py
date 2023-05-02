@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
+import datetime
 import numpy as np
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
@@ -428,14 +429,21 @@ class Visualization(object):
                              element="step",
                              alpha=0.3,
                              binwidth=0.005,
+                             kde=False,
                              label='cluster ' + str(cluster) + ' - ' +
                              str(len(mid_time_intervals[scale][str(cluster)])))
                 ax = plt.gca()
+                ax.set_xlim([
+                    matplotlib.dates.date2num(
+                        datetime.datetime(1900, 1, 1, 0, 0, 0, 0)),
+                    matplotlib.dates.date2num(
+                        datetime.datetime(1900, 1, 1, 23, 59, 59, 999999)),
+                ])
                 ax.xaxis.set_major_locator(
                     matplotlib.dates.HourLocator(interval=2))
                 ax.xaxis.set_major_formatter(
                     matplotlib.dates.DateFormatter('%H'))
-                ax.legend()
+                ax.legend(fontsize=12)
                 ax.set_yticklabels([])
                 ax.tick_params(axis='both', which='major', labelsize=8)
                 plt.savefig(os.path.join(
@@ -446,8 +454,6 @@ class Visualization(object):
                             dpi=200,
                             pad_inches=.02)
                 plt.close(fig)
-        from facvae.utils import upload_results
-        upload_results(args, flag='--progress')
 
     def centroid_waveform(self, args, waveforms, cluster_idx):
         """Compute centroid waveform for each cluster.
