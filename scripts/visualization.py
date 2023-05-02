@@ -162,8 +162,6 @@ class Visualization(object):
             data_loader: (DataLoader) loader containing the data.
         """
 
-        breakpoint()
-
         # Placeholder for cluster membership and probablity for all the data.
         cluster_membership = {
             scale:
@@ -191,12 +189,12 @@ class Visualization(object):
                 output = self.network(x)
             # Extract the predicted cluster memberships.
             for scale in self.scales:
-                cluster_membership[scale][
-                    idx, :] = output['logits'][scale].argmax(axis=1).reshape(
+                cluster_membership[scale][np.sort(idx), :] = output['logits'][
+                    scale].argmax(axis=1).reshape(
                         len(idx),
                         self.dataset.data['scat_cov'][scale].shape[1]).cpu()
-                cluster_membership_prob[scale][
-                    idx, :] = output['prob_cat'][scale].max(axis=1)[0].reshape(
+                cluster_membership_prob[scale][np.sort(idx), :] = output[
+                    'prob_cat'][scale].max(axis=1)[0].reshape(
                         len(idx),
                         self.dataset.data['scat_cov'][scale].shape[1]).cpu()
 
@@ -419,8 +417,6 @@ class Visualization(object):
     def plot_cluster_time_histograms(self, args):
 
         mid_time_intervals = self.compute_per_cluster_mid_time_intervals(args)
-
-        from IPython import embed; embed()
 
         # Plot histogram of cluster times.
         for cluster in range(args.ncluster):
