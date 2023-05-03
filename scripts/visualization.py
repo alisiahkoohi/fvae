@@ -18,6 +18,10 @@ from tqdm import tqdm
 from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
                           roll_zeropad, get_waveform_path_from_time_interval)
 
+import pytz
+
+utc = pytz.UTC
+
 sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}
 matplotlib.rc('font', **font)
@@ -420,7 +424,7 @@ class Visualization(object):
                         start_method='fork') as pool:
             pool.map(waveform_serial_job, worker_in, progress_bar=True)
 
-    def compute_per_cluster_mid_time_intervals(self, args, num_workers=8):
+    def compute_per_cluster_mid_time_intervals(self, args, num_workers=20):
 
         def serial_job(shared_in, scale, i, sample_idxs):
             per_cluster_confident_idxs, get_time_interval = shared_in
@@ -432,11 +436,9 @@ class Visualization(object):
                 time_interval = get_time_interval(window_idx,
                                                   scale,
                                                   lmst=False)
-                time_interval = [lmst_xtick(t) for t in time_interval]
-                time_interval = [
-                    matplotlib.dates.date2num(t) for t in time_interval
-                ]
-                time_interval = np.array(time_interval).mean(-1)
+
+                time_interval = sum([t.timestamp for t in time_interval]) / 2.0
+                time_interval = lmst_xtick(UTCDateTime(time_interval))
                 mid_time_intervals.append(time_interval)
 
             return np.array(mid_time_intervals)
@@ -450,6 +452,8 @@ class Visualization(object):
         }
 
         for cluster in tqdm(range(args.ncluster)):
+            print('Computing waneform midtimes for all waveforms in '
+                  'cluster {}'.format(cluster))
             for scale in tqdm(self.scales):
                 split_idxs = np.array_split(np.arange(
                     len(self.per_cluster_confident_idxs[scale][str(cluster)])),
