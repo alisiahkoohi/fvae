@@ -18,9 +18,6 @@ from tqdm import tqdm
 from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
                           roll_zeropad, get_waveform_path_from_time_interval)
 
-import pytz
-
-utc = pytz.UTC
 
 sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}

@@ -1,1 +1,0 @@
-CUDA_VISIBLE_DEVICES=3 python scripts/generate_scattering_cov.py

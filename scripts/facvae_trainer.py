@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from facvae.utils import checkpointsdir, CustomLRScheduler, logsdir
-from facvae.vae import FactorialVAE, LossFunctions, Metrics
+from facvae.vae import FactorialVAE, LossFunctions
 
 
 class FactorialVAETrainer(object):
@@ -48,9 +48,8 @@ class FactorialVAETrainer(object):
         }
         self.val_log = {key: [] for key in self.train_log}
 
-        # Loss functions and metrics.
+        # Loss functions.
         self.losses = LossFunctions()
-        self.metrics = Metrics()
 
     def compute_loss(self, data, out_net):
         """Loss functions derived from the variational lower bound.
