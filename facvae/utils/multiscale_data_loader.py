@@ -221,12 +221,14 @@ class MarsMultiscaleDataset():
                     # Load scat_cov data
                     self.data['scat_cov'][dset_name] = torch.from_numpy(
                         self.file['scat_cov'][dset_name][
+                            # Sort here allows arbitrary filter_key orders.
                             np.sort(self.file_idx),
                             ...].reshape(self.file_idx.shape[0], 1,
                                          *self.shape['scat_cov'][dset_name]))
             else:
                 # Load other data types
                 self.data[type] = torch.from_numpy(
+                    # Sort here allows arbitrary filter_key orders.
                     self.file[type][np.sort(self.file_idx),
                                     ...].reshape(self.file_idx.shape[0],
                                                  *self.shape[type]))
