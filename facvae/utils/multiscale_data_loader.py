@@ -172,7 +172,8 @@ class MarsMultiscaleDataset():
                     filter(lambda k: filter_key in k[1],
                            enumerate(all_filenames)))
                 file_idx.extend([file[0] for file in filtered_filenames])
-            file_idx = np.array(file_idx)
+            # Sort here allows arbitrary filter_key orders.
+            file_idx = np.sort(np.array(file_idx))
 
             # Calculate the sizes of the train and validation sets.
             ntrain = int(train_proportion * file_idx.shape[0])
@@ -188,6 +189,7 @@ class MarsMultiscaleDataset():
 
         else:
             # No filter keys specified, use all file indices.
+            # Already sorted.
             file_idx = np.array(list(range(self.num_windows)))
 
             # Calculate the sizes of the train and validation sets.
@@ -221,15 +223,13 @@ class MarsMultiscaleDataset():
                     # Load scat_cov data
                     self.data['scat_cov'][dset_name] = torch.from_numpy(
                         self.file['scat_cov'][dset_name][
-                            # Sort here allows arbitrary filter_key orders.
-                            np.sort(self.file_idx),
+                            self.file_idx,
                             ...].reshape(self.file_idx.shape[0], 1,
                                          *self.shape['scat_cov'][dset_name]))
             else:
                 # Load other data types
                 self.data[type] = torch.from_numpy(
-                    # Sort here allows arbitrary filter_key orders.
-                    self.file[type][np.sort(self.file_idx),
+                    self.file[type][self.file_idx,
                                     ...].reshape(self.file_idx.shape[0],
                                                  *self.shape[type]))
 
