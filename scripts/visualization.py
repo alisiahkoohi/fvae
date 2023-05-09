@@ -18,7 +18,6 @@ from tqdm import tqdm
 from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
                           roll_zeropad, get_waveform_path_from_time_interval)
 
-
 sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}
 matplotlib.rc('font', **font)
@@ -154,9 +153,10 @@ class Visualization(object):
 
         if lmst:
             # Convert to LMST format, usable by matplotlib.
-            window_time_interval = create_lmst_xticks(*window_time_interval,
-                                                      time_zone='LMST',
-                                                      window_size=int(scale))
+            window_time_interval = (create_lmst_xticks(*window_time_interval,
+                                                       time_zone='LMST',
+                                                       window_size=int(scale)),
+                                    window_time_interval)
 
         # Return the required time interval.
         return window_time_interval
@@ -242,9 +242,18 @@ class Visualization(object):
         return (cluster_membership, cluster_membership_prob, confident_idxs,
                 per_cluster_confident_idxs)
 
-    def plot_waveforms(self, args, sample_size=10):
+    def plot_waveforms(self, args, sample_size=5):
         """Plot waveforms.
         """
+
+        def do_overlap(pair1, pair2):
+            start1, end1 = pair1
+            start2, end2 = pair2
+
+            # Check for all types of overlap
+            return (start1 <= start2 <= end1 or start1 <= end2 <= end1
+                    or start2 <= start1 <= end2 or start2 <= end1 <= end2)
+
         waveforms = {}
         time_intervals = {}
         for scale in self.scales:
@@ -252,116 +261,131 @@ class Visualization(object):
             waveforms[scale] = {}
             time_intervals[scale] = {}
             for i in range(args.ncluster):
-                waveforms[scale][str(i)] = []
-                time_intervals[scale][str(i)] = []
+                utc_time_intervals = []
+                window_idx_list = []
                 for sample_idx in range(
-                        min(
-                            sample_size,
-                            len(self.per_cluster_confident_idxs[scale][str(
-                                i)]))):
+                        len(self.per_cluster_confident_idxs[scale][str(i)])):
                     window_idx = self.per_cluster_confident_idxs[scale][str(
                         i)][sample_idx]
+                    utc_interval = self.get_time_interval(window_idx, scale)[1]
+                    should_add = True
+
+                    for interval in utc_time_intervals:
+                        if do_overlap(interval, utc_interval):
+                            should_add = False
+                            break
+
+                    if should_add:
+                        utc_time_intervals.append(utc_interval)
+                        window_idx_list.append(window_idx)
+
+                    if len(window_idx_list) == sample_size:
+                        break
+
+                waveforms[scale][str(i)] = []
+                time_intervals[scale][str(i)] = []
+                for window_idx in window_idx_list:
                     waveforms[scale][str(i)].append(
                         self.get_waveform(window_idx, scale))
                     time_intervals[scale][str(i)].append(
-                        self.get_time_interval(window_idx, scale))
+                        self.get_time_interval(window_idx, scale)[0])
 
-        # Serial worker for plotting Fourier transforms for each cluster.
-        def fourier_serial_job(shared_in, clusters):
-            args, scales, waveforms = shared_in
-            for cluster in clusters:
-                print('Plotting Fourier transforms for cluster {}'.format(
-                    cluster))
-                for scale in scales:
-                    for sample_idx, waveform in enumerate(
-                            waveforms[scale][str(cluster)]):
-                        for comp in range(waveform.shape[0]):
-                            fig = plt.figure(figsize=(7, 2))
-                            # Compute the Fourier transform.
-                            freqs = np.fft.fftfreq(waveform.shape[1],
-                                                   d=1 / SAMPLING_RATE)
-                            ft = np.fft.fft(waveform[comp, :], norm='forward')
-                            # Plot the Fourier transform.
-                            plt.plot(np.fft.fftshift(freqs),
-                                     np.fft.fftshift(np.abs(ft)))
-                            ax = plt.gca()
-                            plt.xlim([0, SAMPLING_RATE / 2])
-                            ax.set_ylabel('Amplitude', fontsize=10)
-                            ax.set_xlabel('Frequency (Hz)', fontsize=10)
-                            ax.set_yscale("log")
-                            ax.grid(True)
-                            ax.tick_params(axis='both',
-                                           which='major',
-                                           labelsize=8)
-                            plt.savefig(os.path.join(
-                                plotsdir(
-                                    os.path.join(args.experiment,
-                                                 'scale_' + scale,
-                                                 'cluster_' + str(cluster),
-                                                 'component_' + str(comp))),
-                                'fourier_transform_{}.png'.format(sample_idx)),
-                                        format="png",
-                                        bbox_inches="tight",
-                                        dpi=200,
-                                        pad_inches=.02)
-                            plt.close(fig)
+        # # Serial worker for plotting Fourier transforms for each cluster.
+        # def fourier_serial_job(shared_in, clusters):
+        #     args, scales, waveforms = shared_in
+        #     for cluster in clusters:
+        #         print('Plotting Fourier transforms for cluster {}'.format(
+        #             cluster))
+        #         for scale in scales:
+        #             for sample_idx, waveform in enumerate(
+        #                     waveforms[scale][str(cluster)]):
+        #                 for comp in range(waveform.shape[0]):
+        #                     fig = plt.figure(figsize=(7, 2))
+        #                     # Compute the Fourier transform.
+        #                     freqs = np.fft.fftfreq(waveform.shape[1],
+        #                                            d=1 / SAMPLING_RATE)
+        #                     ft = np.fft.fft(waveform[comp, :], norm='forward')
+        #                     # Plot the Fourier transform.
+        #                     plt.plot(np.fft.fftshift(freqs),
+        #                              np.fft.fftshift(np.abs(ft)))
+        #                     ax = plt.gca()
+        #                     plt.xlim([0, SAMPLING_RATE / 2])
+        #                     ax.set_ylabel('Amplitude', fontsize=10)
+        #                     ax.set_xlabel('Frequency (Hz)', fontsize=10)
+        #                     ax.set_yscale("log")
+        #                     ax.grid(True)
+        #                     ax.tick_params(axis='both',
+        #                                    which='major',
+        #                                    labelsize=8)
+        #                     plt.savefig(os.path.join(
+        #                         plotsdir(
+        #                             os.path.join(args.experiment,
+        #                                          'scale_' + scale,
+        #                                          'cluster_' + str(cluster),
+        #                                          'component_' + str(comp))),
+        #                         'fourier_transform_{}.png'.format(sample_idx)),
+        #                                 format="png",
+        #                                 bbox_inches="tight",
+        #                                 dpi=200,
+        #                                 pad_inches=.02)
+        #                     plt.close(fig)
 
-        # Plot Fourier transform for each cluster.
-        worker_in = np.array_split(np.arange(args.ncluster),
-                                   args.ncluster,
-                                   axis=0)
-        with WorkerPool(n_jobs=args.ncluster,
-                        shared_objects=(args, self.scales, waveforms),
-                        start_method='fork') as pool:
-            pool.map(fourier_serial_job, worker_in, progress_bar=True)
+        # # Plot Fourier transform for each cluster.
+        # worker_in = np.array_split(np.arange(args.ncluster),
+        #                            args.ncluster,
+        #                            axis=0)
+        # with WorkerPool(n_jobs=args.ncluster,
+        #                 shared_objects=(args, self.scales, waveforms),
+        #                 start_method='fork') as pool:
+        #     pool.map(fourier_serial_job, worker_in, progress_bar=True)
 
-        # Serial worker for plotting spectogram for each cluster.
-        def spectogram_serial_job(shared_in, clusters):
-            args, scales, waveforms = shared_in
-            for cluster in clusters:
-                print('Plotting spectrograms for cluster {}'.format(cluster))
-                for scale in scales:
-                    for sample_idx, waveform in enumerate(
-                            waveforms[scale][str(cluster)]):
-                        for comp in range(waveform.shape[0]):
-                            fig = plt.figure(figsize=(7, 2))
-                            # Plot spectrogram.
-                            nperseg = min(256, int(scale) // 4)
-                            plt.specgram(waveform[comp, :],
-                                         NFFT=nperseg,
-                                         noverlap=nperseg // 8,
-                                         Fs=SAMPLING_RATE,
-                                         mode='magnitude',
-                                         cmap='RdYlBu_r')
-                            ax = plt.gca()
-                            plt.ylim([0, SAMPLING_RATE / 2])
-                            ax.set_xticklabels([])
-                            ax.set_ylabel('Frequency (Hz)', fontsize=10)
-                            ax.grid(False)
-                            ax.tick_params(axis='both',
-                                           which='major',
-                                           labelsize=8)
-                            plt.savefig(os.path.join(
-                                plotsdir(
-                                    os.path.join(args.experiment,
-                                                 'scale_' + scale,
-                                                 'cluster_' + str(cluster),
-                                                 'component_' + str(comp))),
-                                'spectrogram_{}.png'.format(sample_idx)),
-                                        format="png",
-                                        bbox_inches="tight",
-                                        dpi=200,
-                                        pad_inches=.02)
-                            plt.close(fig)
+        # # Serial worker for plotting spectogram for each cluster.
+        # def spectogram_serial_job(shared_in, clusters):
+        #     args, scales, waveforms = shared_in
+        #     for cluster in clusters:
+        #         print('Plotting spectrograms for cluster {}'.format(cluster))
+        #         for scale in scales:
+        #             for sample_idx, waveform in enumerate(
+        #                     waveforms[scale][str(cluster)]):
+        #                 for comp in range(waveform.shape[0]):
+        #                     fig = plt.figure(figsize=(7, 2))
+        #                     # Plot spectrogram.
+        #                     nperseg = min(256, int(scale) // 4)
+        #                     plt.specgram(waveform[comp, :],
+        #                                  NFFT=nperseg,
+        #                                  noverlap=nperseg // 8,
+        #                                  Fs=SAMPLING_RATE,
+        #                                  mode='magnitude',
+        #                                  cmap='RdYlBu_r')
+        #                     ax = plt.gca()
+        #                     plt.ylim([0, SAMPLING_RATE / 2])
+        #                     ax.set_xticklabels([])
+        #                     ax.set_ylabel('Frequency (Hz)', fontsize=10)
+        #                     ax.grid(False)
+        #                     ax.tick_params(axis='both',
+        #                                    which='major',
+        #                                    labelsize=8)
+        #                     plt.savefig(os.path.join(
+        #                         plotsdir(
+        #                             os.path.join(args.experiment,
+        #                                          'scale_' + scale,
+        #                                          'cluster_' + str(cluster),
+        #                                          'component_' + str(comp))),
+        #                         'spectrogram_{}.png'.format(sample_idx)),
+        #                                 format="png",
+        #                                 bbox_inches="tight",
+        #                                 dpi=200,
+        #                                 pad_inches=.02)
+        #                     plt.close(fig)
 
-        # Plot spectogram for each cluster.
-        worker_in = np.array_split(np.arange(args.ncluster),
-                                   args.ncluster,
-                                   axis=0)
-        with WorkerPool(n_jobs=args.ncluster,
-                        shared_objects=(args, self.scales, waveforms),
-                        start_method='fork') as pool:
-            pool.map(spectogram_serial_job, worker_in, progress_bar=True)
+        # # Plot spectogram for each cluster.
+        # worker_in = np.array_split(np.arange(args.ncluster),
+        #                            args.ncluster,
+        #                            axis=0)
+        # with WorkerPool(n_jobs=args.ncluster,
+        #                 shared_objects=(args, self.scales, waveforms),
+        #                 start_method='fork') as pool:
+        #     pool.map(spectogram_serial_job, worker_in, progress_bar=True)
 
         # Serial worker for plotting waveforms for each cluster.
         def waveform_serial_job(shared_in, clusters):
