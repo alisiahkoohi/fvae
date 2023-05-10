@@ -182,18 +182,6 @@ def setup_hdf5_file(
                          (max_win_num, num_components, window_size),
                          chunks=(1, 1, window_size),
                          dtype=np.float32)
-    file.require_dataset('waveform_large_scale',
-                         (max_win_num, num_components, window_size),
-                         chunks=(1, 1, window_size),
-                         dtype=np.float32)
-    file.require_dataset('waveform_mid_scale',
-                         (max_win_num, num_components, window_size),
-                         chunks=(1, 1, window_size),
-                         dtype=np.float32)
-    file.require_dataset('waveform_fine_scale',
-                         (max_win_num, num_components, window_size),
-                         chunks=(1, 1, window_size),
-                         dtype=np.float32)
 
     file.close()
 
@@ -203,9 +191,6 @@ def update_hdf5_file(
     scat_cov_filename,
     window_idx,
     waveform,
-    waveform_large_scale,
-    waveform_mid_scale,
-    waveform_fine_scale,
     scat_covariances_list,
     subwindow_size_list,
 ):
@@ -225,9 +210,6 @@ def update_hdf5_file(
                                               ...] = scat_covariances
     # Write `waveform` to the HDF5 file.
     file['waveform'][window_idx, ...] = waveform
-    file['waveform_large_scale'][window_idx, ...] = waveform_large_scale
-    file['waveform_mid_scale'][window_idx, ...] = waveform_mid_scale
-    file['waveform_fine_scale'][window_idx, ...] = waveform_fine_scale
 
     file.close()
 
@@ -247,28 +229,6 @@ def finalize_dataset_size(path, scat_cov_filename, num_windows):
                 file[key][dset_name].resize(num_windows, axis=0)
 
     file.close()
-
-
-def window_data(args, data_stream, stride):
-    data_stream = obspy.Trace(data=data_stream.reshape(-1))
-
-    # Turn the trace to a batch of windowed data with size
-    # `window_size`.
-    data_stream = data_stream.slide((args.window_size - 1),
-                                    args.window_size * stride,
-                                    offset=OFFSET)
-
-    batched_window = []
-    for window in data_stream:
-        batched_window.append(np.stack([tr.data for tr in window]))
-
-    window_num = len(batched_window)
-
-    batched_window = np.stack(batched_window)
-    batched_window = batched_window.reshape(
-        window_num * NUM_COMPONENTS, args.window_size).astype(np.float32)
-
-    return batched_window
 
 
 def compute_scat_cov(args):
@@ -322,21 +282,28 @@ def compute_scat_cov(args):
         (x_large_scale, x_medium_scales, x_fine_scales,
          data_stream) = synthesize_time_series()
 
-        data_stream = window_data(args, data_stream, stride)
-        x_large_scale = window_data(args, x_large_scale, stride)
-        x_medium_scales = window_data(args, x_medium_scales, stride)
-        x_fine_scales = window_data(args, x_fine_scales, stride)
+        data_stream = obspy.Trace(data=data_stream.reshape(-1))
 
-        window_num = len(data_stream)
+        # Turn the trace to a batch of windowed data with size
+        # `window_size`.
+        windowed_data = data_stream.slide((args.window_size - 1),
+                                          args.window_size * stride,
+                                          offset=OFFSET)
 
-        data_stream = np.stack(data_stream)
-        data_stream = data_stream.reshape(
+        batched_window = []
+        for window in windowed_data:
+            batched_window.append(np.stack([tr.data for tr in window]))
+
+        window_num = len(batched_window)
+
+        batched_window = np.stack(batched_window)
+        batched_window = batched_window.reshape(
             window_num * NUM_COMPONENTS, args.window_size).astype(np.float32)
 
         y_list = []
 
         # Compute scattering covariance.
-        y = analyze(data_stream,
+        y = analyze(batched_window,
                     Q=args.q,
                     J=args.j,
                     r=len(args.q),
@@ -357,12 +324,10 @@ def compute_scat_cov(args):
             y_ = y_[:, -1, :, :]
             y_list.append(y_)
 
-        data_stream = data_stream.reshape(window_num, NUM_COMPONENTS,
+        batched_window = batched_window.reshape(window_num, NUM_COMPONENTS,
                                                 args.window_size)
 
         for b in range(window_num):
-            # CASE 1: keep real and imag parts by considering
-            # it as different real coefficients
             scat_covariances_list = []
             for avgpool_idx in range(len(avg_pool_list)):
                 scat_covariances_list.append(
@@ -376,10 +341,7 @@ def compute_scat_cov(args):
                 scat_cov_path,
                 args.scat_cov_filename,
                 num_windows,
-                data_stream[b, ...],
-                x_large_scale[b, :],
-                x_medium_scales[b, :],
-                x_fine_scales[b, :],
+                batched_window[b, ...],
                 scat_covariances_list,
                 subwindow_size_list,
             )
