@@ -647,15 +647,7 @@ class SyntheticMultiscaleDataset():
         # specified proportion.
         (self.file_idx, self.train_idx, self.val_idx,
          self.test_idx) = self.split_data(train_proportion)
-
-        # If filter_key is True, create a dictionary that maps indices in the
-        # original data to indices in the filtered data.
-        if filter_key:
-            idxs_dict = {str(i): idx for i, idx in enumerate(self.file_idx)}
-            self.idx_converter = lambda idx: np.array(
-                [idxs_dict[str(j)] for j in idx])
-        else:
-            self.idx_converter = lambda idx: idx
+        self.idx_converter = lambda idx: idx
 
         # Create dictionaries to store the data and normalization parameters
         # for each dataset.
