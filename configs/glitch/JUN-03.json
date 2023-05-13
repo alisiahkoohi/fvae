@@ -1,0 +1,22 @@
+{
+    "background": {
+        "date": [
+            "2019/JUN/06/06.UVW.mseed"
+        ],
+        "idx_range": [
+            [
+                425000,
+                480000
+            ]
+        ]
+    },
+    "glitch": {
+        "date": "2019/JUN/06/06.UVW.mseed",
+        "x_baseline": "2019/JUN/06/06.UVW_deglitched.mseed",
+        "g_baseline": "2019/JUN/06/06.UVW_glitches.mseed",
+        "idx_range": [
+            112840,
+            681880
+        ]
+    }
+}

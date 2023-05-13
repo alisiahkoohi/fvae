@@ -1,5 +1,5 @@
 {
-    "cuda": 1,
+    "cuda": 0,
     "max_epoch": 1000,
     "batchsize": 16384,
     "lr": 0.001,

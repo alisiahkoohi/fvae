@@ -1,5 +1,5 @@
 {
-    "cuda": 0,
+    "cuda": 1,
     "max_itr": 200,
     "window_size": 4096,
     "j": "8,8",
@@ -16,6 +16,6 @@
     "wavelet": "battle_lemarie",
     "glitch": "JUN-03.json",
     "facvae_model": "facvae_mars-2019.json",
-    "cluster": 8,
+    "cluster": 2,
     "scale": 4096
 }

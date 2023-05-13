@@ -202,11 +202,7 @@ class SnippetExtractor(object):
         scale = str(scale_idx)
         i = cluster_idx
 
-        waveforms = {}
-        time_intervals = {}
         print('Reading waveforms for scale {}'.format(scale))
-        waveforms[scale] = {}
-        time_intervals[scale] = {}
         utc_time_intervals = []
         window_idx_list = []
         for sample_idx in range(
@@ -228,12 +224,12 @@ class SnippetExtractor(object):
             if len(window_idx_list) == sample_size:
                 break
 
-        waveforms[scale][str(i)] = []
-        time_intervals[scale][str(i)] = []
+        waveforms = []
+        time_intervals = []
         for window_idx in window_idx_list:
-            waveforms[scale][str(i)].append(
+            waveforms.append(
                 self.get_waveform(window_idx, scale))
-            time_intervals[scale][str(i)].append(
+            time_intervals.append(
                 self.get_time_interval(window_idx, scale)[0])
 
-        return waveforms, time_intervals
+        return np.array(waveforms), time_intervals
