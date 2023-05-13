@@ -16,6 +16,6 @@
     "wavelet": "battle_lemarie",
     "glitch": "JUN-03.json",
     "facvae_model": "facvae_mars-2019.json",
-    "cluster": 2,
-    "scale": 4096
+    "cluster": "2",
+    "scale": "4096"
 }

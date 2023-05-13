@@ -187,7 +187,7 @@ class SnippetExtractor(object):
         return (cluster_membership, cluster_membership_prob, confident_idxs,
                 per_cluster_confident_idxs)
 
-    def waveforms_per_scale_cluster(self, args, cluster_idx, scale_idx, sample_size=5):
+    def waveforms_per_scale_cluster(self, args, cluster_idxs, scale_idxs, sample_size=5):
         """Plot waveforms.
         """
 
@@ -199,37 +199,40 @@ class SnippetExtractor(object):
             return (start1 <= start2 <= end1 or start1 <= end2 <= end1
                     or start2 <= start1 <= end2 or start2 <= end1 <= end2)
 
-        scale = str(scale_idx)
-        i = cluster_idx
-
-        print('Reading waveforms for scale {}'.format(scale))
-        utc_time_intervals = []
-        window_idx_list = []
-        for sample_idx in range(
-                len(self.per_cluster_confident_idxs[scale][str(i)])):
-            window_idx = self.per_cluster_confident_idxs[scale][str(
-                i)][sample_idx]
-            utc_interval = self.get_time_interval(window_idx, scale)[1]
-            should_add = True
-
-            for interval in utc_time_intervals:
-                if do_overlap(interval, utc_interval):
-                    should_add = False
-                    break
-
-            if should_add:
-                utc_time_intervals.append(utc_interval)
-                window_idx_list.append(window_idx)
-
-            if len(window_idx_list) == sample_size:
-                break
 
         waveforms = []
         time_intervals = []
-        for window_idx in window_idx_list:
-            waveforms.append(
-                self.get_waveform(window_idx, scale))
-            time_intervals.append(
-                self.get_time_interval(window_idx, scale)[0])
+
+        for scale, i in zip(scale_idxs, cluster_idxs):
+            scale = str(scale)
+
+
+            print('Reading waveforms for cluster {}, scale {}'.format(i, scale))
+            utc_time_intervals = []
+            window_idx_list = []
+            for sample_idx in range(
+                    len(self.per_cluster_confident_idxs[scale][str(i)])):
+                window_idx = self.per_cluster_confident_idxs[scale][str(
+                    i)][sample_idx]
+                utc_interval = self.get_time_interval(window_idx, scale)[1]
+                should_add = True
+
+                for interval in utc_time_intervals:
+                    if do_overlap(interval, utc_interval):
+                        should_add = False
+                        break
+
+                if should_add:
+                    utc_time_intervals.append(utc_interval)
+                    window_idx_list.append(window_idx)
+
+                if len(window_idx_list) == sample_size:
+                    break
+
+            for window_idx in window_idx_list:
+                waveforms.append(
+                    self.get_waveform(window_idx, scale))
+                time_intervals.append(
+                    self.get_time_interval(window_idx, scale)[0])
 
         return np.array(waveforms), time_intervals
