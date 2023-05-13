@@ -210,6 +210,7 @@ class SnippetExtractor(object):
             print('Reading waveforms for cluster {}, scale {}'.format(i, scale))
             utc_time_intervals = []
             window_idx_list = []
+
             for sample_idx in range(
                     len(self.per_cluster_confident_idxs[scale][str(i)])):
                 window_idx = self.per_cluster_confident_idxs[scale][str(
