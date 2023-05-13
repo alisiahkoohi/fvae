@@ -89,7 +89,7 @@ def logsdir(path: str, mkdir: Optional[bool] = True) -> str:
     return path
 
 
-def configsdir(mkdir: Optional[bool] = True) -> str:
+def configsdir(dir: Optional[str] = '', mkdir: Optional[bool] = True) -> str:
     """The absolute path to the configs directory.
 
     Configurations directory, stores the default hyperparameter values for
@@ -99,10 +99,11 @@ def configsdir(mkdir: Optional[bool] = True) -> str:
         mkdir: An optional boolean for whether to create the directory if it
             does not exist.
     """
-    path = os.path.join(gitdir(), 'configs')
+    path = os.path.join(gitdir(), 'configs', dir)
     if (not os.path.exists(path)) and mkdir:
         os.makedirs(path)
     return path
+
 
 
 def catalogsdir(mkdir: Optional[bool] = True) -> str:
