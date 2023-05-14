@@ -43,9 +43,6 @@ def optimize(args, x_dataset):
     # Extract a marsquake from the raw data.
     marsquake = mars_srcsep.get_windowed_marsquake_data(args.window_size)
 
-    # x_dataset = x_dataset[
-    #     np.random.permutation(x_dataset.shape[0])[:args.R], :, :]
-
     for quake_idx in range(marsquake.shape[0]):
         x_obs = marsquake[quake_idx:quake_idx + 1, :, :]
 
@@ -191,4 +188,4 @@ if __name__ == '__main__':
     optimize(cmd_args, snippets)
 
     # Upload results to Weights & Biases for tracking training progress.
-    upload_results(args, flag='--progress --transfers 8')
+    upload_results(cmd_args, flag='--progress --transfers 8')

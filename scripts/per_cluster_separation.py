@@ -185,4 +185,4 @@ if __name__ == '__main__':
     optimize(cmd_args, snippets)
 
     # Upload results to Weights & Biases for tracking training progress.
-    upload_results(args, flag='--progress --transfers 8')
+    upload_results(cmd_args, flag='--progress --transfers 8')
