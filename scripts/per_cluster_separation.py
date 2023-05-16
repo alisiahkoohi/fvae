@@ -10,14 +10,13 @@ from facvae.utils import (configsdir, parse_input_args, read_config,
                           make_experiment_name, upload_results, checkpointsdir,
                           datadir, MarsMultiscaleDataset)
 
-from facvae.utils import GlitchSeparationSetup, MarsquakeSeparationSetup, plot_deglitching, save_exp_to_h5
+from facvae.utils import (GlitchSeparationSetup, plot_deglitching,
+                          save_exp_to_h5)
 
 from scripts.facvae_trainer import FactorialVAETrainer
 from scripts.source_separation import SnippetExtractor
 
 # torch.multiprocessing.set_start_method('spawn', force=True)
-
-# from facvae.utils import plot_deglitching, save_exp_to_h5, SourceSeparationSetup
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH = datadir('mars')
