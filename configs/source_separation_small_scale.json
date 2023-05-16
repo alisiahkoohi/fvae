@@ -9,16 +9,16 @@
     "indep_loss_w": 1.0,
     "x_loss_w": 1.0,
     "nchunks": 1,
-    "experiment_name": "mars_deglitch_quite_hours",
+    "experiment_name": "mars_small_scale",
     "normalize": 1,
     "phase": "optimize",
     "gpu_id": 0,
     "wavelet": "battle_lemarie",
     "glitch": "JUN-03.json",
     "facvae_model": "facvae_mars-2019.json",
-    "cluster_n": "5",
-    "cluster_g": "1",
+    "cluster_n": "6",
+    "cluster_g": "0",
     "scale_n": "1024",
-    "scale_g": "1024",
-    "filter_key": "2019-JUN-06,2019-JUN-07,2019-JUN-08,2019-JUN-09,2019-JUN-10,2019-JUN-11"
+    "scale_g": "65536",
+    "filter_key": "2019-JUN-06"
 }

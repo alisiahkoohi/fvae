@@ -24,7 +24,7 @@ MARS_RAW_PATH = datadir(os.path.join(MARS_PATH, 'raw'))
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # Configuration file.
-SRC_SEP_CONFIG_FILE = 'source_separation.json'
+SRC_SEP_CONFIG_FILE = 'adaptive_source_separation.json'
 
 # Random seed.
 SEED = 12
@@ -33,7 +33,7 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 
 
-def optimize(args, x_dataset, x_obs, glitch_idx):
+def optimize(args, x_dataset, x_obs, glitch_idx, scale_n, cluster_n):
     """Clean a glitch from a dataset of Mars background data.
     """
     # Setup the glitch separation by providing the path glitch json file.
@@ -62,23 +62,22 @@ def optimize(args, x_dataset, x_obs, glitch_idx):
         'cuda': args.cuda
     }
     x_hat = generate(x_obs,
-                    x0=x_obs,
-                    J=args.j,
-                    Q=args.q,
-                    wav_type=args.wavelet,
-                    it=args.max_itr,
-                    tol_optim=args.tol_optim,
-                    deglitching_params=deglitching_params,
-                    cuda=args.cuda,
-                    nchunks=args.nchunks,
-                    gpus=[args.gpu_id],
-                    exp_name=f'{args.experiment_name}_'
-                    f'R-{args.R}_'
-                    f'indep_loss_w-{args.indep_loss_w}_'
-                    f'x_loss_w-{args.x_loss_w}_'
-                    f'normalize-{args.normalize}_'
-                    f'glitch-{args.glitch}_'
-                    f'glitch_idx-{glitch_idx}')
+                     x0=x_obs,
+                     J=args.j,
+                     Q=args.q,
+                     wav_type=args.wavelet,
+                     it=args.max_itr,
+                     tol_optim=args.tol_optim,
+                     deglitching_params=deglitching_params,
+                     cuda=args.cuda,
+                     nchunks=args.nchunks,
+                     gpus=[args.gpu_id],
+                     exp_name=f'{args.experiment_name}_'
+                     f'R-{args.R}_'
+                     f'scale_n-{scale_n}_'
+                     f'cluster_n-{cluster_n}_'
+                     f'glitch-{args.glitch}_'
+                     f'glitch_idx-{glitch_idx}')
 
     if args.normalize:
         # Undo the whitening.
@@ -89,15 +88,15 @@ def optimize(args, x_dataset, x_obs, glitch_idx):
     plot_deglitching(args, 'deglitching_' + str(glitch_idx), x_obs, x_hat)
 
     # Save the results.
-    save_exp_to_h5(os.path.join(checkpointsdir(
-        args.experiment), 'reconstruction_' + str(glitch_idx) + '.h5'),
-                args,
-                x_obs=x_obs,
-                x_dataset=x_dataset,
-                glitch_idx=glitch_idx,
-                x_hat=x_hat)
+    save_exp_to_h5(os.path.join(checkpointsdir(args.experiment),
+                                'reconstruction_' + str(glitch_idx) + '.h5'),
+                   args,
+                   x_obs=x_obs,
+                   x_dataset=x_dataset,
+                   glitch_idx=glitch_idx,
+                   x_hat=x_hat)
 
-    glitch[glitch_idx, :, :] = x_hat[0, :, :]
+    # glitch[glitch_idx, :, :] = x_hat[0, :, :]
     upload_results(cmd_args, flag='--progress')
 
 
@@ -114,12 +113,12 @@ if __name__ == '__main__':
     cmd_args.scale_n = [
         int(j) for j in cmd_args.scale_n.replace(' ', '').split(',')
     ]
-    cmd_args.cluster_g = [
-        int(j) for j in cmd_args.cluster_g.replace(' ', '').split(',')
-    ]
-    cmd_args.scale_g = [
-        int(j) for j in cmd_args.scale_g.replace(' ', '').split(',')
-    ]
+    # cmd_args.cluster_g = [
+    #     int(j) for j in cmd_args.cluster_g.replace(' ', '').split(',')
+    # ]
+    # cmd_args.scale_g = [
+    #     int(j) for j in cmd_args.scale_g.replace(' ', '').split(',')
+    # ]
     cmd_args.experiment = make_experiment_name(cmd_args)
 
     # Read pretrained fVAE configuration from the JSON file specified by
@@ -187,22 +186,28 @@ if __name__ == '__main__':
     snippet_extractor = SnippetExtractor(vae_args, network, dataset,
                                          test_loader, device)
 
+    # multi_cluster_snippet = snippet_extractor.multi_cluster_snippets(
+    #     num_snippets=30)[cmd_args.signal_idx]
+    # glitch = multi_cluster_snippet['waveform'][1]
 
-    glitch, glitch_time = snippet_extractor.waveforms_per_scale_cluster(
-        vae_args, cmd_args.cluster_g, cmd_args.scale_g, sample_size=10)
+    glitch = snippet_extractor.get_waveform(cmd_args.signal_idx,
+                                            cmd_args.signal_scale)
+    glitch_sub_intervals = snippet_extractor.get_time_interval(
+        cmd_args.signal_idx, cmd_args.signal_scale, get_full_interval=True)[1]
 
-    for j in range(glitch.shape[0]):
-        g = glitch[j:j+1, 0:1, :].astype(np.float64)
-        g_time = glitch_time[j]
+    for scale_n, cluster_n in zip(cmd_args.scale_n, cmd_args.cluster_n):
+        signal = glitch[0, :].reshape(-1, 1, scale_n)
+        for j in range(signal.shape[0]):
+            g = signal[j:j + 1, 0:1, :].astype(np.float64)
+            g_time = glitch_sub_intervals[j]
 
-        snippets, snippets_time = snippet_extractor.waveforms_per_scale_cluster(
-            vae_args,
-            cmd_args.cluster_n,
-            cmd_args.scale_n,
-            sample_size=cmd_args.R,
-            time_preference=g_time)
-        snippets = snippets[:, 0:1, :].astype(np.float64)
-        optimize(cmd_args, snippets, g, j)
-
+            snippets, snippets_time = snippet_extractor.waveforms_per_scale_cluster(
+                vae_args, [cluster_n], [scale_n],
+                sample_size=cmd_args.R,
+                time_preference=g_time)
+            snippets = snippets[:, 0:1, :].astype(np.float64)
+            optimize(cmd_args, snippets, g, j, scale_n, cluster_n)
+        from IPython import embed
+        embed()
     # Upload results to Weights & Biases for tracking training progress.
     upload_results(cmd_args, flag='--progress --transfers 8')

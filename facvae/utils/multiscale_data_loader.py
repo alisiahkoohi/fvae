@@ -632,7 +632,7 @@ class SyntheticMultiscaleDataset():
         # Create a dictionary that stores the shape of the waveform and
         # scat_cov datasets.
         self.shape = {
-            # 'waveform': self.file['waveform'].shape[1:],
+            'waveform': self.file['waveform'].shape[1:],
             'scat_cov': {}
         }
 

@@ -24,7 +24,9 @@ MARS_RAW_PATH = datadir(os.path.join(MARS_PATH, 'raw'))
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # Configuration file.
-SRC_SEP_CONFIG_FILE = 'source_separation.json'
+# SRC_SEP_CONFIG_FILE = 'source_separation_sunrise_deglitch.json'
+# SRC_SEP_CONFIG_FILE = 'source_separation_large_scale.json'
+SRC_SEP_CONFIG_FILE = 'source_separation_small_scale.json'
 
 # Random seed.
 SEED = 12
@@ -97,7 +99,7 @@ def optimize(args, x_dataset, x_obs, glitch_idx):
                 glitch_idx=glitch_idx,
                 x_hat=x_hat)
 
-    glitch[glitch_idx, :, :] = x_hat[0, :, :]
+    # glitch[glitch_idx, :, :] = x_hat[0, :, :]
     upload_results(cmd_args, flag='--progress')
 
 
@@ -187,13 +189,16 @@ if __name__ == '__main__':
     snippet_extractor = SnippetExtractor(vae_args, network, dataset,
                                          test_loader, device)
 
-
+    # from IPython import embed; embed()
     glitch, glitch_time = snippet_extractor.waveforms_per_scale_cluster(
-        vae_args, cmd_args.cluster_g, cmd_args.scale_g, sample_size=10)
+        vae_args, cmd_args.cluster_g, cmd_args.scale_g, sample_size=1, get_full_interval=True, timescale=cmd_args.scale_n[0])
 
-    for j in range(glitch.shape[0]):
-        g = glitch[j:j+1, 0:1, :].astype(np.float64)
-        g_time = glitch_time[j]
+    glitch = glitch[:, 0:1, :].astype(np.float64)
+    glitch = glitch.reshape(-1, 1, cmd_args.scale_n[0])
+    for j in range(55, glitch.shape[0]):
+        g = glitch[j:j+1:, :, :].astype(np.float64)
+
+        g_time = glitch_time[0][j]
 
         snippets, snippets_time = snippet_extractor.waveforms_per_scale_cluster(
             vae_args,

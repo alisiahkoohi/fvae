@@ -13,7 +13,7 @@ from facvae.utils import (configsdir, datadir, parse_input_args, read_config,
                           make_experiment_name, SyntheticMultiscaleDataset,
                           upload_results)
 from scripts.facvae_trainer import FactorialVAETrainer
-from scripts.visualization import Visualization
+from scripts.visualization_synthetic import Visualization
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 DATA_PATH = datadir('synthetic_dataset')
@@ -95,7 +95,7 @@ if __name__ == "__main__":
         # Append the number of test samples to the experiment name.
         args.experiment = args.experiment + '_' + str(len(dataset.test_idx))
         # Create an instance of Visualization class.
-        vis = Visualization(args, network, dataset, test_loader, device)
+        vis = Visualization(args, network, dataset, val_loader, device)
         # Plot waveforms from the test set.
         vis.plot_waveforms(args)
         vis.plot_cluster_time_histograms(args)
