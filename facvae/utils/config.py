@@ -30,7 +30,8 @@ def make_experiment_name(args):
         if key not in [
                 'experiment_name', 'cuda', 'phase', 'load_to_memory', 'clip',
                 'h5_filename', 'w_cat', 'w_gauss', 'filter_key', 'normalize',
-                'temp_decay', 'min_temp', 'init_temp'
+                'temp_decay', 'min_temp', 'init_temp', 'cluster_n', 'scale_n',
+                'cluster_g', 'scale_g'
         ]:
             experiment_name += key + '-{}_'.format(value)
     return experiment_name[:-1].replace(' ', '').replace(',', '-')

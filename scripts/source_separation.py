@@ -18,7 +18,6 @@ from tqdm import tqdm
 from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
                           roll_zeropad, get_waveform_path_from_time_interval)
 
-
 # Datastream merge method.
 MERGE_METHOD = 1
 FILL_VALUE = 'interpolate'
@@ -60,9 +59,9 @@ class SnippetExtractor(object):
         data_stream = data_stream.merge(method=MERGE_METHOD,
                                         fill_value=FILL_VALUE)
         data_stream = data_stream.detrend(type='spline',
-                                            order=2,
-                                            dspline=2000,
-                                            plot=False)
+                                          order=2,
+                                          dspline=2000,
+                                          plot=False)
         data_stream = data_stream.slice(*window_time_interval)
 
         waveform = np.stack([td.data[-int(scale):] for td in data_stream])
@@ -187,7 +186,12 @@ class SnippetExtractor(object):
         return (cluster_membership, cluster_membership_prob, confident_idxs,
                 per_cluster_confident_idxs)
 
-    def waveforms_per_scale_cluster(self, args, cluster_idxs, scale_idxs, sample_size=5):
+    def waveforms_per_scale_cluster(self,
+                                    args,
+                                    cluster_idxs,
+                                    scale_idxs,
+                                    sample_size=5,
+                                    time_preference=None):
         """Plot waveforms.
         """
 
@@ -199,6 +203,28 @@ class SnippetExtractor(object):
             return (start1 <= start2 <= end1 or start1 <= end2 <= end1
                     or start2 <= start1 <= end2 or start2 <= end1 <= end2)
 
+        def is_close(pair1, pair2):
+            start1, end1 = pair1
+            start2, end2 = pair2
+
+            # Check for all types of overlap
+            return (start1 <= start2 <= end1 or start1 <= end2 <= end1
+                    or start2 <= start1 <= end2 or start2 <= end1 <= end2)
+
+        def is_close(pair1, pair2):
+            start1, end1 = pair1
+            start2, end2 = pair2
+
+            # Calculate the time difference between the two intervals in hours
+            time_difference1 = abs((start1 - end2) / 3600)
+            time_difference2 = abs((start2 - end1) / 3600)
+
+            # Check if the time difference is within the desired range
+            if time_difference1 <= 3 or time_difference2 <= 3:
+                return True
+            else:
+                return False
+
 
         waveforms = []
         time_intervals = []
@@ -206,8 +232,8 @@ class SnippetExtractor(object):
         for scale, i in zip(scale_idxs, cluster_idxs):
             scale = str(scale)
 
-
-            print('Reading waveforms for cluster {}, scale {}'.format(i, scale))
+            print('Reading waveforms for cluster {}, scale {}'.format(
+                i, scale))
             utc_time_intervals = []
             window_idx_list = []
 
@@ -217,6 +243,10 @@ class SnippetExtractor(object):
                     i)][sample_idx]
                 utc_interval = self.get_time_interval(window_idx, scale)[1]
                 should_add = True
+
+                if time_preference is not None:
+                    if not is_close(utc_interval, time_preference):
+                        should_add = False
 
                 for interval in utc_time_intervals:
                     if do_overlap(interval, utc_interval):
@@ -231,9 +261,8 @@ class SnippetExtractor(object):
                     break
 
             for window_idx in window_idx_list:
-                waveforms.append(
-                    self.get_waveform(window_idx, scale))
+                waveforms.append(self.get_waveform(window_idx, scale))
                 time_intervals.append(
-                    self.get_time_interval(window_idx, scale)[0])
+                    self.get_time_interval(window_idx, scale)[1])
 
         return np.array(waveforms), time_intervals
