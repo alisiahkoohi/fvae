@@ -9,7 +9,7 @@
     "indep_loss_w": 1.0,
     "x_loss_w": 1.0,
     "nchunks": 1,
-    "experiment_name": "mars_wind_0",
+    "experiment_name": "mars_wind_2",
     "normalize": 1,
     "phase": "optimize",
     "gpu_id": 0,

@@ -398,7 +398,7 @@ class Visualization(object):
                                 max(waveform[comp, :].reshape(-1))
                             ])
                             axes[comp].set_yticklabels([])
-                            axes[comp].set_xticklabels([])
+                            # axes[comp].set_xticklabels([])
                             # axes[comp].set_ylabel(labels[comp], fontsize=8, rotation=90, labelpad=-3)
                             axes[comp].tick_params(axis='both',
                                                    which='major',
@@ -408,13 +408,19 @@ class Visualization(object):
                         # Set the x-axis locator and formatter
                         # axes[-1].xaxis.set_major_locator(matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
                         # axes[-1].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
-                        # Rotate the x-axis labels for readability
-                        # plt.xticks(rotation=0)
-                        # ax.xaxis.set_major_locator(
-                        #     matplotlib.dates.MinuteLocator(interval=int(
-                        #         np.ceil(int(scale) / SAMPLING_RATE / 60 / 5))))
-                        # ax.xaxis.set_major_formatter(
-                        #     matplotlib.dates.DateFormatter('%H:%M'))
+                        if int(scale) > 4096:
+                            axes[comp].xaxis.set_major_locator(
+                                matplotlib.dates.MinuteLocator(interval=int(
+                                    np.ceil(int(scale) / SAMPLING_RATE / 60 / 4))))
+                            axes[comp].xaxis.set_major_formatter(
+                                matplotlib.dates.DateFormatter('%H:%M'))
+                        else:
+                            axes[comp].xaxis.set_major_locator(
+                                matplotlib.dates.MinuteLocator(interval=int(
+                                    np.ceil(int(scale) / SAMPLING_RATE / 4))))
+                            axes[comp].xaxis.set_major_formatter(
+                                matplotlib.dates.DateFormatter('%H:%M:%S'))
+                        plt.xticks(rotation=0)
                         axes[-1].set_xlim([
                             time_intervals[scale][str(cluster)][sample_idx][0],
                             time_intervals[scale][str(cluster)][sample_idx][-1]
@@ -518,7 +524,7 @@ class Visualization(object):
                     matplotlib.dates.DateFormatter('%H'))
                 # ax.legend(fontsize=12)
                 ax.set_yticklabels([])
-                ax.tick_params(axis='both', which='major', labelsize=8)
+                ax.tick_params(axis='both', which='major', labelsize=10)
                 plt.savefig(os.path.join(
                     plotsdir(os.path.join(args.experiment, 'scale_' + scale)),
                     'time_histogram_cluster-' + str(cluster) + '.png'),

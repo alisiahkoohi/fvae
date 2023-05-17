@@ -16,6 +16,7 @@ from facvae.utils import (GlitchSeparationSetup, plot_deglitching,
 from scripts.facvae_trainer import FactorialVAETrainer
 from scripts.source_separation import SnippetExtractor
 
+
 # torch.multiprocessing.set_start_method('spawn', force=True)
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
@@ -189,6 +190,7 @@ if __name__ == '__main__':
     # from IPython import embed; embed()
     glitch, glitch_time = snippet_extractor.waveforms_per_scale_cluster(
         vae_args, cmd_args.cluster_g, cmd_args.scale_g, sample_size=3, get_full_interval=True, timescale=cmd_args.scale_n[0])
+    from IPython import embed; embed()
 
     glitch = glitch[0:1, ...]
     glitch_time = glitch_time[0]
