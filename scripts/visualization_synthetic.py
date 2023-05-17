@@ -5,7 +5,6 @@ import datetime
 import obspy
 import numpy as np
 from mpire import WorkerPool
-from obspy.core import UTCDateTime
 import os
 from collections import Counter
 from sklearn.manifold import TSNE
@@ -59,69 +58,19 @@ class Visualization(object):
              args, data_loader)
 
         # Colors to be used for visualizing different clusters.
-        # self.colors = [
-        #     '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
-        #     '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
-        # ]
         self.colors = [
-            'k'
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
+            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
         ]
 
-
     def get_waveform(self, window_idx, scale):
-        window_time_interval = self.get_time_interval(window_idx,
-                                                      scale,
-                                                      lmst=False)
 
-        filepath = get_waveform_path_from_time_interval(*window_time_interval)
-
-        # Extract some properties of the data to setup HDF5 file.
-        data_stream = obspy.read(filepath)
-        data_stream = data_stream.merge(method=MERGE_METHOD,
-                                        fill_value=FILL_VALUE)
-
-        data_stream = data_stream.slice(*window_time_interval)
-
-        waveform = np.stack([td.data[-int(scale):] for td in data_stream])
+        waveform = self.dataset.sample_data(np.array([window_idx]),
+                                            'waveform')[:, :,
+                                                        -int(scale):].numpy()
 
         # Return the required subwindow.
         return waveform.astype(np.float32)
-
-    def get_time_interval(self, window_idx, scale, lmst=True):
-        # Extract window time interval.
-        window_time_interval = self.dataset.get_time_interval([window_idx])[0]
-        # Number of subwindows in the given scale.
-        scales = [int(s) for s in self.scales]
-        num_sub_windows = max(scales) // int(scale)
-
-        # Example start and end times.
-        start_time = window_time_interval[0]
-        end_time = window_time_interval[1]
-
-        # Calculate total time duration.
-        duration = end_time - start_time
-
-        # Use linspace to create subintervals.
-        subinterval_starts = np.linspace(start_time.timestamp,
-                                         end_time.timestamp,
-                                         num=num_sub_windows + 1)
-        subintervals = [
-            (UTCDateTime(t1), UTCDateTime(t2))
-            for t1, t2 in zip(subinterval_starts[:-1], subinterval_starts[1:])
-        ]
-
-        # Select the time interval associated with the given subwindow_idx.
-        window_time_interval = subintervals[-1]
-
-        if lmst:
-            # Convert to LMST format, usable by matplotlib.
-            window_time_interval = (create_lmst_xticks(*window_time_interval,
-                                                       time_zone='LMST',
-                                                       window_size=int(scale)),
-                                    window_time_interval)
-
-        # Return the required time interval.
-        return window_time_interval
 
     def evaluate_model(self, args, data_loader):
         """
@@ -207,17 +156,8 @@ class Visualization(object):
     def load_per_scale_per_cluster_waveforms(self,
                                              args,
                                              sample_size=100,
-                                             overlap=True,
                                              scale_idx=None,
                                              cluster_idx=None):
-
-        def do_overlap(pair1, pair2):
-            start1, end1 = pair1
-            start2, end2 = pair2
-
-            # Check for all types of overlap
-            return (start1 <= start2 <= end1 or start1 <= end2 <= end1
-                    or start2 <= start1 <= end2 or start2 <= end1 <= end2)
 
         if scale_idx is None:
             scale_idx = self.scales
@@ -225,51 +165,34 @@ class Visualization(object):
             cluster_idx = range(args.ncluster)
 
         self.waveforms = {}
-        self.time_intervals = {}
         for scale in scale_idx:
             print('Reading waveforms for scale {}'.format(scale))
             self.waveforms[scale] = {}
-            self.time_intervals[scale] = {}
             for i in cluster_idx:
-                utc_time_intervals = []
                 window_idx_list = []
                 for sample_idx in range(
                         len(self.per_cluster_confident_idxs[scale][str(i)])):
                     window_idx = self.per_cluster_confident_idxs[scale][str(
                         i)][sample_idx]
-                    utc_interval = self.get_time_interval(window_idx, scale)[1]
-                    should_add = True
-
-                    if not overlap:
-                        for interval in utc_time_intervals:
-                            if do_overlap(interval, utc_interval):
-                                should_add = False
-                                break
-
-                    if should_add:
-                        utc_time_intervals.append(utc_interval)
-                        window_idx_list.append(window_idx)
+                    window_idx_list.append(window_idx)
 
                     if len(window_idx_list) == sample_size:
                         break
 
                 self.waveforms[scale][str(i)] = []
-                self.time_intervals[scale][str(i)] = []
                 for window_idx in window_idx_list:
                     self.waveforms[scale][str(i)].append(
                         self.get_waveform(window_idx, scale))
-                    self.time_intervals[scale][str(i)].append(
-                        self.get_time_interval(window_idx, scale)[0])
 
     def plot_waveforms(self, args, sample_size=10):
         """Plot waveforms.
         """
 
-        self.load_per_scale_per_cluster_waveforms(args,
-                                                  sample_size=sample_size,
-                                                  overlap=False)
-        from IPython import embed
-        embed()
+        self.load_per_scale_per_cluster_waveforms(
+            args,
+            sample_size=sample_size,
+        )
+
         sns.set_style("darkgrid")
 
         # # Serial worker for plotting Fourier transforms for each cluster.
@@ -371,40 +294,32 @@ class Visualization(object):
 
         # Serial worker for plotting waveforms for each cluster.
         def waveform_serial_job(shared_in, clusters):
-            args, scales, waveforms, time_intervals, colors = shared_in
+            args, scales, waveforms, colors = shared_in
             for cluster in clusters:
                 print('Plotting waveforms for cluster {}'.format(cluster))
                 for scale in scales:
                     for sample_idx, waveform in enumerate(
                             waveforms[scale][str(cluster)]):
-                        fig, axes = plt.subplots(nrows=3,
-                                                 sharex=True,
-                                                 figsize=(5, 2))
-                        for comp in range(waveform.shape[0]):
-                            # Plot waveforms.
-                            waveform[comp, :] = waveform[
-                                comp, :] / np.linalg.norm(waveform[comp, :])
-                            axes[comp].plot_date(time_intervals[scale][str(
-                                cluster)][sample_idx],
-                                                 waveform[comp, :],
-                                                 xdate=True,
-                                                 color=colors[cluster %
-                                                              len(colors)],
-                                                 lw=1.5,
-                                                 alpha=0.9,
-                                                 fmt='')
-                            axes[comp].set_ylim([
-                                min(waveform[comp, :].reshape(-1)),
-                                max(waveform[comp, :].reshape(-1))
-                            ])
-                            axes[comp].set_yticklabels([])
-                            axes[comp].set_xticklabels([])
-                            # axes[comp].set_ylabel(labels[comp], fontsize=8, rotation=90, labelpad=-3)
-                            axes[comp].tick_params(axis='both',
-                                                   which='major',
-                                                   labelsize=8)
-                            axes[comp].grid(False)
-                        plt.subplots_adjust(hspace=0)
+
+                        fig = plt.figure(figsize=(5, 1))
+
+                        plt.plot(
+                            waveform.reshape(-1),
+                            color=colors[cluster % len(colors)],
+                            lw=1.5,
+                            alpha=0.9,
+                        )
+                        ax = plt.gca()
+                        ax.set_ylim([
+                            min(waveform.reshape(-1)),
+                            max(waveform.reshape(-1))
+                        ])
+                        ax.set_yticklabels([])
+                        ax.set_xlim([0, waveform.shape[-1]])
+                        # ax.set_xticklabels([])
+                        # ax.set_ylabel(labels[comp], fontsize=8, rotation=90, labelpad=-3)
+                        ax.tick_params(axis='both', which='major', labelsize=8)
+                        ax.grid(False)
                         # Set the x-axis locator and formatter
                         # axes[-1].xaxis.set_major_locator(matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
                         # axes[-1].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
@@ -415,10 +330,6 @@ class Visualization(object):
                         #         np.ceil(int(scale) / SAMPLING_RATE / 60 / 5))))
                         # ax.xaxis.set_major_formatter(
                         #     matplotlib.dates.DateFormatter('%H:%M'))
-                        axes[-1].set_xlim([
-                            time_intervals[scale][str(cluster)][sample_idx][0],
-                            time_intervals[scale][str(cluster)][sample_idx][-1]
-                        ])
 
                         plt.savefig(os.path.join(
                             plotsdir(
@@ -437,96 +348,10 @@ class Visualization(object):
                                    axis=0)
         with WorkerPool(n_jobs=args.ncluster,
                         shared_objects=(args, self.scales, self.waveforms,
-                                        self.time_intervals, self.colors),
+                                        self.colors),
                         start_method='fork') as pool:
             pool.map(waveform_serial_job, worker_in, progress_bar=True)
         sns.set_style("whitegrid")
-
-    def compute_per_cluster_mid_time_intervals(self, args, num_workers=20):
-
-        def serial_job(shared_in, scale, i, sample_idxs):
-            per_cluster_confident_idxs, get_time_interval = shared_in
-
-            mid_time_intervals = []
-            for sample_idx in sample_idxs:
-                window_idx = per_cluster_confident_idxs[scale][str(
-                    i)][sample_idx]
-                time_interval = get_time_interval(window_idx,
-                                                  scale,
-                                                  lmst=False)
-
-                time_interval = sum([t.timestamp for t in time_interval]) / 2.0
-                time_interval = lmst_xtick(UTCDateTime(time_interval))
-                mid_time_intervals.append(time_interval)
-
-            return np.array(mid_time_intervals)
-
-        mid_time_intervals = {
-            scale: {
-                str(i): []
-                for i in range(args.ncluster)
-            }
-            for scale in self.scales
-        }
-
-        for cluster in tqdm(range(args.ncluster)):
-            print('Computing waneform midtimes for all waveforms in '
-                  'cluster {}'.format(cluster))
-            for scale in tqdm(self.scales):
-                split_idxs = np.array_split(np.arange(
-                    len(self.per_cluster_confident_idxs[scale][str(cluster)])),
-                                            num_workers,
-                                            axis=0)
-                worker_in = [(scale, cluster, idxs) for idxs in split_idxs]
-
-                with WorkerPool(
-                        n_jobs=num_workers,
-                        shared_objects=(self.per_cluster_confident_idxs,
-                                        self.get_time_interval),
-                        start_method='fork') as pool:
-                    mid_time_intervals[scale][str(cluster)] = pool.map(
-                        serial_job, worker_in, progress_bar=False)
-        return mid_time_intervals
-
-    def plot_cluster_time_histograms(self, args):
-
-        mid_time_intervals = self.compute_per_cluster_mid_time_intervals(args)
-
-        # Plot histogram of cluster times.
-        for cluster in range(args.ncluster):
-            print('Plotting time histograms for cluster {}'.format(cluster))
-            for scale in tqdm(self.scales):
-                fig = plt.figure(figsize=(5, 1.5))
-                sns.histplot(mid_time_intervals[scale][str(cluster)],
-                             color=self.colors[cluster % len(self.colors)],
-                             element="step",
-                             alpha=0.3,
-                             binwidth=0.005,
-                             kde=False)
-                            #  label='cluster ' + str(cluster))
-                ax = plt.gca()
-                ax.set_ylabel('')
-                ax.set_xlim([
-                    matplotlib.dates.date2num(
-                        datetime.datetime(1900, 1, 1, 0, 0, 0, 0)),
-                    matplotlib.dates.date2num(
-                        datetime.datetime(1900, 1, 1, 23, 59, 59, 999999)),
-                ])
-                ax.xaxis.set_major_locator(
-                    matplotlib.dates.HourLocator(interval=5))
-                ax.xaxis.set_major_formatter(
-                    matplotlib.dates.DateFormatter('%H'))
-                # ax.legend(fontsize=12)
-                ax.set_yticklabels([])
-                ax.tick_params(axis='both', which='major', labelsize=8)
-                plt.savefig(os.path.join(
-                    plotsdir(os.path.join(args.experiment, 'scale_' + scale)),
-                    'time_histogram_cluster-' + str(cluster) + '.png'),
-                            format="png",
-                            bbox_inches="tight",
-                            dpi=200,
-                            pad_inches=.02)
-                plt.close(fig)
 
     def centroid_waveform(self, args, waveforms):
         """Compute centroid waveform for each cluster.

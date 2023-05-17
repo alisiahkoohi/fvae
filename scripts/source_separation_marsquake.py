@@ -182,8 +182,21 @@ if __name__ == '__main__':
     snippet_extractor = SnippetExtractor(vae_args, network, dataset,
                                          test_loader, device)
 
-    snippets = snippet_extractor.waveforms_per_scale_cluster(
-        vae_args, cmd_args.cluster, cmd_args.scale, sample_size=cmd_args.R)[0]
+    mars_srcsep = MarsquakeSeparationSetup(MARS_RAW_PATH, cmd_args.marsquake)
+
+    # Extract a marsquake from the raw data.
+    marsquake = mars_srcsep.get_windowed_marsquake_data(cmd_args.window_size)
+
+
+    time_interval = mars_srcsep.get_time_axis(time_offset=marsquake.shape[-1] *
+                              marsquake.shape[0])
+
+    snippets, glitch_time = snippet_extractor.waveforms_per_scale_cluster(
+        vae_args,
+        cmd_args.cluster,
+        cmd_args.scale,
+        sample_size=cmd_args.R,
+        time_preference=(time_interval[0], time_interval[-1]))
     snippets = snippets[:, 0:1, :].astype(np.float64)
     optimize(cmd_args, snippets)
 

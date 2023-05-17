@@ -277,7 +277,7 @@ class SnippetExtractor(object):
             time_difference2 = abs((start2 - end1) / 3600)
 
             # Check if the time difference is within the desired range
-            if time_difference1 <= 3 or time_difference2 <= 1:
+            if time_difference1 <= 2 or time_difference2 <= 2:
                 return True
             else:
                 return False

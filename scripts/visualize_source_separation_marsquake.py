@@ -418,6 +418,6 @@ if __name__ == '__main__':
         int(j) for j in args.scale.replace(' ', '').split(',')
     ],)
 
-    experiment_args = query_experiments(CONFIG_FILE, False, **vars(args))
+    experiment_args = query_experiments(CONFIG_FILE, True, **vars(args))
     experiment_results = collect_results(experiment_args, ['x_obs', 'x_hat'])
     plot_result(experiment_results)

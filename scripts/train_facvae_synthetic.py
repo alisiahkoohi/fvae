@@ -95,10 +95,10 @@ if __name__ == "__main__":
         # Append the number of test samples to the experiment name.
         args.experiment = args.experiment + '_' + str(len(dataset.test_idx))
         # Create an instance of Visualization class.
-        vis = Visualization(args, network, dataset, val_loader, device)
+        vis = Visualization(args, network, dataset, test_loader, device)
         # Plot waveforms from the test set.
         vis.plot_waveforms(args)
-        vis.plot_cluster_time_histograms(args)
+        # vis.plot_cluster_time_histograms(args)
         # Reconstruct a sample of the training data.
         # vis.reconstruct_data(args, train_loader)
         # Uncomment the following line to generate random samples.
