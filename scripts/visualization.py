@@ -268,8 +268,6 @@ class Visualization(object):
         self.load_per_scale_per_cluster_waveforms(args,
                                                   sample_size=sample_size,
                                                   overlap=False)
-        from IPython import embed
-        embed()
         sns.set_style("darkgrid")
 
         # # Serial worker for plotting Fourier transforms for each cluster.
