@@ -402,28 +402,11 @@ class Visualization(object):
                                                    which='major',
                                                    labelsize=8)
                             axes[comp].grid(False)
+                            axes[comp].set_xticklabels([])
                         plt.subplots_adjust(hspace=0)
                         # Set the x-axis locator and formatter
                         # axes[-1].xaxis.set_major_locator(matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
                         # axes[-1].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
-                        if int(scale) > 4096:
-                            axes[comp].xaxis.set_major_locator(
-                                matplotlib.dates.MinuteLocator(interval=int(
-                                    np.ceil(int(scale) / SAMPLING_RATE / 60 / 4))))
-                            axes[comp].xaxis.set_major_formatter(
-                                matplotlib.dates.DateFormatter('%H:%M'))
-                        else:
-                            axes[comp].xaxis.set_major_locator(
-                                matplotlib.dates.MinuteLocator(interval=int(
-                                    np.ceil(int(scale) / SAMPLING_RATE / 4))))
-                            axes[comp].xaxis.set_major_formatter(
-                                matplotlib.dates.DateFormatter('%H:%M:%S'))
-                        plt.xticks(rotation=0)
-                        axes[-1].set_xlim([
-                            time_intervals[scale][str(cluster)][sample_idx][0],
-                            time_intervals[scale][str(cluster)][sample_idx][-1]
-                        ])
-
                         plt.savefig(os.path.join(
                             plotsdir(
                                 os.path.join(args.experiment, 'scale_' + scale,
