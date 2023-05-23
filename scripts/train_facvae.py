@@ -22,11 +22,6 @@ MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 # GMVAE training default hyperparameters.
 MARS_CONFIG_FILE = 'facvae_2022-jun.json'
 
-# Random seed.
-SEED = 12
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-torch.cuda.manual_seed(SEED)
 
 if __name__ == "__main__":
     # Read configuration from the JSON file specified by MARS_CONFIG_FILE.
@@ -34,6 +29,15 @@ if __name__ == "__main__":
 
     # Parse input arguments from the command line
     args = parse_input_args(args)
+
+    # Random seed.
+    if hasattr(args, 'seed'):
+        seed = args.seed
+    else:
+        seed = 12
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
 
     # Set experiment name based on input arguments
     args.experiment = make_experiment_name(args)
