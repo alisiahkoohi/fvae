@@ -1,0 +1,22 @@
+{
+    "cuda": 1,
+    "max_itr": 200,
+    "window_size": 1024,
+    "j": "8,8",
+    "q": "1,1",
+    "R": 300,
+    "tol_optim": 0.1,
+    "indep_loss_w": 1.0,
+    "x_loss_w": 1.0,
+    "nchunks": 1,
+    "experiment_name": "separate_very_fine_scale_1",
+    "normalize": 1,
+    "phase": "optimize",
+    "gpu_id": 0,
+    "wavelet": "battle_lemarie",
+    "facvae_model": "facvae_synthetic.json",
+    "cluster_n": "8",
+    "cluster_g": "3",
+    "scale_n": "4096",
+    "scale_g": "4096"
+}
