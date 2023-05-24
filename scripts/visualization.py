@@ -480,7 +480,7 @@ class Visualization(object):
         mid_time_intervals = self.compute_per_cluster_mid_time_intervals(args)
 
         np.save(os.path.join(plotsdir(args.experiment), 'mid_time_intervals.npy'), mid_time_intervals)
-
+        sns.set_style("white")
         # Plot histogram of cluster times.
         for cluster in range(args.ncluster):
             print('Plotting time histograms for cluster {}'.format(cluster))
@@ -516,6 +516,7 @@ class Visualization(object):
                             dpi=200,
                             pad_inches=.02)
                 plt.close(fig)
+        sns.set_style("whitegrid")
 
     def centroid_waveform(self, args, waveforms):
         """Compute centroid waveform for each cluster.
