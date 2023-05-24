@@ -479,6 +479,8 @@ class Visualization(object):
 
         mid_time_intervals = self.compute_per_cluster_mid_time_intervals(args)
 
+        np.save(os.path.join(plotsdir(args.experiment), 'mid_time_intervals.npy'), mid_time_intervals)
+
         # Plot histogram of cluster times.
         for cluster in range(args.ncluster):
             print('Plotting time histograms for cluster {}'.format(cluster))
