@@ -314,11 +314,12 @@ class Visualization(object):
                             min(waveform.reshape(-1)),
                             max(waveform.reshape(-1))
                         ])
-                        ax.set_yticklabels([])
                         ax.set_xlim([0, waveform.shape[-1]])
+                        ax.set_yticklabels([])
+                        ax.set_xticklabels([])
                         # ax.set_xticklabels([])
                         # ax.set_ylabel(labels[comp], fontsize=8, rotation=90, labelpad=-3)
-                        ax.tick_params(axis='both', which='major', labelsize=8)
+                        # ax.tick_params(axis='both', which='major', labelsize=8)
                         ax.grid(False)
                         # Set the x-axis locator and formatter
                         # axes[-1].xaxis.set_major_locator(matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
