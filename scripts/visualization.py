@@ -63,10 +63,7 @@ class Visualization(object):
         #     '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
         #     '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
         # ]
-        self.colors = [
-            'k'
-        ]
-
+        self.colors = ['k']
 
     def get_waveform(self, window_idx, scale):
         window_time_interval = self.get_time_interval(window_idx,
@@ -211,6 +208,58 @@ class Visualization(object):
                                              scale_idx=None,
                                              cluster_idx=None):
 
+        # def do_overlap(pair1, pair2):
+        #     start1, end1 = pair1
+        #     start2, end2 = pair2
+
+        #     # Check for all types of overlap
+        #     return (start1 <= start2 <= end1 or start1 <= end2 <= end1
+        #             or start2 <= start1 <= end2 or start2 <= end1 <= end2)
+
+        # if scale_idx is None:
+        #     scale_idx = self.scales
+        # if cluster_idx is None:
+        #     cluster_idx = np.arange(args.ncluster)
+
+        # self.waveforms = {}
+        # self.time_intervals = {}
+        # for scale in scale_idx:
+        #     print('Reading waveforms for scale {}'.format(scale))
+        #     self.waveforms[scale] = {}
+        #     self.time_intervals[scale] = {}
+        #     for i in cluster_idx:
+        #         utc_time_intervals = []
+        #         window_idx_list = []
+        #         for sample_idx in range(
+        #                 len(self.per_cluster_confident_idxs[scale][str(i)])):
+        #             window_idx = self.per_cluster_confident_idxs[scale][str(
+        #                 i)][sample_idx]
+        #             utc_interval = self.get_time_interval(window_idx,
+        #                                                   scale,
+        #                                                   lmst=False)
+        #             should_add = True
+
+        #             if not overlap:
+        #                 for interval in utc_time_intervals:
+        #                     if do_overlap(interval, utc_interval):
+        #                         should_add = False
+        #                         break
+
+        #             if should_add:
+        #                 utc_time_intervals.append(utc_interval)
+        #                 window_idx_list.append(window_idx)
+
+        #             if len(window_idx_list) == sample_size:
+        #                 break
+
+        #         self.waveforms[scale][str(i)] = []
+        #         self.time_intervals[scale][str(i)] = []
+        #         for window_idx in window_idx_list:
+        #             self.waveforms[scale][str(i)].append(
+        #                 self.get_waveform(window_idx, scale))
+        #             self.time_intervals[scale][str(i)].append(
+        #                 self.get_time_interval(window_idx, scale)[0])
+
         def do_overlap(pair1, pair2):
             start1, end1 = pair1
             start2, end2 = pair2
@@ -222,44 +271,83 @@ class Visualization(object):
         if scale_idx is None:
             scale_idx = self.scales
         if cluster_idx is None:
-            cluster_idx = range(args.ncluster)
+            cluster_idx = np.arange(args.ncluster)
 
-        self.waveforms = {}
-        self.time_intervals = {}
+        self.waveforms = {
+            scale: {
+                str(i): []
+                for i in cluster_idx
+            }
+            for scale in scale_idx
+        }
+
+        self.time_intervals = {
+            scale: {
+                str(i): []
+                for i in cluster_idx
+            }
+            for scale in scale_idx
+        }
+
+        # Serial worker for plotting waveforms for each cluster.
+        def load_serial_job(shared_in, i):
+            (per_cluster_confident_idxs, scale, get_time_interval, overlap,
+             do_overlap, sample_size, get_waveform) = shared_in
+            i = i[0]
+            utc_time_intervals = []
+            window_idx_list = []
+            for sample_idx in range(
+                    len(per_cluster_confident_idxs[scale][str(i)])):
+                window_idx = per_cluster_confident_idxs[scale][str(
+                    i)][sample_idx]
+                utc_interval = get_time_interval(window_idx, scale, lmst=False)
+                should_add = True
+
+                if not overlap:
+                    for interval in utc_time_intervals:
+                        if do_overlap(interval, utc_interval):
+                            should_add = False
+                            break
+
+                if should_add:
+                    utc_time_intervals.append(utc_interval)
+                    window_idx_list.append(window_idx)
+
+                if len(window_idx_list) == sample_size:
+                    break
+
+            per_scale_per_cluster_waveforms = []
+            per_scale_per_cluster_time_intervals = []
+            for window_idx in window_idx_list:
+                per_scale_per_cluster_waveforms.append(
+                    get_waveform(window_idx, scale))
+                per_scale_per_cluster_time_intervals.append(
+                    get_time_interval(window_idx, scale)[0])
+
+            return (i, per_scale_per_cluster_waveforms,
+                    per_scale_per_cluster_time_intervals)
+
+
         for scale in scale_idx:
             print('Reading waveforms for scale {}'.format(scale))
-            self.waveforms[scale] = {}
-            self.time_intervals[scale] = {}
-            for i in cluster_idx:
-                utc_time_intervals = []
-                window_idx_list = []
-                for sample_idx in range(
-                        len(self.per_cluster_confident_idxs[scale][str(i)])):
-                    window_idx = self.per_cluster_confident_idxs[scale][str(
-                        i)][sample_idx]
-                    utc_interval = self.get_time_interval(window_idx, scale, lmst=False)
-                    should_add = True
 
-                    if not overlap:
-                        for interval in utc_time_intervals:
-                            if do_overlap(interval, utc_interval):
-                                should_add = False
-                                break
+            # Plot waveforms for each cluster.
+            # from IPython import embed; embed()
+            # worker_in = np.array_split(cluster_idx, len(cluster_idx), axis=0)
+            with WorkerPool(n_jobs=len(cluster_idx),
+                            shared_objects=(self.per_cluster_confident_idxs,
+                                            scale, self.get_time_interval,
+                                            overlap, do_overlap, sample_size,
+                                            self.get_waveform),
+                            start_method='fork') as pool:
+                outputs = pool.map(load_serial_job,
+                                   cluster_idx,
+                                   progress_bar=True)
 
-                    if should_add:
-                        utc_time_intervals.append(utc_interval)
-                        window_idx_list.append(window_idx)
-
-                    if len(window_idx_list) == sample_size:
-                        break
-
-                self.waveforms[scale][str(i)] = []
-                self.time_intervals[scale][str(i)] = []
-                for window_idx in window_idx_list:
-                    self.waveforms[scale][str(i)].append(
-                        self.get_waveform(window_idx, scale))
-                    self.time_intervals[scale][str(i)].append(
-                        self.get_time_interval(window_idx, scale)[0])
+            (idxs, waveforms, time_intervals) = zip(*outputs)
+            for i in idxs:
+                self.waveforms[scale][str(i)] = waveforms[i]
+                self.time_intervals[scale][str(i)] = time_intervals[i]
 
     def plot_waveforms(self, args, sample_size=10):
         """Plot waveforms.
@@ -457,7 +545,7 @@ class Visualization(object):
         }
 
         for cluster in tqdm(range(args.ncluster)):
-            print('Computing waneform midtimes for all waveforms in '
+            print('Computing waveform midtimes for all waveforms in '
                   'cluster {}'.format(cluster))
             for scale in tqdm(self.scales):
                 split_idxs = np.array_split(np.arange(
@@ -479,7 +567,9 @@ class Visualization(object):
 
         mid_time_intervals = self.compute_per_cluster_mid_time_intervals(args)
 
-        np.save(os.path.join(plotsdir(args.experiment), 'mid_time_intervals.npy'), mid_time_intervals)
+        np.save(
+            os.path.join(plotsdir(args.experiment), 'mid_time_intervals.npy'),
+            mid_time_intervals)
         sns.set_style("white")
         # Plot histogram of cluster times.
         for cluster in range(args.ncluster):
@@ -492,7 +582,7 @@ class Visualization(object):
                              alpha=0.3,
                              binwidth=0.005,
                              kde=False)
-                            #  label='cluster ' + str(cluster))
+                #  label='cluster ' + str(cluster))
                 ax = plt.gca()
                 ax.set_ylabel('')
                 ax.set_xlim([
@@ -528,16 +618,18 @@ class Visualization(object):
             centroid_waveforms: (array) array containing the centroid waveforms
         """
 
-        from IPython import embed; embed()
+        from IPython import embed
+        embed()
 
-        # waveforms = self.load_per_scale_per_cluster_waveforms(args,
-        #                                                       sample_size=100,
-        #                                                       overlap=True)
+        self.load_per_scale_per_cluster_waveforms(args,
+                                                              sample_size=100,
+                                                              overlap=False)
 
         for scale in self.scales:
             for cluster in range(args.ncluster):
                 # Extract waveforms for each cluster and put in a 3D array.
                 waves = np.array(self.waveforms[scale][str(cluster)])
+                print(waves.shape)
 
                 # Normalize waveforms.
                 for i in range(waves.shape[0]):
@@ -653,8 +745,7 @@ class Visualization(object):
                 ax[0].set_title('U')
                 ax[1].set_title('V')
                 ax[2].set_title('W')
-                fig.suptitle(
-                    'Cluster {}, aligned waveforms'.format(cluster))
+                fig.suptitle('Cluster {}, aligned waveforms'.format(cluster))
                 fig.subplots_adjust(top=0.80)
                 fig.tight_layout()
                 fig.savefig(os.path.join(
