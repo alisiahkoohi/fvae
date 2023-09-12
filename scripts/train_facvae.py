@@ -20,7 +20,7 @@ MARS_PATH = datadir('mars')
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # GMVAE training default hyperparameters.
-MARS_CONFIG_FILE = 'facvae_2022-jun.json'
+MARS_CONFIG_FILE = 'facvae_mars-2019.json'
 
 
 if __name__ == "__main__":
@@ -106,6 +106,8 @@ if __name__ == "__main__":
         # Plot waveforms from the test set.
         vis.plot_waveforms(args)
         vis.plot_cluster_time_histograms(args)
+
+        vis.centroid_waveforms(args)
         # Reconstruct a sample of the training data.
         # vis.reconstruct_data(args, train_loader)
         # Uncomment the following line to generate random samples.

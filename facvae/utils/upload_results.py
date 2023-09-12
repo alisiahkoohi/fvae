@@ -8,15 +8,15 @@ def upload_results(args, flag=""):
     bash_commands = [
         "rclone copy " + flag + " " +
         checkpointsdir(args.experiment, mkdir=False) + " MyDropbox:" +
-        repo_name +
+        repo_name + '_nature' +
         checkpointsdir(args.experiment, mkdir=False).replace(gitdir(), ""),
         "rclone copy " + flag + " " +
         logsdir(args.experiment, mkdir=False) + " MyDropbox:" +
-        repo_name +
+        repo_name + '_nature' +
         logsdir(args.experiment, mkdir=False).replace(gitdir(), ""),
         "rclone copy " + flag + " " +
         plotsdir(args.experiment, mkdir=False) + " MyDropbox:" +
-        repo_name +
+        repo_name + '_nature' +
         plotsdir(args.experiment, mkdir=False).replace(gitdir(), ""),
     ]
 

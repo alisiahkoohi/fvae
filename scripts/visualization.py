@@ -237,7 +237,7 @@ class Visualization(object):
                         len(self.per_cluster_confident_idxs[scale][str(i)])):
                     window_idx = self.per_cluster_confident_idxs[scale][str(
                         i)][sample_idx]
-                    utc_interval = self.get_time_interval(window_idx, scale)[1]
+                    utc_interval = self.get_time_interval(window_idx, scale, lmst=False)
                     should_add = True
 
                     if not overlap:
@@ -518,7 +518,7 @@ class Visualization(object):
                 plt.close(fig)
         sns.set_style("whitegrid")
 
-    def centroid_waveform(self, args, waveforms):
+    def centroid_waveforms(self, args):
         """Compute centroid waveform for each cluster.
 
         Args:
@@ -528,14 +528,16 @@ class Visualization(object):
             centroid_waveforms: (array) array containing the centroid waveforms
         """
 
-        waveforms = self.load_per_scale_per_cluster_waveforms(args,
-                                                              sample_size=100,
-                                                              overlap=True)
+        from IPython import embed; embed()
+
+        # waveforms = self.load_per_scale_per_cluster_waveforms(args,
+        #                                                       sample_size=100,
+        #                                                       overlap=True)
 
         for scale in self.scales:
             for cluster in range(args.ncluster):
                 # Extract waveforms for each cluster and put in a 3D array.
-                waves = np.array(waveforms[scale][str(cluster)])
+                waves = np.array(self.waveforms[scale][str(cluster)])
 
                 # Normalize waveforms.
                 for i in range(waves.shape[0]):
@@ -613,15 +615,15 @@ class Visualization(object):
                 ax[2].set_ylabel('W')
                 ax[2].set_xlim(0, centroid_waveforms.shape[1] / 20)
                 fig.savefig(os.path.join(
-                    plotsdir(args.experiment),
-                    'centroid_waveform_{}.png'.format(cluster)),
+                    plotsdir(os.path.join(args.experiment, 'scale_' + scale)),
+                    'centroid_waveform_' + str(cluster) + '.png'),
                             format="png",
                             bbox_inches="tight",
                             dpi=300,
                             pad_inches=.05)
                 plt.close(fig)
 
-                num_waveforms = 20
+                num_waveforms = 10
                 dy = 1.8
                 largest_corr = np.argsort(corr_coefs,
                                           axis=0)[::-1][:num_waveforms, :]
@@ -652,12 +654,12 @@ class Visualization(object):
                 ax[1].set_title('V')
                 ax[2].set_title('W')
                 fig.suptitle(
-                    'Cluster {}, aligned waveforms'.format(cluster_idx))
+                    'Cluster {}, aligned waveforms'.format(cluster))
                 fig.subplots_adjust(top=0.80)
                 fig.tight_layout()
                 fig.savefig(os.path.join(
-                    plotsdir(args.experiment),
-                    'aligned_waveforms_cluster_{}.png'.format(cluster_idx)),
+                    plotsdir(os.path.join(args.experiment, 'scale_' + scale)),
+                    'aligned_waveforms_cluster_' + str(cluster) + '.png'),
                             format="png",
                             bbox_inches="tight",
                             dpi=300,
