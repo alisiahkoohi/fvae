@@ -93,3 +93,98 @@ def roll_zeropad(a, shift, axis=None):
         return res.reshape(a.shape)
     else:
         return res
+
+
+
+def roll_nanpad(a, shift, axis=None):
+    """
+    Roll array elements along a given axis.
+
+    Elements off the end of the array are treated as NaN.
+
+    Parameters
+    ----------
+    a : array_like
+        Input array.
+    shift : int
+        The number of places by which elements are shifted.
+    axis : int, optional
+        The axis along which elements are shifted.  By default, the array
+        is flattened before shifting, after which the original
+        shape is restored.
+
+    Returns
+    -------
+    res : ndarray
+        Output array, with the same shape as `a`.
+
+    See Also
+    --------
+    roll     : Elements that roll off one end come back on the other.
+    rollaxis : Roll the specified axis backwards, until it lies in a
+               given position.
+
+    Examples
+    --------
+    >>> x = np.arange(10)
+    >>> roll_nanpad(x, 2)
+    array([nan, nan,  0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.])
+    >>> roll_nanpad(x, -2)
+    array([ 2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., nan, nan])
+
+    >>> x2 = np.reshape(x, (2, 5))
+    >>> x2
+    array([[0, 1, 2, 3, 4],
+           [5, 6, 7, 8, 9]])
+    >>> roll_nanpad(x2, 1)
+    array([[nan, nan,  0.,  1.,  2.],
+           [ 3.,  4.,  5.,  6.,  7.]])
+    >>> roll_nanpad(x2, -2)
+    array([[ 2.,  3.,  4.,  5.,  6.],
+           [ 7.,  8.,  9., nan, nan]])
+    >>> roll_nanpad(x2, 1, axis=0)
+    array([[nan, nan, nan, nan, nan],
+           [ 0.,  1.,  2.,  3.,  4.]])
+    >>> roll_nanpad(x2, -1, axis=0)
+    array([[ 5.,  6.,  7.,  8.,  9.],
+           [nan, nan, nan, nan, nan]])
+    >>> roll_nanpad(x2, 1, axis=1)
+    array([[nan,  0.,  1.,  2.,  3.],
+           [nan,  5.,  6.,  7.,  8.]])
+    >>> roll_nanpad(x2, -2, axis=1)
+    array([[ 2.,  3.,  4., nan, nan],
+           [ 7.,  8.,  9., nan, nan]])
+
+    >>> roll_nanpad(x2, 50)
+    array([[nan, nan, nan, nan, nan],
+           [nan, nan, nan, nan, nan]])
+    >>> roll_nanpad(x2, -50)
+    array([[nan, nan, nan, nan, nan],
+           [nan, nan, nan, nan, nan]])
+    >>> roll_nanpad(x2, 0)
+    array([[0, 1, 2, 3, 4],
+           [5, 6, 7, 8, 9]])
+
+    """
+    a = np.asanyarray(a)
+    if shift == 0:
+        return a
+    if axis is None:
+        n = a.size
+        reshape = True
+    else:
+        n = a.shape[axis]
+        reshape = False
+    if np.abs(shift) > n:
+        res = np.full_like(a, np.nan)
+    elif shift < 0:
+        shift += n
+        nan_values = np.full_like(a.take(np.arange(n - shift), axis), np.nan)
+        res = np.concatenate((a.take(np.arange(n - shift, n), axis), nan_values), axis)
+    else:
+        nan_values = np.full_like(a.take(np.arange(n - shift, n), axis), np.nan)
+        res = np.concatenate((nan_values, a.take(np.arange(n - shift), axis)), axis)
+    if reshape:
+        return res.reshape(a.shape)
+    else:
+        return res
