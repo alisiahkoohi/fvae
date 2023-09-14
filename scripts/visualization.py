@@ -567,8 +567,15 @@ class Visualization(object):
         self.load_per_scale_per_cluster_waveforms(args,
                                                   sample_size=200,
                                                   overlap=False)
+        clustert_colors = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
+            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ]
         print(' [*] Computing and plotting centroid and centered waveforms')
         for scale in tqdm(self.scales, desc="Scale loop"):
+            fig_spec, axes_spec = plt.subplots(nrows=3,
+                                               sharex=True,
+                                               figsize=(12, 12))
             for cluster in tqdm(range(args.ncluster),
                                 desc="Cluster loop",
                                 leave=False):
@@ -658,8 +665,7 @@ class Visualization(object):
                     axes[j].set_ylabel(y_labels[j], )
 
                 axes[0].set_title(
-                    'Centroid Waveform for cluster {}'.format(cluster),
-                    fontsize=8)
+                    'Centroid Waveform for cluster {}'.format(cluster), )
                 axes[2].set_xlabel('Time (s)', )
                 axes[2].set_xlim(-centroid_waveforms.shape[1] / 40,
                                  centroid_waveforms.shape[1] / 40)
@@ -673,6 +679,42 @@ class Visualization(object):
                             dpi=300,
                             pad_inches=.05)
                 plt.close(fig)
+
+                for j in range(centroid_waveforms.shape[0]):
+                    frequencies, asd = signal.welch(centroid_waveforms[j, :],
+                                                    fs=20,
+                                                    nperseg=1024)
+
+                    axes_spec[j].loglog(
+                        frequencies,
+                        np.sqrt(asd),
+                        color=clustert_colors[cluster % len(clustert_colors)],
+                        lw=1.0,
+                        alpha=0.9,
+                        label='cluster ' + str(cluster))
+
+                    axes_spec[j].set_yticklabels([])
+                    axes_spec[j].tick_params(
+                        axis='both',
+                        which='major',
+                    )
+                    axes_spec[j].grid(True)
+                    axes_spec[j].set_ylabel(y_labels[j])
+
+                axes_spec[0].set_title(
+                    'Spectral amplitude of centroid waveforms')
+                axes_spec[2].set_xlabel('Frequency (Hz)', )
+                # add legend
+                axes_spec[0].legend(fontsize=10, ncols=4)
+                fig_spec.savefig(os.path.join(
+                    plotsdir(
+                        os.path.join(args.experiment, 'scale_' + scale,
+                                     'spectral_amplitude')),
+                    'spectral_amplitude_' + str(scale) + '.png'),
+                                 format="png",
+                                 bbox_inches="tight",
+                                 dpi=300,
+                                 pad_inches=.05)
 
                 num_waveforms = 10
                 dy = 1.6
@@ -724,8 +766,7 @@ class Visualization(object):
                             pad_inches=.05)
                 plt.close(fig)
 
-
-                from IPython import embed; embed()
+            plt.close(fig_spec)
 
         sns.set_style("whitegrid")
 
