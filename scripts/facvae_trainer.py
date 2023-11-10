@@ -197,7 +197,8 @@ class FactorialVAETrainer(object):
                         args.min_temp)
 
                 if epoch == args.max_epoch - 1 or (self.steps_per_epoch > 10
-                                                   and epoch % 250 == 0):
+                                                   and epoch % 500 == 0
+                                                   and epoch > 0):
                     torch.save(
                         {
                             'model_state_dict': self.network.state_dict(),

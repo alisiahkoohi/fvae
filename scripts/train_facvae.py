@@ -20,8 +20,7 @@ MARS_PATH = datadir('mars')
 MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # GMVAE training default hyperparameters.
-MARS_CONFIG_FILE = 'facvae_mars-2019.json'
-
+MARS_CONFIG_FILE = 'facvae_full-mission.json'
 
 if __name__ == "__main__":
     # Read configuration from the JSON file specified by MARS_CONFIG_FILE.
@@ -38,6 +37,11 @@ if __name__ == "__main__":
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
+
+    # A hack to remove the seed from the input arguments so that a specific
+    # pretrained model can be used. Not needed later.
+    if args.seed == 12:
+        del args.seed
 
     # Set experiment name based on input arguments
     args.experiment = make_experiment_name(args)
@@ -100,7 +104,11 @@ if __name__ == "__main__":
             args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
             args.min_temp)
         # Append the number of test samples to the experiment name.
-        args.experiment = args.experiment + '_' + str(len(dataset.test_idx))
+        if args.extension == '':
+            args.experiment = args.experiment + '_' + str(len(
+                dataset.test_idx))
+        else:
+            args.experiment = args.experiment + '_' + args.extension
         # Create an instance of Visualization class.
         vis = Visualization(args, network, dataset, test_loader, device)
         # Plot waveforms from the test set.
