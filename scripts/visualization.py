@@ -149,6 +149,14 @@ class Visualization(object):
                         dtype=torch.float)
             for scale in self.scales
         }
+        # latent_features = {
+        #     scale:
+        #     torch.zeros(len(data_loader.dataset),
+        #                 self.dataset.data['scat_cov'][scale].shape[1],
+        #                 args.latent_dim,
+        #                 dtype=torch.float)
+        #     for scale in self.scales
+        # }
 
         # Extract cluster memberships.
         for i_idx, idx in enumerate(data_loader):
@@ -169,6 +177,11 @@ class Visualization(object):
                     'prob_cat'][scale].max(axis=1)[0].reshape(
                         len(idx),
                         self.dataset.data['scat_cov'][scale].shape[1]).cpu()
+                # latent_features[scale][
+                #     np.sort(idx), :, :] = output['mean'][scale].reshape(
+                #         len(idx),
+                #         self.dataset.data['scat_cov'][scale].shape[1],
+                #         args.latent_dim).cpu()
 
         # Sort indices based on most confident cluster predictions by the
         # network (increasing). The outcome is a dictionary with a key for each
@@ -294,6 +307,105 @@ class Visualization(object):
                 self.waveforms[scale][str(i)] = waveforms[i]
                 self.time_intervals[scale][str(i)] = time_intervals[i]
 
+    def plot_fourier(self, args, sample_size):
+
+        # Serial worker for plotting Fourier transforms for each cluster.
+        def fourier_serial_job(shared_in, clusters):
+            args, scales, waveforms = shared_in
+            for cluster in clusters:
+                print('Plotting Fourier transforms for cluster {}'.format(
+                    cluster))
+                for scale in scales:
+                    for sample_idx, waveform in enumerate(
+                            waveforms[scale][str(cluster)]):
+                        for comp in range(waveform.shape[0]):
+                            fig = plt.figure(figsize=(7, 2))
+                            # Compute the Fourier transform.
+                            freqs = np.fft.fftfreq(waveform.shape[1],
+                                                   d=1 / SAMPLING_RATE)
+                            ft = np.fft.fft(waveform[comp, :], norm='forward')
+                            # Plot the Fourier transform.
+                            plt.plot(np.fft.fftshift(freqs),
+                                     np.fft.fftshift(np.abs(ft)))
+                            ax = plt.gca()
+                            plt.xlim([0, SAMPLING_RATE / 2])
+                            ax.set_ylabel('Amplitude', fontsize=10)
+                            ax.set_xlabel('Frequency (Hz)', fontsize=10)
+                            ax.set_yscale("log")
+                            ax.grid(True)
+                            ax.tick_params(axis='both',
+                                           which='major',
+                                           labelsize=8)
+                            plt.savefig(os.path.join(
+                                plotsdir(
+                                    os.path.join(args.experiment,
+                                                 'scale_' + scale,
+                                                 'cluster_' + str(cluster),
+                                                 'component_' + str(comp))),
+                                'fourier_transform_{}.png'.format(sample_idx)),
+                                        format="png",
+                                        bbox_inches="tight",
+                                        dpi=200,
+                                        pad_inches=.02)
+                            plt.close(fig)
+
+        # Plot Fourier transform for each cluster.
+        worker_in = np.array_split(np.arange(args.ncluster),
+                                   args.ncluster,
+                                   axis=0)
+        with WorkerPool(n_jobs=args.ncluster,
+                        shared_objects=(args, self.scales, self.waveforms),
+                        start_method='fork') as pool:
+            pool.map(fourier_serial_job, worker_in, progress_bar=True)
+
+        # Serial worker for plotting spectogram for each cluster.
+        def spectogram_serial_job(shared_in, clusters):
+            args, scales, waveforms = shared_in
+            for cluster in clusters:
+                print('Plotting spectrograms for cluster {}'.format(cluster))
+                for scale in scales:
+                    for sample_idx, waveform in enumerate(
+                            waveforms[scale][str(cluster)]):
+                        for comp in range(waveform.shape[0]):
+                            fig = plt.figure(figsize=(7, 2))
+                            # Plot spectrogram.
+                            nperseg = min(256, int(scale) // 4)
+                            plt.specgram(waveform[comp, :],
+                                         NFFT=nperseg,
+                                         noverlap=nperseg // 8,
+                                         Fs=SAMPLING_RATE,
+                                         mode='magnitude',
+                                         cmap='RdYlBu_r')
+                            ax = plt.gca()
+                            plt.ylim([0, SAMPLING_RATE / 2])
+                            ax.set_xticklabels([])
+                            ax.set_ylabel('Frequency (Hz)', fontsize=10)
+                            ax.grid(False)
+                            ax.tick_params(axis='both',
+                                           which='major',
+                                           labelsize=8)
+                            plt.savefig(os.path.join(
+                                plotsdir(
+                                    os.path.join(args.experiment,
+                                                 'scale_' + scale,
+                                                 'cluster_' + str(cluster),
+                                                 'component_' + str(comp))),
+                                'spectrogram_{}.png'.format(sample_idx)),
+                                        format="png",
+                                        bbox_inches="tight",
+                                        dpi=200,
+                                        pad_inches=.02)
+                            plt.close(fig)
+
+        # Plot spectogram for each cluster.
+        worker_in = np.array_split(np.arange(args.ncluster),
+                                   args.ncluster,
+                                   axis=0)
+        with WorkerPool(n_jobs=args.ncluster,
+                        shared_objects=(args, self.scales, self.waveforms),
+                        start_method='fork') as pool:
+            pool.map(spectogram_serial_job, worker_in, progress_bar=True)
+
     def plot_waveforms(self, args, sample_size=10):
         """Plot waveforms.
         """
@@ -303,102 +415,7 @@ class Visualization(object):
                                                   overlap=False)
         sns.set_style("darkgrid")
 
-        # # Serial worker for plotting Fourier transforms for each cluster.
-        # def fourier_serial_job(shared_in, clusters):
-        #     args, scales, waveforms = shared_in
-        #     for cluster in clusters:
-        #         print('Plotting Fourier transforms for cluster {}'.format(
-        #             cluster))
-        #         for scale in scales:
-        #             for sample_idx, waveform in enumerate(
-        #                     waveforms[scale][str(cluster)]):
-        #                 for comp in range(waveform.shape[0]):
-        #                     fig = plt.figure(figsize=(7, 2))
-        #                     # Compute the Fourier transform.
-        #                     freqs = np.fft.fftfreq(waveform.shape[1],
-        #                                            d=1 / SAMPLING_RATE)
-        #                     ft = np.fft.fft(waveform[comp, :], norm='forward')
-        #                     # Plot the Fourier transform.
-        #                     plt.plot(np.fft.fftshift(freqs),
-        #                              np.fft.fftshift(np.abs(ft)))
-        #                     ax = plt.gca()
-        #                     plt.xlim([0, SAMPLING_RATE / 2])
-        #                     ax.set_ylabel('Amplitude', fontsize=10)
-        #                     ax.set_xlabel('Frequency (Hz)', fontsize=10)
-        #                     ax.set_yscale("log")
-        #                     ax.grid(True)
-        #                     ax.tick_params(axis='both',
-        #                                    which='major',
-        #                                    labelsize=8)
-        #                     plt.savefig(os.path.join(
-        #                         plotsdir(
-        #                             os.path.join(args.experiment,
-        #                                          'scale_' + scale,
-        #                                          'cluster_' + str(cluster),
-        #                                          'component_' + str(comp))),
-        #                         'fourier_transform_{}.png'.format(sample_idx)),
-        #                                 format="png",
-        #                                 bbox_inches="tight",
-        #                                 dpi=200,
-        #                                 pad_inches=.02)
-        #                     plt.close(fig)
-
-        # # Plot Fourier transform for each cluster.
-        # worker_in = np.array_split(np.arange(args.ncluster),
-        #                            args.ncluster,
-        #                            axis=0)
-        # with WorkerPool(n_jobs=args.ncluster,
-        #                 shared_objects=(args, self.scales, self.waveforms),
-        #                 start_method='fork') as pool:
-        #     pool.map(fourier_serial_job, worker_in, progress_bar=True)
-
-        # # Serial worker for plotting spectogram for each cluster.
-        # def spectogram_serial_job(shared_in, clusters):
-        #     args, scales, waveforms = shared_in
-        #     for cluster in clusters:
-        #         print('Plotting spectrograms for cluster {}'.format(cluster))
-        #         for scale in scales:
-        #             for sample_idx, waveform in enumerate(
-        #                     waveforms[scale][str(cluster)]):
-        #                 for comp in range(waveform.shape[0]):
-        #                     fig = plt.figure(figsize=(7, 2))
-        #                     # Plot spectrogram.
-        #                     nperseg = min(256, int(scale) // 4)
-        #                     plt.specgram(waveform[comp, :],
-        #                                  NFFT=nperseg,
-        #                                  noverlap=nperseg // 8,
-        #                                  Fs=SAMPLING_RATE,
-        #                                  mode='magnitude',
-        #                                  cmap='RdYlBu_r')
-        #                     ax = plt.gca()
-        #                     plt.ylim([0, SAMPLING_RATE / 2])
-        #                     ax.set_xticklabels([])
-        #                     ax.set_ylabel('Frequency (Hz)', fontsize=10)
-        #                     ax.grid(False)
-        #                     ax.tick_params(axis='both',
-        #                                    which='major',
-        #                                    labelsize=8)
-        #                     plt.savefig(os.path.join(
-        #                         plotsdir(
-        #                             os.path.join(args.experiment,
-        #                                          'scale_' + scale,
-        #                                          'cluster_' + str(cluster),
-        #                                          'component_' + str(comp))),
-        #                         'spectrogram_{}.png'.format(sample_idx)),
-        #                                 format="png",
-        #                                 bbox_inches="tight",
-        #                                 dpi=200,
-        #                                 pad_inches=.02)
-        #                     plt.close(fig)
-
-        # # Plot spectogram for each cluster.
-        # worker_in = np.array_split(np.arange(args.ncluster),
-        #                            args.ncluster,
-        #                            axis=0)
-        # with WorkerPool(n_jobs=args.ncluster,
-        #                 shared_objects=(args, self.scales, self.waveforms),
-        #                 start_method='fork') as pool:
-        #     pool.map(spectogram_serial_job, worker_in, progress_bar=True)
+        # self.plot_fourier(args, sample_size)
 
         # Serial worker for plotting waveforms for each cluster.
         def waveform_serial_job(shared_in, clusters):
@@ -520,15 +537,18 @@ class Visualization(object):
         for cluster in tqdm(range(args.ncluster), desc="Cluster loop"):
             for scale in tqdm(self.scales, desc="Scale loop", leave=False):
                 fig = plt.figure(figsize=(5, 1.5))
-                sns.histplot(mid_time_intervals[scale][str(cluster)],
-                             color=self.colors[cluster % len(self.colors)],
-                             element="step",
-                             alpha=0.3,
-                             binwidth=0.005,
-                             kde=False)
-                #  label='cluster ' + str(cluster))
+                sns.histplot(
+                    mid_time_intervals[scale][str(cluster)],
+                    color=self.colors[cluster % len(self.colors)],
+                    stat="density",
+                    element="step",
+                    alpha=0.3,
+                    binwidth=0.005,
+                    kde=False,
+                    label='Number of windows: ' +
+                    str(mid_time_intervals[scale][str(cluster)].shape[0]))
                 ax = plt.gca()
-                ax.set_ylabel('')
+                ax.set_ylabel('Density', fontsize=10)
                 ax.set_xlim([
                     matplotlib.dates.date2num(
                         datetime.datetime(1900, 1, 1, 0, 0, 0, 0)),
@@ -539,9 +559,9 @@ class Visualization(object):
                     matplotlib.dates.HourLocator(interval=5))
                 ax.xaxis.set_major_formatter(
                     matplotlib.dates.DateFormatter('%H'))
-                # ax.legend(fontsize=12)
-                ax.set_yticklabels([])
+                # ax.set_yticklabels([])
                 ax.tick_params(axis='both', which='major', labelsize=10)
+                ax.legend(fontsize=10)
                 plt.savefig(os.path.join(
                     plotsdir(
                         os.path.join(args.experiment, 'scale_' + scale,
@@ -727,8 +747,9 @@ class Visualization(object):
                                        sharey=True)
 
                 for i in range(rolled_waveforms.shape[1]):
-                    for j in range(num_waveforms):
-
+                    for j in range(
+                            min(num_waveforms, largest_corr.shape[0],
+                                rolled_waveforms.shape[0])):
                         normalized_rolled = np.ma.masked_where(
                             np.isnan(rolled_waveforms[largest_corr[j], i, :]),
                             rolled_waveforms[largest_corr[j], i, :])
@@ -769,103 +790,6 @@ class Visualization(object):
             plt.close(fig_spec)
 
         sns.set_style("whitegrid")
-
-    def reconstruct_data(self, args, data_loader, sample_size=5):
-        """Reconstruct Data
-
-        Args:
-            data_loader: (DataLoader) loader containing the data
-            sample_size: (int) size of random data to consider from data_loader
-
-        Returns:
-            reconstructed: (array) array containing the reconstructed data
-        """
-        # Sample random data from loader
-        x = self.dataset.sample_data(next(iter(data_loader)), 'scat_cov')
-        indices = np.random.randint(0, x[0].shape[0], size=sample_size)
-        x = [x[i][indices, ...] for i in range(len(x))]
-        x = [x[i].to(self.device) for i in range(len(x))]
-
-        # Obtain reconstructed data.
-        with torch.no_grad():
-            output = self.network(x)
-            x_rec = output['x_rec']
-
-        x = [x[i].cpu() for i in range(len(x))]
-        x_rec = [x_rec[i].cpu() for i in range(len(x_rec))]
-
-        if x[0].shape[-1] > 2:
-            fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
-            for i in range(sample_size):
-                ax[i].plot(x[0][i, 0, :],
-                           lw=.8,
-                           alpha=1,
-                           color='k',
-                           label='original')
-                ax[i].plot(x_rec[0][i, 0, :],
-                           lw=.8,
-                           alpha=0.5,
-                           color='r',
-                           label='reconstructed')
-            plt.legend()
-            plt.savefig(os.path.join(plotsdir(args.experiment), 'rec.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
-            plt.close(fig)
-        else:
-            fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-            ax[0].scatter(x[:, 0],
-                          x[:, 1],
-                          s=2,
-                          alpha=0.5,
-                          color='k',
-                          label='original')
-            ax[1].scatter(x_rec[:, 0],
-                          x_rec[:, 1],
-                          s=2,
-                          alpha=0.5,
-                          color='r',
-                          label='reconstructed')
-            plt.legend()
-            plt.savefig(os.path.join(plotsdir(args.experiment), 'rec.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
-            plt.close(fig)
-
-        if args.dataset == 'mars':
-            x = [
-                self.dataset.unnormalize(x[i], args.type[i])
-                for i in range(len(x))
-            ]
-            x_rec = [
-                self.dataset.unnormalize(x_rec[i], args.type[i])
-                for i in range(len(x_rec))
-            ]
-
-            fig, ax = plt.subplots(1, sample_size, figsize=(25, 5))
-            for i in range(sample_size):
-                ax[i].plot(x[0][i, 0, :],
-                           lw=.8,
-                           alpha=1,
-                           color='k',
-                           label='original')
-                ax[i].plot(x_rec[0][i, 0, :],
-                           lw=.8,
-                           alpha=0.5,
-                           color='r',
-                           label='reconstructed')
-            plt.legend()
-            plt.savefig(os.path.join(plotsdir(args.experiment),
-                                     'rec_unnormalized.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
-            plt.close(fig)
 
     def plot_latent_space(self, args, data_loader, save=False):
         """Plot the latent space learnt by the model
@@ -944,74 +868,6 @@ class Visualization(object):
                     dpi=300,
                     pad_inches=.05)
         plt.close(fig)
-
-    def random_generation(self, args, num_elements=3):
-        """Random generation for each category
-
-        Args:
-            num_elements: (int) number of elements to generate
-
-        Returns:
-            generated data according to num_elements
-        """
-        # categories for each element
-        arr = np.array([])
-        for i in range(args.ncluster):
-            arr = np.hstack([arr, np.ones(num_elements) * i])
-        indices = arr.astype(int).tolist()
-
-        categorical = torch.nn.functional.one_hot(
-            torch.tensor(indices), args.ncluster).float().to(self.device)
-        # infer the gaussian distribution according to the category
-        mean, var = self.network.generative.pzy(categorical)
-
-        # gaussian random sample by using the mean and variance
-        noise = torch.randn_like(var)
-        std = torch.sqrt(var)
-        gaussian = mean + noise * std
-
-        # generate new samples with the given gaussian
-        gaussian = gaussian.to(self.device)
-        samples = self.network.generative.pxz(gaussian).cpu().detach().numpy()
-
-        if samples.shape[-1] > 2:
-            fig, ax = plt.subplots(num_elements,
-                                   args.ncluster,
-                                   figsize=(8 * args.ncluster,
-                                            4 * args.ncluster))
-            for i in range(args.ncluster):
-                for j in range(num_elements):
-                    ax[j, i].plot(samples[i * num_elements + j, 0, :],
-                                  color=self.colors[i % 10],
-                                  lw=1.2,
-                                  alpha=0.8)
-                    ax[j, i].set_title("Sample from cluster " + str(i))
-            plt.savefig(os.path.join(plotsdir(args.experiment),
-                                     'joint_samples.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
-            plt.close(fig)
-        else:
-            fig = plt.figure(figsize=(8, 6))
-            for i in range(args.ncluster):
-                plt.scatter(samples[i * num_elements:(i + 1) * num_elements,
-                                    0],
-                            samples[i * num_elements:(i + 1) * num_elements,
-                                    1],
-                            color=self.colors[i % 10],
-                            s=2,
-                            alpha=0.5)
-            plt.title('Generated joint samples')
-            # ax[i].axis('off')
-            plt.savefig(os.path.join(plotsdir(args.experiment),
-                                     'joint_samples.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
-            plt.close(fig)
 
     def latent_features(self, args, data_loader):
         """Obtain latent features learnt by the model

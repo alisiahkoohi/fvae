@@ -124,4 +124,4 @@ if __name__ == "__main__":
         # vis.plot_latent_space(args, test_loader)
 
     # Upload results to Weights & Biases for tracking training progress.
-    upload_results(args, flag='--progress --transfers 8')
+    upload_results(args, flag='--progress --transfers 20')

@@ -40,7 +40,7 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
     --ncluster 9 \
     --latent_dim 32 \
     --nlayer 4 \
-    --filter_key "2020-JAN-03,2020-JAN-04,2020-JAN-05,2020-JAN-06,2020-JAN-07,2020-JAN-08,2020-JAN-09,2020-JAN-10,2020-JAN-11" \
+    --filter_key "2019-DEC-03,2019-DEC-04,2019-DEC-05,2019-DEC-06,2019-DEC-07,2019-DEC-08,2019-DEC-09,2019-DEC-10,2019-DEC-11" \
     --extension summer1_2020-JAN-03 \
     --phase test &
 
@@ -70,7 +70,7 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
     --ncluster 9 \
     --latent_dim 32 \
     --nlayer 4 \
-    --filter_key "2020-JUN-03,2020-JUN-04,2020-JUN-05,2020-JUN-06,2020-JUN-07,2020-JUN-08,2020-JUN-09,2020-JUN-10,2020-JUN-11" \
+    --filter_key "2020-MAY-03,2020-MAY-04,2020-MAY-05,2020-MAY-06,2020-MAY-07,2020-MAY-08,2020-MAY-09,2020-MAY-10,2020-MAY-11" \
     --extension fall1_2020-JUN-03 \
     --phase test &
 
