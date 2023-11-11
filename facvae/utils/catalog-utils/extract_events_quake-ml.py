@@ -17,7 +17,8 @@ from facvae.utils import catalogsdir
 
 DATA_DIR = catalogsdir()
 quakeml_file = os.path.join(catalogsdir(),
-                            "events_extended_multiorigin_v11_2022-04-01.xml")
+                            "events_extended_multiorigin_v14_2023-01-01.xml")
+# "events_extended_multiorigin_v11_2022-04-01.xml")
 
 
 def get_quality_list(root):
@@ -111,7 +112,7 @@ def get_df_from_quakeml2(quakeMLfilename):
 def main():
     quakeMLfilename = os.path.join(DATA_DIR, quakeml_file)
     df_events = get_df_from_quakeml2(quakeMLfilename)
-    df_events.to_pickle(os.path.join(DATA_DIR, 'events_InSIght.pkl'))
+    df_events.to_pickle(os.path.join(DATA_DIR, 'events_InSIght_v14.pkl'))
 
 
 if __name__ == "__main__":

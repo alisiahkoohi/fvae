@@ -9,11 +9,13 @@ MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--h5_filename',
-                        dest='h5_filename',
-                        type=str,
-                        default='scat_covs_w-size-2e15_q1-2_q2-4_nighttime.h5',
-                        help='h5 file to add events to')
+    parser.add_argument(
+        '--h5_filename',
+        dest='h5_filename',
+        type=str,
+        default=
+        'pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true_backup.h5',
+        help='h5 file to add events to')
     parser.add_argument(
         '--h5_dataset_name',
         dest='h5_dataset_name',
@@ -24,8 +26,8 @@ if __name__ == "__main__":
         '--catalog_filename',
         dest='catalog_filename',
         type=str,
-        default='events_InSIght.pkl',
-        help='events_InSIght.pkl or pressure_drops_InSIght.pkl')
+        default='events_InSIght_v14.pkl',
+        help='events_InSIght_v14.pkl or pressure_drops_InSIght.pkl')
     parser.add_argument(
         '--target_column_name',
         dest='target_column_name',
@@ -35,12 +37,12 @@ if __name__ == "__main__":
     parser.add_argument('--window_size',
                         dest='window_size',
                         type=int,
-                        default=2**12,
+                        default=1024,
                         help='Window size of raw waveforms')
     parser.add_argument('--n_workers',
                         dest='n_workers',
                         type=int,
-                        default=16,
+                        default=40,
                         help='Number of workers to use for multiprocessing')
     args = parser.parse_args()
 
