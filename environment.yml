@@ -24,3 +24,4 @@ dependencies:
     - termcolor
     - h5py
     - seaborn
+    - umap-learn

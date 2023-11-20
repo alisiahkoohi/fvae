@@ -111,17 +111,11 @@ if __name__ == "__main__":
             args.experiment = args.experiment + '_' + args.extension
         # Create an instance of Visualization class.
         vis = Visualization(args, network, dataset, test_loader, device)
-        # Plot waveforms from the test set.
+
         vis.plot_waveforms(args)
         vis.plot_cluster_time_histograms(args)
-
         vis.centroid_waveforms(args)
-        # Reconstruct a sample of the training data.
-        # vis.reconstruct_data(args, train_loader)
-        # Uncomment the following line to generate random samples.
-        # vis.random_generation(args)
-        # Uncomment the following line to plot the latent space.
-        # vis.plot_latent_space(args, test_loader)
+        vis.plot_latent_space(args)
 
     # Upload results to Weights & Biases for tracking training progress.
     upload_results(args, flag='--progress --transfers 20')

@@ -13,6 +13,7 @@ from sklearn.decomposition import PCA
 from scipy.signal import spectrogram, correlate, correlation_lags
 import scipy.signal as signal
 import torch
+import umap
 from tqdm import tqdm
 
 from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
@@ -54,9 +55,8 @@ class Visualization(object):
         self.device = device
 
         (self.cluster_membership, self.cluster_membership_prob,
-         self.confident_idxs,
-         self.per_cluster_confident_idxs) = self.evaluate_model(
-             args, data_loader)
+         self.confident_idxs, self.per_cluster_confident_idxs,
+         self.latent_features) = self.evaluate_model(args, data_loader)
 
         # Colors to be used for visualizing different clusters.
         # self.colors = [
@@ -149,14 +149,15 @@ class Visualization(object):
                         dtype=torch.float)
             for scale in self.scales
         }
-        # latent_features = {
-        #     scale:
-        #     torch.zeros(len(data_loader.dataset),
-        #                 self.dataset.data['scat_cov'][scale].shape[1],
-        #                 args.latent_dim,
-        #                 dtype=torch.float)
-        #     for scale in self.scales
-        # }
+
+        latent_features = {
+            scale:
+            torch.zeros(len(data_loader.dataset),
+                        self.dataset.data['scat_cov'][scale].shape[1],
+                        args.latent_dim,
+                        dtype=torch.float)
+            for scale in self.scales
+        }
 
         # Extract cluster memberships.
         for i_idx, idx in enumerate(data_loader):
@@ -177,11 +178,11 @@ class Visualization(object):
                     'prob_cat'][scale].max(axis=1)[0].reshape(
                         len(idx),
                         self.dataset.data['scat_cov'][scale].shape[1]).cpu()
-                # latent_features[scale][
-                #     np.sort(idx), :, :] = output['mean'][scale].reshape(
-                #         len(idx),
-                #         self.dataset.data['scat_cov'][scale].shape[1],
-                #         args.latent_dim).cpu()
+                latent_features[scale][
+                    np.sort(idx), :, :] = output['mean'][scale].reshape(
+                        len(idx),
+                        self.dataset.data['scat_cov'][scale].shape[1],
+                        args.latent_dim).cpu()
 
         # Sort indices based on most confident cluster predictions by the
         # network (increasing). The outcome is a dictionary with a key for each
@@ -212,7 +213,7 @@ class Visualization(object):
                                                   confident_idxs[scale][i])
 
         return (cluster_membership, cluster_membership_prob, confident_idxs,
-                per_cluster_confident_idxs)
+                per_cluster_confident_idxs, latent_features)
 
     def load_per_scale_per_cluster_waveforms(self,
                                              args,
@@ -791,7 +792,7 @@ class Visualization(object):
 
         sns.set_style("whitegrid")
 
-    def plot_latent_space(self, args, data_loader, save=False):
+    def plot_latent_space(self, args):
         """Plot the latent space learnt by the model
 
         Args:
@@ -802,105 +803,71 @@ class Visualization(object):
         Returns:
             fig: (figure) plot of the latent space
         """
-        # obtain the latent features
-        features, clusters = self.latent_features(args, data_loader)
-        features_tsne = TSNE(n_components=2,
-                             learning_rate='auto',
-                             init='pca',
-                             early_exaggeration=10,
-                             perplexity=200).fit_transform(features)
 
-        # plot only the first 2 dimensions
-        # cmap = plt.cm.get_cmap('hsv', args.ncluster)
-        label_colors = {i: self.colors[i % 10] for i in range(args.ncluster)}
-        colors = [label_colors[int(i)] for i in clusters]
+        # Colors for each cluster.
+        colors = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
+            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ]
+        per_point_color = {
+            scale:
+            [colors[idx] for idx in self.cluster_membership[scale][:, 0]]
+            for scale in self.scales
+        }
 
-        if features.shape[-1] > 2:
-            features_pca = PCA(n_components=2).fit_transform(features)
-            fig = plt.figure(figsize=(8, 6))
-            plt.scatter(features_pca[:, 0],
-                        features_pca[:, 1],
-                        marker='o',
-                        c=colors,
-                        edgecolor='none',
-                        cmap=plt.cm.get_cmap('jet', 10),
-                        s=10)
-            plt.title("Two dimensional PCA of the latent samples")
-            plt.savefig(os.path.join(plotsdir(args.experiment),
-                                     'pca_latent_space.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
-            plt.close(fig)
-        else:
-            fig = plt.figure(figsize=(8, 6))
-            plt.scatter(features[:, 0],
-                        features[:, 1],
-                        marker='o',
-                        c=colors,
-                        edgecolor='none',
-                        cmap=plt.cm.get_cmap('jet', 10),
-                        s=10)
+        # Serial jobs for computing UMAP features.
+        def serial_job(latent_features, scale):
+            umap_features = {
+                scale:
+                umap.UMAP(n_neighbors=10, min_dist=0.000001,
+                          densmap=False).fit_transform(
+                              latent_features[scale][:, 0, :].numpy())
+            }
+            return umap_features
 
-            plt.title("Latent samples")
-            plt.savefig(os.path.join(plotsdir(args.experiment),
-                                     'pca_latent_space.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
-            plt.close(fig)
+        # Compute UMAP features.
+        with WorkerPool(n_jobs=len(self.scales),
+                        shared_objects=self.latent_features,
+                        start_method='fork') as pool:
+            feature_list = pool.map(serial_job,
+                                    self.scales,
+                                    progress_bar=False)
 
-        fig = plt.figure(figsize=(8, 6))
-        plt.scatter(features_tsne[:, 0],
-                    features_tsne[:, 1],
+        umap_features = {}
+        for item in feature_list:
+            umap_features.update(item)
+
+        for scale in self.scales:
+            fig = plt.figure(figsize=(8, 4))
+            scatter = plt.scatter(umap_features[scale][:, 0],
+                                  umap_features[scale][:, 1],
+                                  marker='o',
+                                  c=per_point_color[scale],
+                                  edgecolor='none',
+                                  s=10)
+
+            legend_elements = []
+            for i, label in enumerate(range(args.ncluster)):
+                custom_legend = plt.Line2D(
+                    [0],
+                    [0],
                     marker='o',
-                    c=colors,
-                    edgecolor='none',
-                    cmap=plt.cm.get_cmap('jet', 10),
-                    s=10)
-        plt.title("T-SNE visualization of the latent samples")
-        plt.savefig(os.path.join(plotsdir(args.experiment),
-                                 'latent_space_tsne.png'),
-                    format="png",
-                    bbox_inches="tight",
-                    dpi=300,
-                    pad_inches=.05)
-        plt.close(fig)
+                    color='w',
+                    label=f'{label}',
+                    markerfacecolor=colors[i],
+                    markersize=10,
+                )
+                legend_elements.append(custom_legend)
 
-    def latent_features(self, args, data_loader):
-        """Obtain latent features learnt by the model
-
-        Args:
-            data_loader: (DataLoader) loader containing the data
-            return_labels: (boolean) whether to return true labels or not
-
-        Returns:
-           features: (array) array containing the features from the data
-        """
-        N = len(data_loader.dataset)
-        features = np.zeros([N, args.latent_dim])
-        clusters = np.zeros([N])
-        counter = 0
-        with torch.no_grad():
-            for idx in data_loader:
-                # Load data batch.
-                x = self.dataset.sample_data(idx, 'scat_cov')
-                x = {scale: x[scale].to(self.device) for scale in x.keys()}
-
-                # flatten data
-                output = self.network.inference(x, self.network.gumbel_temp,
-                                                self.network.hard_gumbel)
-                latent_feat = output['mean']
-                cluster_membership = output['logits'].argmax(axis=1)
-
-                features[counter:counter +
-                         x.size(0), :] = latent_feat.cpu().detach().numpy()[
-                             ...]
-                clusters[counter:counter + x.size(0)] = cluster_membership.cpu(
-                ).detach().numpy()[...]
-
-                counter += x.shape[0]
-
-        return features, clusters
+            plt.legend(handles=legend_elements, fontsize=8)
+            plt.title("Latent samples at scale {}".format(scale))
+            fig.savefig(os.path.join(
+                plotsdir(
+                    os.path.join(args.experiment,
+                                 'latent_space_visualization')),
+                'umap_scale-' + scale + '.png'),
+                        format="png",
+                        bbox_inches="tight",
+                        dpi=300,
+                        pad_inches=.05)
+            plt.close(fig)
