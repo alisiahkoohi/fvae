@@ -40,25 +40,28 @@ class CatalogReader(torch.utils.data.Dataset):
                               n_workers=40):
         file = h5py.File(path_to_h5_file, 'r+')
 
-        time_intervals = file['time_interval'][...]
-        inputs = []
-        for i in tqdm(range(len(time_intervals))):
-            inputs.append(
-                (i, UTCDateTime(time_intervals[i][0].decode('utf-8')),
-                 UTCDateTime(time_intervals[i][1].decode('utf-8')),
-                 target_column_name))
-        with WorkerPool(n_jobs=n_workers) as pool:
-            idx_and_labels = pool.map(self.get_window_label,
-                                      inputs,
-                                      progress_bar=True)
+        for scale in file['time_interval'].keys():
 
-        max_label_len = max([len(j) for _, j in idx_and_labels])
-        label_dataset = file.require_dataset(
-            h5_dataset_name, (file['time_interval'].shape[0], max_label_len),
-            chunks=True,
-            dtype=h5py.string_dtype()
-            if target_column_name == 'type' else np.float32)
+            time_intervals = file['time_interval'][scale][...]
+            inputs = []
+            for i in tqdm(range(len(time_intervals))):
+                inputs.append(
+                    (i, UTCDateTime(time_intervals[i][0].decode('utf-8')),
+                     UTCDateTime(time_intervals[i][1].decode('utf-8')),
+                     target_column_name))
+            with WorkerPool(n_jobs=n_workers) as pool:
+                idx_and_labels = pool.map(self.get_window_label,
+                                          inputs,
+                                          progress_bar=True)
 
-        for i, label in idx_and_labels:
-            label_dataset[i, :len(label)] = label
+            max_label_len = max([len(j) for _, j in idx_and_labels])
+            label_group = file.require_group(h5_dataset_name)
+            label_dataset = label_group.require_dataset(
+                scale, (file['time_interval'][scale].shape[0], max_label_len),
+                chunks=True,
+                dtype=h5py.string_dtype()
+                if target_column_name == 'type' else np.float32)
+
+            for i, label in idx_and_labels:
+                label_dataset[i, :len(label)] = label
         file.close()
