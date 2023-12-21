@@ -536,13 +536,14 @@ class MarsMultiscaleDataset():
             ]
         return filenames
 
-    def get_time_interval(
-            self, idx: List[int]) -> List[Tuple[UTCDateTime, UTCDateTime]]:
+    def get_time_interval(self, idx: List[int],
+                          scale: str) -> List[Tuple[UTCDateTime, UTCDateTime]]:
         """
         Returns the list of time intervals for the given indices.
 
         Args:
             idx: A list of indices.
+            scale: The scale of the time intervals to return.
 
         Returns:
             A list of tuples representing the time intervals for the given
@@ -551,9 +552,8 @@ class MarsMultiscaleDataset():
         """
         return [(UTCDateTime(s.decode('utf-8')),
                  UTCDateTime(e.decode('utf-8')))
-                for s, e in self.file['time_interval'][
+                for s, e in self.file['time_interval'][scale][
                     self.idx_converter(np.sort(idx)), ...]]
-
 
 
 class SyntheticMultiscaleDataset():

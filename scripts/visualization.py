@@ -65,6 +65,9 @@ class Visualization(object):
         # ]
         self.colors = ['k']
 
+        from IPython import embed
+        embed()
+
     def get_waveform(self, window_idx, scale):
         window_time_interval = self.get_time_interval(window_idx,
                                                       scale,
@@ -85,11 +88,14 @@ class Visualization(object):
         return waveform.astype(np.float32)
 
     def get_time_interval(self, window_idx, scale, lmst=True):
-        # Extract window time interval.
-        window_time_interval = self.dataset.get_time_interval([window_idx])[0]
+
         # Number of subwindows in the given scale.
         scales = [int(s) for s in self.scales]
         num_sub_windows = max(scales) // int(scale)
+
+        # Extract window time interval.
+        window_time_interval = self.dataset.get_time_interval(
+            [window_idx], str(max(scales)))[0]
 
         # Example start and end times.
         start_time = window_time_interval[0]

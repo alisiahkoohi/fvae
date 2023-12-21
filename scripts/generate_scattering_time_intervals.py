@@ -199,7 +199,10 @@ def compute_scat_cov(args):
                                 data_stream[0].meta.sampling_rate,
                                 args.window_size /
                                 data_stream[0].meta.sampling_rate * stride,
-                                offset=OFFSET))
+                                offset=(args.window_size - 1) /
+                                data_stream[0].meta.sampling_rate -
+                                (subwindow_size - 1) /
+                                data_stream[0].meta.sampling_rate))
 
                         for window in windowed_data:
                             if args.use_day_data or is_night_time_event(
