@@ -550,9 +550,16 @@ class MarsMultiscaleDataset():
             indices. Each tuple contains two UTCDateTime objects representing
             the start and end times.
         """
+        # Check if self.file['time_interval'] is a h5 group and has scale as a key
+        if isinstance(self.file['time_interval'], h5py.Group):
+            if scale in self.file['time_interval'].keys():
+                return [(UTCDateTime(s.decode('utf-8')),
+                         UTCDateTime(e.decode('utf-8')))
+                        for s, e in self.file['time_interval'][scale][
+                            self.idx_converter(np.sort(idx)), ...]]
         return [(UTCDateTime(s.decode('utf-8')),
                  UTCDateTime(e.decode('utf-8')))
-                for s, e in self.file['time_interval'][scale][
+                for s, e in self.file['time_interval'][
                     self.idx_converter(np.sort(idx)), ...]]
 
 

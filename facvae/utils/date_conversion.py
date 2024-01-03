@@ -93,39 +93,6 @@ def get_waveform_path_from_time_interval(start_time, end_time):
     return filepath
 
 
-def get_time_interval(window_key,
-                      window_size=2**17,
-                      frequency=20.0,
-                      time_zone='UTC'):
-    batch = window_key.split('_')[-1]
-    year, month, day = window_key.split('-')
-
-    day = day.split('.')[0]
-    month = MARS_TO_MONTH_INT_CONVERSION[month]
-
-    batch = int(batch)
-
-    dt = 1 / frequency
-    start_time = (batch / 2) * dt * window_size
-    end_time = ((batch / 2) + 1) * dt * (window_size - 1)
-
-    str_start_time = UTCDateTime(year + '-' + str(month) + '-' + day)
-    str_start_time = str_start_time.__add__(start_time)
-
-    str_end_time = UTCDateTime(year + '-' + str(month) + '-' + day)
-    str_end_time = str_end_time.__add__(end_time)
-
-    if time_zone == 'UTC':
-        return str_start_time, str_end_time
-    elif time_zone == 'LMST':
-        mars_date = MarsConverter()
-        str_start_time = mars_date.get_utc_2_lmst(utc_date=str_start_time)
-        str_end_time = mars_date.get_utc_2_lmst(utc_date=str_end_time)
-        return str_start_time, str_end_time
-    else:
-        raise NotImplementedError('Time zone not implemented')
-
-
 def is_night_time_event(event_start, event_end):
     mars_date = MarsConverter()
 

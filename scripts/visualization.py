@@ -13,7 +13,6 @@ from sklearn.decomposition import PCA
 from scipy.signal import spectrogram, correlate, correlation_lags
 import scipy.signal as signal
 import torch
-import umap
 from tqdm import tqdm
 
 from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
@@ -65,9 +64,6 @@ class Visualization(object):
         # ]
         self.colors = ['k']
 
-        from IPython import embed
-        embed()
-
     def get_waveform(self, window_idx, scale):
         window_time_interval = self.get_time_interval(window_idx,
                                                       scale,
@@ -89,33 +85,9 @@ class Visualization(object):
 
     def get_time_interval(self, window_idx, scale, lmst=True):
 
-        # Number of subwindows in the given scale.
-        scales = [int(s) for s in self.scales]
-        num_sub_windows = max(scales) // int(scale)
-
         # Extract window time interval.
-        window_time_interval = self.dataset.get_time_interval(
-            [window_idx], str(max(scales)))[0]
-
-        # Example start and end times.
-        start_time = window_time_interval[0]
-        end_time = window_time_interval[1]
-
-        # Calculate total time duration.
-        duration = end_time - start_time
-
-        # Use linspace to create subintervals.
-        subinterval_starts = np.linspace(start_time.timestamp,
-                                         end_time.timestamp,
-                                         num=num_sub_windows + 1)
-        subintervals = [
-            (UTCDateTime(t1), UTCDateTime(t2))
-            for t1, t2 in zip(subinterval_starts[:-1], subinterval_starts[1:])
-        ]
-
-        # Select the time interval associated with the given subwindow_idx.
-        window_time_interval = subintervals[-1]
-
+        window_time_interval = self.dataset.get_time_interval([window_idx],
+                                                              scale)[0]
         if lmst:
             # Convert to LMST format, usable by matplotlib.
             window_time_interval = (create_lmst_xticks(*window_time_interval,
@@ -259,6 +231,7 @@ class Visualization(object):
 
         # Serial worker for plotting waveforms for each cluster.
         def load_serial_job(shared_in, i):
+
             (per_cluster_confident_idxs, scale, get_time_interval, overlap,
              do_overlap, sample_size, get_waveform) = shared_in
             i = i[0]
@@ -291,7 +264,6 @@ class Visualization(object):
                     get_waveform(window_idx, scale))
                 per_scale_per_cluster_time_intervals.append(
                     get_time_interval(window_idx, scale)[0])
-
             return (i, per_scale_per_cluster_waveforms,
                     per_scale_per_cluster_time_intervals)
 
@@ -809,7 +781,7 @@ class Visualization(object):
         Returns:
             fig: (figure) plot of the latent space
         """
-
+        import umap
         # Colors for each cluster.
         colors = [
             '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',

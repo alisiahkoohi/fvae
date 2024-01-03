@@ -105,7 +105,6 @@ def configsdir(dir: Optional[str] = '', mkdir: Optional[bool] = True) -> str:
     return path
 
 
-
 def catalogsdir(mkdir: Optional[bool] = True) -> str:
     """The absolute path to the catalogs directory.
 
