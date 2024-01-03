@@ -7,9 +7,6 @@ import numpy as np
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
 import os
-from collections import Counter
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
 from scipy.signal import spectrogram, correlate, correlation_lags
 import scipy.signal as signal
 import torch
@@ -193,12 +190,14 @@ class Visualization(object):
         return (cluster_membership, cluster_membership_prob, confident_idxs,
                 per_cluster_confident_idxs, latent_features)
 
-    def load_per_scale_per_cluster_waveforms(self,
-                                             args,
-                                             sample_size=100,
-                                             overlap=True,
-                                             scale_idx=None,
-                                             cluster_idx=None):
+    def load_per_scale_per_cluster_waveforms(
+        self,
+        args,
+        sample_size=100,
+        overlap=True,
+        scale_idx=None,
+        cluster_idx=None,
+    ):
 
         def do_overlap(pair1, pair2):
             start1, end1 = pair1
@@ -264,22 +263,34 @@ class Visualization(object):
                     get_waveform(window_idx, scale))
                 per_scale_per_cluster_time_intervals.append(
                     get_time_interval(window_idx, scale)[0])
-            return (i, per_scale_per_cluster_waveforms,
-                    per_scale_per_cluster_time_intervals)
+            return (
+                i,
+                per_scale_per_cluster_waveforms,
+                per_scale_per_cluster_time_intervals,
+            )
 
         print('Reading waveforms')
         for scale in tqdm(scale_idx, desc="Scale loop"):
 
             # Plot waveforms for each cluster.
-            with WorkerPool(n_jobs=len(cluster_idx),
-                            shared_objects=(self.per_cluster_confident_idxs,
-                                            scale, self.get_time_interval,
-                                            overlap, do_overlap, sample_size,
-                                            self.get_waveform),
-                            start_method='fork') as pool:
-                outputs = pool.map(load_serial_job,
-                                   cluster_idx,
-                                   progress_bar=False)
+            with WorkerPool(
+                    n_jobs=len(cluster_idx),
+                    shared_objects=(
+                        self.per_cluster_confident_idxs,
+                        scale,
+                        self.get_time_interval,
+                        overlap,
+                        do_overlap,
+                        sample_size,
+                        self.get_waveform,
+                    ),
+                    start_method='fork',
+            ) as pool:
+                outputs = pool.map(
+                    load_serial_job,
+                    cluster_idx,
+                    progress_bar=False,
+                )
 
             (idxs, waveforms, time_intervals) = zip(*outputs)
             for i in idxs:
@@ -315,26 +326,32 @@ class Visualization(object):
                             ax.tick_params(axis='both',
                                            which='major',
                                            labelsize=8)
-                            plt.savefig(os.path.join(
-                                plotsdir(
-                                    os.path.join(args.experiment,
-                                                 'scale_' + scale,
-                                                 'cluster_' + str(cluster),
-                                                 'component_' + str(comp))),
-                                'fourier_transform_{}.png'.format(sample_idx)),
-                                        format="png",
-                                        bbox_inches="tight",
-                                        dpi=200,
-                                        pad_inches=.02)
+                            plt.savefig(
+                                os.path.join(
+                                    plotsdir(
+                                        os.path.join(
+                                            args.experiment, 'scale_' + scale,
+                                            'cluster_' + str(cluster),
+                                            'component_' + str(comp))),
+                                    'fourier_transform_{}.png'.format(
+                                        sample_idx),
+                                ),
+                                format="png",
+                                bbox_inches="tight",
+                                dpi=200,
+                                pad_inches=.02,
+                            )
                             plt.close(fig)
 
         # Plot Fourier transform for each cluster.
         worker_in = np.array_split(np.arange(args.ncluster),
                                    args.ncluster,
                                    axis=0)
-        with WorkerPool(n_jobs=args.ncluster,
-                        shared_objects=(args, self.scales, self.waveforms),
-                        start_method='fork') as pool:
+        with WorkerPool(
+                n_jobs=args.ncluster,
+                shared_objects=(args, self.scales, self.waveforms),
+                start_method='fork',
+        ) as pool:
             pool.map(fourier_serial_job, worker_in, progress_bar=True)
 
         # Serial worker for plotting spectogram for each cluster.
@@ -349,12 +366,14 @@ class Visualization(object):
                             fig = plt.figure(figsize=(7, 2))
                             # Plot spectrogram.
                             nperseg = min(256, int(scale) // 4)
-                            plt.specgram(waveform[comp, :],
-                                         NFFT=nperseg,
-                                         noverlap=nperseg // 8,
-                                         Fs=SAMPLING_RATE,
-                                         mode='magnitude',
-                                         cmap='RdYlBu_r')
+                            plt.specgram(
+                                waveform[comp, :],
+                                NFFT=nperseg,
+                                noverlap=nperseg // 8,
+                                Fs=SAMPLING_RATE,
+                                mode='magnitude',
+                                cmap='RdYlBu_r',
+                            )
                             ax = plt.gca()
                             plt.ylim([0, SAMPLING_RATE / 2])
                             ax.set_xticklabels([])
@@ -363,35 +382,42 @@ class Visualization(object):
                             ax.tick_params(axis='both',
                                            which='major',
                                            labelsize=8)
-                            plt.savefig(os.path.join(
-                                plotsdir(
-                                    os.path.join(args.experiment,
-                                                 'scale_' + scale,
-                                                 'cluster_' + str(cluster),
-                                                 'component_' + str(comp))),
-                                'spectrogram_{}.png'.format(sample_idx)),
-                                        format="png",
-                                        bbox_inches="tight",
-                                        dpi=200,
-                                        pad_inches=.02)
+                            plt.savefig(
+                                os.path.join(
+                                    plotsdir(
+                                        os.path.join(
+                                            args.experiment, 'scale_' + scale,
+                                            'cluster_' + str(cluster),
+                                            'component_' + str(comp))),
+                                    'spectrogram_{}.png'.format(sample_idx),
+                                ),
+                                format="png",
+                                bbox_inches="tight",
+                                dpi=200,
+                                pad_inches=.02,
+                            )
                             plt.close(fig)
 
         # Plot spectogram for each cluster.
         worker_in = np.array_split(np.arange(args.ncluster),
                                    args.ncluster,
                                    axis=0)
-        with WorkerPool(n_jobs=args.ncluster,
-                        shared_objects=(args, self.scales, self.waveforms),
-                        start_method='fork') as pool:
+        with WorkerPool(
+                n_jobs=args.ncluster,
+                shared_objects=(args, self.scales, self.waveforms),
+                start_method='fork',
+        ) as pool:
             pool.map(spectogram_serial_job, worker_in, progress_bar=True)
 
     def plot_waveforms(self, args, sample_size=10):
         """Plot waveforms.
         """
 
-        self.load_per_scale_per_cluster_waveforms(args,
-                                                  sample_size=sample_size,
-                                                  overlap=False)
+        self.load_per_scale_per_cluster_waveforms(
+            args,
+            sample_size=sample_size,
+            overlap=False,
+        )
         sns.set_style("darkgrid")
 
         # self.plot_fourier(args, sample_size)
@@ -403,22 +429,25 @@ class Visualization(object):
                 for scale in scales:
                     for sample_idx, waveform in enumerate(
                             waveforms[scale][str(cluster)]):
-                        fig, axes = plt.subplots(nrows=3,
-                                                 sharex=True,
-                                                 figsize=(5, 2))
+                        fig, axes = plt.subplots(
+                            nrows=3,
+                            sharex=True,
+                            figsize=(5, 2),
+                        )
                         for comp in range(waveform.shape[0]):
                             # Plot waveforms.
                             waveform[comp, :] = waveform[
                                 comp, :] / np.linalg.norm(waveform[comp, :])
-                            axes[comp].plot_date(time_intervals[scale][str(
-                                cluster)][sample_idx],
-                                                 waveform[comp, :],
-                                                 xdate=True,
-                                                 color=colors[cluster %
-                                                              len(colors)],
-                                                 lw=1.5,
-                                                 alpha=0.9,
-                                                 fmt='')
+                            axes[comp].plot_date(
+                                time_intervals[scale][str(cluster)]
+                                [sample_idx],
+                                waveform[comp, :],
+                                xdate=True,
+                                color=colors[cluster % len(colors)],
+                                lw=1.5,
+                                alpha=0.9,
+                                fmt='',
+                            )
                             axes[comp].set_ylim([
                                 min(waveform[comp, :].reshape(-1)),
                                 max(waveform[comp, :].reshape(-1))
@@ -435,27 +464,39 @@ class Visualization(object):
                         # Set the x-axis locator and formatter
                         # axes[-1].xaxis.set_major_locator(matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
                         # axes[-1].xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
-                        plt.savefig(os.path.join(
-                            plotsdir(
-                                os.path.join(args.experiment, 'scale_' + scale,
-                                             'waveforms',
-                                             'cluster_' + str(cluster))),
-                            'waveform_{}.png'.format(sample_idx)),
-                                    format="png",
-                                    bbox_inches="tight",
-                                    dpi=300,
-                                    pad_inches=.01)
+                        plt.savefig(
+                            os.path.join(
+                                plotsdir(
+                                    os.path.join(args.experiment,
+                                                 'scale_' + scale, 'waveforms',
+                                                 'cluster_' + str(cluster))),
+                                'waveform_{}.png'.format(sample_idx),
+                            ),
+                            format="png",
+                            bbox_inches="tight",
+                            dpi=300,
+                            pad_inches=.01,
+                        )
                         plt.close(fig)
 
         # Plot waveforms for each cluster.
-        worker_in = np.array_split(np.arange(args.ncluster),
-                                   args.ncluster,
-                                   axis=0)
+        worker_in = np.array_split(
+            np.arange(args.ncluster),
+            args.ncluster,
+            axis=0,
+        )
         print(' [*] Plotting waveforms')
-        with WorkerPool(n_jobs=args.ncluster,
-                        shared_objects=(args, self.scales, self.waveforms,
-                                        self.time_intervals, self.colors),
-                        start_method='fork') as pool:
+        with WorkerPool(
+                n_jobs=args.ncluster,
+                shared_objects=(
+                    args,
+                    self.scales,
+                    self.waveforms,
+                    self.time_intervals,
+                    self.colors,
+                ),
+                start_method='fork',
+        ) as pool:
             pool.map(waveform_serial_job, worker_in, progress_bar=True)
         sns.set_style("whitegrid")
 
@@ -468,9 +509,11 @@ class Visualization(object):
             for sample_idx in sample_idxs:
                 window_idx = per_cluster_confident_idxs[scale][str(
                     i)][sample_idx]
-                time_interval = get_time_interval(window_idx,
-                                                  scale,
-                                                  lmst=False)
+                time_interval = get_time_interval(
+                    window_idx,
+                    scale,
+                    lmst=False,
+                )
 
                 time_interval = sum([t.timestamp for t in time_interval]) / 2.0
                 time_interval = lmst_xtick(UTCDateTime(time_interval))
@@ -488,17 +531,23 @@ class Visualization(object):
         print(' [*] Computing waveform midtimes')
         for cluster in tqdm(range(args.ncluster), desc="Cluster loop"):
             for scale in tqdm(self.scales, desc="Scale loop", leave=False):
-                split_idxs = np.array_split(np.arange(
-                    len(self.per_cluster_confident_idxs[scale][str(cluster)])),
-                                            num_workers,
-                                            axis=0)
+                split_idxs = np.array_split(
+                    np.arange(
+                        len(self.per_cluster_confident_idxs[scale][str(
+                            cluster)])),
+                    num_workers,
+                    axis=0,
+                )
                 worker_in = [(scale, cluster, idxs) for idxs in split_idxs]
 
                 with WorkerPool(
                         n_jobs=num_workers,
-                        shared_objects=(self.per_cluster_confident_idxs,
-                                        self.get_time_interval),
-                        start_method='fork') as pool:
+                        shared_objects=(
+                            self.per_cluster_confident_idxs,
+                            self.get_time_interval,
+                        ),
+                        start_method='fork',
+                ) as pool:
                     mid_time_intervals[scale][str(cluster)] = pool.map(
                         serial_job, worker_in, progress_bar=False)
         return mid_time_intervals
@@ -525,7 +574,8 @@ class Visualization(object):
                     binwidth=0.005,
                     kde=False,
                     label='Number of windows: ' +
-                    str(mid_time_intervals[scale][str(cluster)].shape[0]))
+                    str(mid_time_intervals[scale][str(cluster)].shape[0]),
+                )
                 ax = plt.gca()
                 ax.set_ylabel('Density', fontsize=10)
                 ax.set_xlim([
@@ -541,15 +591,18 @@ class Visualization(object):
                 # ax.set_yticklabels([])
                 ax.tick_params(axis='both', which='major', labelsize=10)
                 ax.legend(fontsize=10)
-                plt.savefig(os.path.join(
-                    plotsdir(
-                        os.path.join(args.experiment, 'scale_' + scale,
-                                     'time_histograms')),
-                    'time_histogram_cluster-' + str(cluster) + '.png'),
-                            format="png",
-                            bbox_inches="tight",
-                            dpi=200,
-                            pad_inches=.02)
+                plt.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(args.experiment, 'scale_' + scale,
+                                         'time_histograms')),
+                        'time_histogram_cluster-' + str(cluster) + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=200,
+                    pad_inches=.02,
+                )
                 plt.close(fig)
         sns.set_style("whitegrid")
 
@@ -563,21 +616,35 @@ class Visualization(object):
             centroid_waveforms: (array) array containing the centroid waveforms
         """
         sns.set_style("darkgrid")
-        self.load_per_scale_per_cluster_waveforms(args,
-                                                  sample_size=200,
-                                                  overlap=False)
+        self.load_per_scale_per_cluster_waveforms(
+            args,
+            sample_size=200,
+            overlap=False,
+        )
         clustert_colors = [
-            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
-            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+            '#1f77b4',
+            '#ff7f0e',
+            '#2ca02c',
+            '#d62728',
+            '#9467bd',
+            '#8c564b',
+            '#e377c2',
+            '#7f7f7f',
+            '#bcbd22',
+            '#17becf',
         ]
         print(' [*] Computing and plotting centroid and centered waveforms')
         for scale in tqdm(self.scales, desc="Scale loop"):
-            fig_spec, axes_spec = plt.subplots(nrows=3,
-                                               sharex=True,
-                                               figsize=(12, 12))
-            for cluster in tqdm(range(args.ncluster),
-                                desc="Cluster loop",
-                                leave=False):
+            fig_spec, axes_spec = plt.subplots(
+                nrows=3,
+                sharex=True,
+                figsize=(12, 12),
+            )
+            for cluster in tqdm(
+                    range(args.ncluster),
+                    desc="Cluster loop",
+                    leave=False,
+            ):
                 # Extract waveforms for each cluster and put in a 3D array.
                 waves = np.array(self.waveforms[scale][str(cluster)])
 
@@ -598,13 +665,17 @@ class Visualization(object):
                 for i in range(1, waves.shape[0]):
                     correlation = 0.0
                     for j in range(waves.shape[1]):
-                        correlation += correlate(bs_waveform[j, :],
-                                                 waves[i, j, :],
-                                                 mode="same")
+                        correlation += correlate(
+                            bs_waveform[j, :],
+                            waves[i, j, :],
+                            mode="same",
+                        )
                     correlation /= waves.shape[1]
-                    lags = correlation_lags(bs_waveform.shape[-1],
-                                            waves.shape[-1],
-                                            mode="same")
+                    lags = correlation_lags(
+                        bs_waveform.shape[-1],
+                        waves.shape[-1],
+                        mode="same",
+                    )
                     lag = lags[np.argmax(correlation)]
                     for j in range(waves.shape[1]):
                         rolled_waveforms[i, j, :] = roll_nanpad(
@@ -614,36 +685,47 @@ class Visualization(object):
                                                bs_waveform[j, :]),
                             np.ma.masked_where(
                                 np.isnan(rolled_waveforms[i, j, :]),
-                                rolled_waveforms[i, j, :]))[0, 1]
+                                rolled_waveforms[i, j, :]),
+                        )[0, 1]
 
                 corr_coefs = corr_coefs / waves.shape[1]
                 centroid_waveforms = np.ma.zeros(
-                    (rolled_waveforms.shape[1], rolled_waveforms.shape[2]))
+                    (rolled_waveforms.shape[1], rolled_waveforms.shape[2]), )
                 for i in range(centroid_waveforms.shape[0]):
 
                     centroid_waveforms[i, :] = np.ma.average(
-                        np.ma.masked_where(np.isnan(rolled_waveforms[:, i, :]),
-                                           rolled_waveforms[:, i, :]),
+                        np.ma.masked_where(
+                            np.isnan(rolled_waveforms[:, i, :]),
+                            rolled_waveforms[:, i, :],
+                        ),
                         weights=corr_coefs,
-                        axis=0)
+                        axis=0,
+                    )
 
-                fig, axes = plt.subplots(nrows=3,
-                                         sharex=True,
-                                         figsize=(12, 12))
+                fig, axes = plt.subplots(
+                    nrows=3,
+                    sharex=True,
+                    figsize=(12, 12),
+                )
                 y_labels = ['U', 'V', 'W']
 
                 for j in range(centroid_waveforms.shape[0]):
                     # Plot waveforms.
-                    axes[j].plot(np.linspace(-centroid_waveforms.shape[1] / 40,
-                                             centroid_waveforms.shape[1] / 40,
-                                             num=centroid_waveforms.shape[1],
-                                             endpoint=True),
-                                 np.ma.masked_where(
-                                     np.isnan(centroid_waveforms[j, :]),
-                                     centroid_waveforms[j, :]),
-                                 color=self.colors[cluster % len(self.colors)],
-                                 lw=1.0,
-                                 alpha=0.9)
+                    axes[j].plot(
+                        np.linspace(
+                            -centroid_waveforms.shape[1] / 40,
+                            centroid_waveforms.shape[1] / 40,
+                            num=centroid_waveforms.shape[1],
+                            endpoint=True,
+                        ),
+                        np.ma.masked_where(
+                            np.isnan(centroid_waveforms[j, :]),
+                            centroid_waveforms[j, :],
+                        ),
+                        color=self.colors[cluster % len(self.colors)],
+                        lw=1.0,
+                        alpha=0.9,
+                    )
 
                     axes[j].set_ylim([
                         np.ma.min(
@@ -664,25 +746,32 @@ class Visualization(object):
                     axes[j].set_ylabel(y_labels[j], )
 
                 axes[0].set_title(
-                    'Centroid Waveform for cluster {}'.format(cluster), )
+                    'Centroid Waveform for cluster {}'.format(cluster))
                 axes[2].set_xlabel('Time (s)', )
-                axes[2].set_xlim(-centroid_waveforms.shape[1] / 40,
-                                 centroid_waveforms.shape[1] / 40)
-                fig.savefig(os.path.join(
-                    plotsdir(
-                        os.path.join(args.experiment, 'scale_' + scale,
-                                     'centroid_waveforms')),
-                    'centroid_waveform_' + str(cluster) + '.png'),
-                            format="png",
-                            bbox_inches="tight",
-                            dpi=300,
-                            pad_inches=.05)
+                axes[2].set_xlim(
+                    -centroid_waveforms.shape[1] / 40,
+                    centroid_waveforms.shape[1] / 40,
+                )
+                fig.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(args.experiment, 'scale_' + scale,
+                                         'centroid_waveforms')),
+                        'centroid_waveform_' + str(cluster) + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05,
+                )
                 plt.close(fig)
 
                 for j in range(centroid_waveforms.shape[0]):
-                    frequencies, asd = signal.welch(centroid_waveforms[j, :],
-                                                    fs=20,
-                                                    nperseg=1024)
+                    frequencies, asd = signal.welch(
+                        centroid_waveforms[j, :],
+                        fs=20,
+                        nperseg=1024,
+                    )
 
                     axes_spec[j].loglog(
                         frequencies,
@@ -690,7 +779,8 @@ class Visualization(object):
                         color=clustert_colors[cluster % len(clustert_colors)],
                         lw=1.0,
                         alpha=0.9,
-                        label='cluster ' + str(cluster))
+                        label='cluster ' + str(cluster),
+                    )
 
                     axes_spec[j].set_yticklabels([])
                     axes_spec[j].tick_params(
@@ -705,15 +795,18 @@ class Visualization(object):
                 axes_spec[2].set_xlabel('Frequency (Hz)', )
                 # add legend
                 axes_spec[0].legend(fontsize=10, ncols=4)
-                fig_spec.savefig(os.path.join(
-                    plotsdir(
-                        os.path.join(args.experiment, 'scale_' + scale,
-                                     'spectral_amplitude')),
-                    'spectral_amplitude_' + str(scale) + '.png'),
-                                 format="png",
-                                 bbox_inches="tight",
-                                 dpi=300,
-                                 pad_inches=.05)
+                fig_spec.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(args.experiment, 'scale_' + scale,
+                                         'spectral_amplitude')),
+                        'spectral_amplitude_' + str(scale) + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05,
+                )
 
                 num_waveforms = 10
                 dy = 1.6
@@ -731,19 +824,23 @@ class Visualization(object):
                                 rolled_waveforms.shape[0])):
                         normalized_rolled = np.ma.masked_where(
                             np.isnan(rolled_waveforms[largest_corr[j], i, :]),
-                            rolled_waveforms[largest_corr[j], i, :])
+                            rolled_waveforms[largest_corr[j], i, :],
+                        )
                         normalized_rolled = (
                             normalized_rolled /
                             np.ma.max(np.ma.abs(normalized_rolled)) - j * dy)
                         ax[i].plot(
-                            np.linspace(-rolled_waveforms.shape[-1] / 40,
-                                        rolled_waveforms.shape[-1] / 40,
-                                        num=rolled_waveforms.shape[-1],
-                                        endpoint=True),
+                            np.linspace(
+                                -rolled_waveforms.shape[-1] / 40,
+                                rolled_waveforms.shape[-1] / 40,
+                                num=rolled_waveforms.shape[-1],
+                                endpoint=True,
+                            ),
                             normalized_rolled,
                             color=self.colors[cluster % len(self.colors)],
                             lw=1.0,
-                            alpha=0.9)
+                            alpha=0.9,
+                        )
                         ax[i].axes.yaxis.set_visible(False)
                         ax[i].set_xlabel('Time (s)')
                         ax[i].set_xlim(-rolled_waveforms.shape[-1] / 40,
@@ -755,15 +852,18 @@ class Visualization(object):
                 fig.suptitle('Cluster {}, aligned waveforms'.format(cluster))
                 fig.subplots_adjust(top=0.80)
                 fig.tight_layout()
-                fig.savefig(os.path.join(
-                    plotsdir(
-                        os.path.join(args.experiment, 'scale_' + scale,
-                                     'aligned_waveforms')),
-                    'aligned_waveforms_cluster_' + str(cluster) + '.png'),
-                            format="png",
-                            bbox_inches="tight",
-                            dpi=300,
-                            pad_inches=.05)
+                fig.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(args.experiment, 'scale_' + scale,
+                                         'aligned_waveforms')),
+                        'aligned_waveforms_cluster_' + str(cluster) + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05,
+                )
                 plt.close(fig)
 
             plt.close(fig_spec)
@@ -781,11 +881,22 @@ class Visualization(object):
         Returns:
             fig: (figure) plot of the latent space
         """
+        # DO NOT PLACE THIS IMPORT AT THE BEGINNING OF THE FILE. umap alters the
+        # environment variables, which causes errors when using multiprocessing.
         import umap
+
         # Colors for each cluster.
         colors = [
-            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
-            '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+            '#1f77b4',
+            '#ff7f0e',
+            '#2ca02c',
+            '#d62728',
+            '#9467bd',
+            '#8c564b',
+            '#e377c2',
+            '#7f7f7f',
+            '#bcbd22',
+            '#17becf',
         ]
         per_point_color = {
             scale:
@@ -797,19 +908,25 @@ class Visualization(object):
         def serial_job(latent_features, scale):
             umap_features = {
                 scale:
-                umap.UMAP(n_neighbors=10, min_dist=0.000001,
-                          densmap=False).fit_transform(
-                              latent_features[scale][:, 0, :].numpy())
+                umap.UMAP(
+                    n_neighbors=10,
+                    min_dist=0.000001,
+                    densmap=False,
+                ).fit_transform(latent_features[scale][:, 0, :].numpy())
             }
             return umap_features
 
         # Compute UMAP features.
-        with WorkerPool(n_jobs=len(self.scales),
-                        shared_objects=self.latent_features,
-                        start_method='fork') as pool:
-            feature_list = pool.map(serial_job,
-                                    self.scales,
-                                    progress_bar=False)
+        with WorkerPool(
+                n_jobs=len(self.scales),
+                shared_objects=self.latent_features,
+                start_method='fork',
+        ) as pool:
+            feature_list = pool.map(
+                serial_job,
+                self.scales,
+                progress_bar=False,
+            )
 
         umap_features = {}
         for item in feature_list:
@@ -817,12 +934,14 @@ class Visualization(object):
 
         for scale in self.scales:
             fig = plt.figure(figsize=(8, 4))
-            scatter = plt.scatter(umap_features[scale][:, 0],
-                                  umap_features[scale][:, 1],
-                                  marker='o',
-                                  c=per_point_color[scale],
-                                  edgecolor='none',
-                                  s=10)
+            scatter = plt.scatter(
+                umap_features[scale][:, 0],
+                umap_features[scale][:, 1],
+                marker='o',
+                c=per_point_color[scale],
+                edgecolor='none',
+                s=10,
+            )
 
             legend_elements = []
             for i, label in enumerate(range(args.ncluster)):
@@ -839,13 +958,16 @@ class Visualization(object):
 
             plt.legend(handles=legend_elements, fontsize=8)
             plt.title("Latent samples at scale {}".format(scale))
-            fig.savefig(os.path.join(
-                plotsdir(
-                    os.path.join(args.experiment,
-                                 'latent_space_visualization')),
-                'umap_scale-' + scale + '.png'),
-                        format="png",
-                        bbox_inches="tight",
-                        dpi=300,
-                        pad_inches=.05)
+            fig.savefig(
+                os.path.join(
+                    plotsdir(
+                        os.path.join(args.experiment,
+                                     'latent_space_visualization')),
+                    'umap_scale-' + scale + '.png',
+                ),
+                format="png",
+                bbox_inches="tight",
+                dpi=300,
+                pad_inches=.05,
+            )
             plt.close(fig)
