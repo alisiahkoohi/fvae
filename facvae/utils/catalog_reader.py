@@ -22,10 +22,8 @@ class CatalogReader(torch.utils.data.Dataset):
             df = self.df[(self.df['eventTime'] >= start_time)
                          & (self.df['eventTime'] <= end_time)]
         elif target_column_name == 'type' or target_column_name == 'glitch':
-            df = self.df[((self.df['start_time'] > start_time) &
-                          (self.df['start_time'] < end_time)) |
-                         ((self.df['end_time'] > start_time) &
-                          (self.df['end_time'] < end_time))]
+            df = self.df[(self.df['start_time'] <= end_time)
+                         & (self.df['end_time'] >= start_time)]
         labels = []
         for _, row in df.iterrows():
             labels.append(row[target_column_name])
@@ -38,11 +36,16 @@ class CatalogReader(torch.utils.data.Dataset):
                               h5_dataset_name,
                               target_column_name,
                               n_workers=40):
-        file = h5py.File(path_to_h5_file, 'r+')
 
-        for scale in file['time_interval'].keys():
+        file = h5py.File(path_to_h5_file, 'r')
+        scales = list(file['time_interval'].keys())
+        file.close()
 
+        for scale in scales:
+            file = h5py.File(path_to_h5_file, 'r')
             time_intervals = file['time_interval'][scale][...]
+            file.close()
+
             inputs = []
             for i in tqdm(range(len(time_intervals))):
                 inputs.append(
@@ -55,6 +58,8 @@ class CatalogReader(torch.utils.data.Dataset):
                                           progress_bar=True)
 
             max_label_len = max([len(j) for _, j in idx_and_labels])
+
+            file = h5py.File(path_to_h5_file, 'r+')
             label_group = file.require_group(h5_dataset_name)
             label_dataset = label_group.require_dataset(
                 scale, (file['time_interval'][scale].shape[0], max_label_len),
@@ -64,4 +69,4 @@ class CatalogReader(torch.utils.data.Dataset):
 
             for i, label in idx_and_labels:
                 label_dataset[i, :len(label)] = label
-        file.close()
+            file.close()
