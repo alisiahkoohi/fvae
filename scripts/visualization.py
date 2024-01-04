@@ -1,13 +1,13 @@
+import os
+import datetime
 import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
-import datetime
 import obspy
 import numpy as np
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
-import os
-from scipy.signal import spectrogram, correlate, correlation_lags
+from scipy.signal import correlate, correlation_lags
 import scipy.signal as signal
 import torch
 from tqdm import tqdm
@@ -52,7 +52,8 @@ class Visualization(object):
 
         (self.cluster_membership, self.cluster_membership_prob,
          self.confident_idxs, self.per_cluster_confident_idxs,
-         self.latent_features) = self.evaluate_model(args, data_loader)
+         self.latent_features,
+         self.window_labels) = self.evaluate_model(args, data_loader)
 
         # Colors to be used for visualizing different clusters.
         # self.colors = [
@@ -133,9 +134,22 @@ class Visualization(object):
                         dtype=torch.float)
             for scale in self.scales
         }
+        window_labels = {scale: {} for scale in self.scales}
+
+        # Load all the labels to avoid time consuming slicing.
+        all_labels = {
+            scale: self.dataset.get_labels(data_loader.dataset, scale)
+            for scale in self.scales
+        }
+        argsorted_indices = np.argsort(data_loader.dataset)
+        value_idx_map = {
+            int(idx): i
+            for i, idx in enumerate(argsorted_indices)
+        }
 
         # Extract cluster memberships.
-        for i_idx, idx in enumerate(data_loader):
+        pbar = tqdm(total=len(data_loader), desc='Evalutating the model')
+        for _, idx in enumerate(data_loader):
             # Load data.
             x = self.dataset.sample_data(idx, 'scat_cov')
             # Move to `device`.
@@ -158,6 +172,13 @@ class Visualization(object):
                         len(idx),
                         self.dataset.data['scat_cov'][scale].shape[1],
                         args.latent_dim).cpu()
+                for i in idx:
+                    label = all_labels[scale][argsorted_indices[value_idx_map[
+                        int(i)]]]
+                    if label:
+                        window_labels[scale][int(i)] = label
+
+            pbar.update(1)
 
         # Sort indices based on most confident cluster predictions by the
         # network (increasing). The outcome is a dictionary with a key for each
@@ -188,7 +209,7 @@ class Visualization(object):
                                                   confident_idxs[scale][i])
 
         return (cluster_membership, cluster_membership_prob, confident_idxs,
-                per_cluster_confident_idxs, latent_features)
+                per_cluster_confident_idxs, latent_features, window_labels)
 
     def load_per_scale_per_cluster_waveforms(
         self,
@@ -899,8 +920,10 @@ class Visualization(object):
             '#17becf',
         ]
         per_point_color = {
-            scale:
-            [colors[idx] for idx in self.cluster_membership[scale][:, 0]]
+            scale: [
+                colors[cluster_idx]
+                for cluster_idx in self.cluster_membership[scale][:, 0]
+            ]
             for scale in self.scales
         }
 
@@ -932,9 +955,16 @@ class Visualization(object):
         for item in feature_list:
             umap_features.update(item)
 
+        # Extract UMAP features of indices with label "BROADBAND"
+        label_idx = {scale: [] for scale in self.scales}
+        for scale in self.scales:
+            for idx in self.window_labels[scale].keys():
+                if 'BROADBAND' in self.window_labels[scale][idx]:
+                    label_idx[scale].append(int(idx))
+
         for scale in self.scales:
             fig = plt.figure(figsize=(8, 4))
-            scatter = plt.scatter(
+            plt.scatter(
                 umap_features[scale][:, 0],
                 umap_features[scale][:, 1],
                 marker='o',
@@ -942,6 +972,17 @@ class Visualization(object):
                 edgecolor='none',
                 s=10,
             )
+
+            if len(label_idx[scale]) > 0:
+
+                plt.scatter(
+                    umap_features[scale][label_idx[scale], 0],
+                    umap_features[scale][label_idx[scale], 1],
+                    marker='*',
+                    c="k",  # c=[per_point_color[scale][i] for i in label_idx[scale]],
+                    edgecolor="k",
+                    s=100,
+                )
 
             legend_elements = []
             for i, label in enumerate(range(args.ncluster)):

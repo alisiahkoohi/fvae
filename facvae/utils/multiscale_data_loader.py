@@ -424,12 +424,13 @@ class MarsMultiscaleDataset():
                 out = self.data[type][np.sort(idx), ...]
         return out
 
-    def get_labels(self, idx: List[int]) -> List[List[str]]:
+    def get_labels(self, idx: List[int], scale: str) -> List[List[str]]:
         """
         Returns the list of labels for the given indices.
 
         Args:
             idx: A list of indices.
+            scale: The scale of the time intervals to return.
 
         Returns:
             A list of lists of strings representing the labels for the given
@@ -439,8 +440,8 @@ class MarsMultiscaleDataset():
         # Check if there are any indices
         if len(idx) > 0:
             # Extract labels for the given indices
-            labels_list = self.file['labels'][self.idx_converter(np.sort(idx)),
-                                              ...].astype(str)
+            labels_list = self.file['labels'][scale][
+                self.idx_converter(np.sort(idx)), ...].astype(str)
 
             # Process each index and create a list of labels for each one
             for i in range(len(idx)):

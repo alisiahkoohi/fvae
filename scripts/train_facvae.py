@@ -112,9 +112,11 @@ if __name__ == "__main__":
         # Create an instance of Visualization class.
         vis = Visualization(args, network, dataset, test_loader, device)
 
-        vis.plot_waveforms(args)
-        vis.plot_cluster_time_histograms(args)
-        vis.centroid_waveforms(args)
+        print('Some plotting functions are commented out for development.')
+        # vis.plot_waveforms(args)
+        # vis.plot_cluster_time_histograms(args)
+        # vis.centroid_waveforms(args)
+
         vis.plot_latent_space(args)
 
     # Upload results to Weights & Biases for tracking training progress.
