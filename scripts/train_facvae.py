@@ -9,9 +9,16 @@ import numpy as np
 import os
 import torch
 
-from facvae.utils import (configsdir, datadir, parse_input_args, read_config,
-                          make_experiment_name, MarsMultiscaleDataset,
-                          upload_results)
+from facvae.utils import (
+    configsdir,
+    datadir,
+    parse_input_args,
+    read_config,
+    make_experiment_name,
+    process_sequence_arguments,
+    MarsMultiscaleDataset,
+    upload_results,
+)
 from scripts.facvae_trainer import FactorialVAETrainer
 from scripts.visualization import Visualization
 
@@ -46,12 +53,9 @@ if __name__ == "__main__":
     # Set experiment name based on input arguments
     args.experiment = make_experiment_name(args)
 
-    # Process filter_key and scales arguments to remove spaces and split by
-    # comma
-    if hasattr(args, 'filter_key'):
-        args.filter_key = args.filter_key.replace(' ', '').split(',')
-    if hasattr(args, 'scales'):
-        args.scales = args.scales.replace(' ', '').split(',')
+    # Process filter_key, scales, event_type, and event_quality arguments to
+    # remove spaces and split by comma.
+    args = process_sequence_arguments(args)
 
     # Setting default device (cpu/cuda) depending on CUDA availability and
     # input arguments.

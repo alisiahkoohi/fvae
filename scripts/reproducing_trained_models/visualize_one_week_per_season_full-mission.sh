@@ -1,7 +1,7 @@
 git_root_path=$(git rev-parse --show-toplevel)
 
 # Spring 1: Sol 116-305
-CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
+CUDA_VISIBLE_DEVICES=3 python $git_root_path/scripts/train_facvae.py \
     --cuda 1 \
     --h5_filename "pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" \
     --experiment_name nature_full-mission \
@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
     --phase test &
 
 # Spring 2: Sol 783-978
-CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
+CUDA_VISIBLE_DEVICES=3 python $git_root_path/scripts/train_facvae.py \
     --cuda 1 \
     --h5_filename "pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" \
     --experiment_name nature_full-mission \
@@ -31,7 +31,7 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
 wait
 
 # Summer 1: Sol 306-483
-CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
+CUDA_VISIBLE_DEVICES=3 python $git_root_path/scripts/train_facvae.py \
     --cuda 1 \
     --h5_filename "pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" \
     --experiment_name nature_full-mission \
@@ -45,7 +45,7 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
     --phase test &
 
 # Summer 2: Sol 979-1155
-CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
+CUDA_VISIBLE_DEVICES=3 python $git_root_path/scripts/train_facvae.py \
     --cuda 1 \
     --h5_filename "pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" \
     --experiment_name nature_full-mission \
@@ -61,7 +61,7 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
 wait
 
 # Fall 1: Sol 484-624
-CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
+CUDA_VISIBLE_DEVICES=3 python $git_root_path/scripts/train_facvae.py \
     --cuda 1 \
     --h5_filename "pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" \
     --experiment_name nature_full-mission \
@@ -75,7 +75,7 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
     --phase test &
 
 # Fall 2: Sol 1156-
-CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
+CUDA_VISIBLE_DEVICES=3 python $git_root_path/scripts/train_facvae.py \
     --cuda 1 \
     --h5_filename "pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" \
     --experiment_name nature_full-mission \
@@ -91,7 +91,7 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
 wait
 
 # Winter 1: Sol 625-782
-CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
+CUDA_VISIBLE_DEVICES=3 python $git_root_path/scripts/train_facvae.py \
     --cuda 1 \
     --h5_filename "pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" \
     --experiment_name nature_full-mission \

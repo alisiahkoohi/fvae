@@ -27,6 +27,8 @@ class CatalogReader(torch.utils.data.Dataset):
         labels = []
         for _, row in df.iterrows():
             labels.append(row[target_column_name])
+            if target_column_name == 'type':
+                labels[-1] += '_' + row['quality']
         if len(labels) > 0:
             print(i, start_time, end_time, labels)
         return i, labels

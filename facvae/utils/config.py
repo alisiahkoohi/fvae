@@ -28,10 +28,26 @@ def make_experiment_name(args):
     experiment_name = args.experiment_name + '_'
     for key, value in vars(args).items():
         if key not in [
-                'experiment_name', 'cuda', 'phase', 'load_to_memory', 'clip',
-                'h5_filename', 'w_cat', 'w_gauss', 'filter_key', 'normalize',
-                'temp_decay', 'min_temp', 'init_temp', 'cluster_n', 'scale_n',
-                'cluster_g', 'scale_g', 'extension'
+                'experiment_name',
+                'cuda',
+                'phase',
+                'load_to_memory',
+                'clip',
+                'h5_filename',
+                'w_cat',
+                'w_gauss',
+                'filter_key',
+                'normalize',
+                'temp_decay',
+                'min_temp',
+                'init_temp',
+                'cluster_n',
+                'scale_n',
+                'cluster_g',
+                'scale_g',
+                'extension',
+                'event_type',
+                'event_quality',
         ]:
             experiment_name += key + '-{}_'.format(value)
     return experiment_name[:-1].replace(' ', '').replace(',', '-')
@@ -47,3 +63,16 @@ def make_h5_file_name(args):
             filename += key + '-true_'
     filename = filename[:-1].replace(' ', '') + '.h5'
     return filename.replace('[', '').replace(']', '').replace(',', '-')
+
+
+def process_sequence_arguments(args):
+    """Process sequence arguments to remove spaces and split by comma."""
+    if hasattr(args, 'filter_key'):
+        args.filter_key = args.filter_key.replace(' ', '').split(',')
+    if hasattr(args, 'scales'):
+        args.scales = args.scales.replace(' ', '').split(',')
+    if hasattr(args, 'event_type'):
+        args.event_type = args.event_type.replace(' ', '').split(',')
+    if hasattr(args, 'event_quality'):
+        args.event_quality = args.event_quality.replace(' ', '').split(',')
+    return args

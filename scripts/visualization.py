@@ -905,6 +905,8 @@ class Visualization(object):
         # DO NOT PLACE THIS IMPORT AT THE BEGINNING OF THE FILE. umap alters the
         # environment variables, which causes errors when using multiprocessing.
         import umap
+        font = {'family': 'serif', 'style': 'normal', 'size': 12}
+        matplotlib.rc('font', **font)
 
         # Colors for each cluster.
         colors = [
@@ -932,9 +934,9 @@ class Visualization(object):
             umap_features = {
                 scale:
                 umap.UMAP(
-                    n_neighbors=10,
-                    min_dist=0.000001,
-                    densmap=False,
+                    n_neighbors=300,
+                    min_dist=5e-1,
+                    metric='euclidean',
                 ).fit_transform(latent_features[scale][:, 0, :].numpy())
             }
             return umap_features
@@ -959,8 +961,11 @@ class Visualization(object):
         label_idx = {scale: [] for scale in self.scales}
         for scale in self.scales:
             for idx in self.window_labels[scale].keys():
-                if 'BROADBAND' in self.window_labels[scale][idx]:
-                    label_idx[scale].append(int(idx))
+                for event_type in args.event_type:
+                    for event_quality in args.event_quality:
+                        if (event_type + '_' + event_quality
+                            ) in self.window_labels[scale][idx]:
+                            label_idx[scale].append(int(idx))
 
         for scale in self.scales:
             fig = plt.figure(figsize=(8, 4))
@@ -970,7 +975,8 @@ class Visualization(object):
                 marker='o',
                 c=per_point_color[scale],
                 edgecolor='none',
-                s=10,
+                s=3,
+                alpha=0.3,
             )
 
             if len(label_idx[scale]) > 0:
@@ -979,9 +985,10 @@ class Visualization(object):
                     umap_features[scale][label_idx[scale], 0],
                     umap_features[scale][label_idx[scale], 1],
                     marker='*',
-                    c="k",  # c=[per_point_color[scale][i] for i in label_idx[scale]],
+                    c="#333333",
                     edgecolor="k",
-                    s=100,
+                    s=40,
+                    alpha=0.6,
                 )
 
             legend_elements = []
@@ -1002,8 +1009,12 @@ class Visualization(object):
             fig.savefig(
                 os.path.join(
                     plotsdir(
-                        os.path.join(args.experiment,
-                                     'latent_space_visualization')),
+                        os.path.join(
+                            args.experiment,
+                            'latent_space_visualization' + '_' +
+                            '-'.join(args.event_type) + '_' +
+                            '-'.join(args.event_quality),
+                        )),
                     'umap_scale-' + scale + '.png',
                 ),
                 format="png",
@@ -1012,3 +1023,6 @@ class Visualization(object):
                 pad_inches=.05,
             )
             plt.close(fig)
+
+        font = {'family': 'serif', 'style': 'normal', 'size': 18}
+        matplotlib.rc('font', **font)
