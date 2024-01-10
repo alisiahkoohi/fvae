@@ -967,6 +967,9 @@ class Visualization(object):
                             ) in self.window_labels[scale][idx]:
                             label_idx[scale].append(int(idx))
 
+        from IPython import embed
+        embed()
+
         for scale in self.scales:
             fig = plt.figure(figsize=(8, 4))
             plt.scatter(

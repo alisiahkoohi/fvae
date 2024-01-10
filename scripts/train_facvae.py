@@ -117,7 +117,7 @@ if __name__ == "__main__":
         vis = Visualization(args, network, dataset, test_loader, device)
 
         print('Some plotting functions are commented out for development.')
-        # vis.plot_waveforms(args)
+        vis.plot_waveforms(args)
         # vis.plot_cluster_time_histograms(args)
         # vis.centroid_waveforms(args)
 
