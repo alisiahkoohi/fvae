@@ -16,8 +16,8 @@ do
         --latent_dim 32 \
         --nlayer 4 \
         --seed $i \
-        --filter_key "2019-JUN,2019-JUL,2019-AUG,2019-SEP" \
-        --extension full_spring1 \
+        --filter_key "" \
+        --extension full_mission \
         --phase test &
 
     CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
@@ -30,8 +30,8 @@ do
         --latent_dim 32 \
         --nlayer 4 \
         --seed $j \
-        --filter_key "2019-JUN,2019-JUL,2019-AUG,2019-SEP" \
-        --extension full_spring1 \
+        --filter_key "" \
+        --extension full_mission \
         --phase test &
 
     wait
