@@ -5,6 +5,7 @@ import matplotlib
 import seaborn as sns
 import obspy
 import numpy as np
+import h5py
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
 from scipy.signal import correlate, correlation_lags
@@ -930,33 +931,55 @@ class Visualization(object):
             for scale in self.scales
         }
 
-        # Serial jobs for computing UMAP features.
-        def serial_job(latent_features, scale):
-            umap_features = {
-                scale:
-                umap.UMAP(
-                    n_neighbors=300,
-                    min_dist=5e-1,
-                    metric='euclidean',
-                ).fit_transform(latent_features[scale][:, 0, :].numpy())
-            }
-            return umap_features
+        pre_computed_umap_file = os.path.join(
+            plotsdir(
+                os.path.join(
+                    args.experiment, 'latent_space_visualization' + '_' +
+                    '-'.join(args.event_type) + '_' +
+                    '-'.join(args.event_quality))), 'umap_features.h5')
 
-        # Compute UMAP features.
-        with WorkerPool(
-                n_jobs=len(self.scales),
-                shared_objects=self.latent_features,
-                start_method='fork',
-        ) as pool:
-            feature_list = pool.map(
-                serial_job,
-                self.scales,
-                progress_bar=False,
-            )
+        if os.path.exists(pre_computed_umap_file):
+            umap_features = {}
 
-        umap_features = {}
-        for item in feature_list:
-            umap_features.update(item)
+            file = h5py.File(pre_computed_umap_file, 'r')
+            for scale in self.scales:
+                umap_features[scale] = file['umap_features'][scale][...]
+            file.close()
+
+        else:
+            # Serial jobs for computing UMAP features.
+            def serial_job(latent_features, scale):
+                umap_features = {
+                    scale:
+                    umap.UMAP(
+                        n_neighbors=300,
+                        min_dist=5e-1,
+                        metric='euclidean',
+                    ).fit_transform(latent_features[scale][:, 0, :].numpy())
+                }
+                return umap_features
+
+            # Compute UMAP features.
+            with WorkerPool(
+                    n_jobs=len(self.scales),
+                    shared_objects=self.latent_features,
+                    start_method='fork',
+            ) as pool:
+                feature_list = pool.map(
+                    serial_job,
+                    self.scales,
+                    progress_bar=False,
+                )
+
+            umap_features = {}
+            for item in feature_list:
+                umap_features.update(item)
+
+            file = h5py.File(pre_computed_umap_file, 'w')
+            umap_group = file.create_group('umap_features')
+            for key, value in umap_features.items():
+                umap_group.create_dataset(key, data=np.array(value))
+            file.close()
 
         # Extract UMAP features of indices with label "BROADBAND"
         label_idx = {scale: [] for scale in self.scales}
@@ -976,8 +999,8 @@ class Visualization(object):
                 marker='o',
                 c=per_point_color[scale],
                 edgecolor='none',
-                s=3,
-                alpha=0.3,
+                s=3 if umap_features[scale].shape[0] < 1e6 else 1,
+                alpha=0.3 if umap_features[scale].shape[0] < 1e6 else 0.1,
             )
 
             if len(label_idx[scale]) > 0:
@@ -988,8 +1011,8 @@ class Visualization(object):
                     marker='*',
                     c="#333333",
                     edgecolor="k",
-                    s=40,
-                    alpha=0.6,
+                    s=30,
+                    alpha=0.4,
                 )
 
             legend_elements = []
