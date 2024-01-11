@@ -453,7 +453,7 @@ class Visualization(object):
                         fig, axes = plt.subplots(
                             nrows=3,
                             sharex=True,
-                            figsize=(5, 2),
+                            figsize=(12, 12),
                         )
                         for comp in range(waveform.shape[0]):
                             # Plot waveforms.
@@ -465,7 +465,7 @@ class Visualization(object):
                                 waveform[comp, :],
                                 xdate=True,
                                 color=colors[cluster % len(colors)],
-                                lw=1.5,
+                                lw=1.0,
                                 alpha=0.9,
                                 fmt='',
                             )
@@ -476,9 +476,10 @@ class Visualization(object):
                             axes[comp].set_yticklabels([])
                             # axes[comp].set_xticklabels([])
                             # axes[comp].set_ylabel(labels[comp], fontsize=8, rotation=90, labelpad=-3)
-                            axes[comp].tick_params(axis='both',
-                                                   which='major',
-                                                   labelsize=8)
+                            axes[comp].tick_params(
+                                axis='both',
+                                which='major',
+                            )
                             axes[comp].grid(False)
                             axes[comp].set_xticklabels([])
                         plt.subplots_adjust(hspace=0)
@@ -966,9 +967,6 @@ class Visualization(object):
                         if (event_type + '_' + event_quality
                             ) in self.window_labels[scale][idx]:
                             label_idx[scale].append(int(idx))
-
-        from IPython import embed
-        embed()
 
         for scale in self.scales:
             fig = plt.figure(figsize=(8, 4))
