@@ -641,7 +641,7 @@ class Visualization(object):
         sns.set_style("darkgrid")
         self.load_per_scale_per_cluster_waveforms(
             args,
-            sample_size=200,
+            sample_size=500,
             overlap=False,
         )
         clustert_colors = [
@@ -832,13 +832,13 @@ class Visualization(object):
                 )
 
                 num_waveforms = 10
-                dy = 1.6
+                dy = 1.1
                 largest_corr = np.argsort(corr_coefs,
                                           axis=0)[::-1][:num_waveforms]
 
                 fig, ax = plt.subplots(1,
                                        centroid_waveforms.shape[0],
-                                       figsize=(18, 12),
+                                       figsize=(18, 6),
                                        sharey=True)
 
                 for i in range(rolled_waveforms.shape[1]):
@@ -861,20 +861,27 @@ class Visualization(object):
                             ),
                             normalized_rolled,
                             color=self.colors[cluster % len(self.colors)],
-                            lw=1.0,
-                            alpha=0.9,
+                            lw=0.7,
+                            alpha=1.0,
                         )
                         ax[i].axes.yaxis.set_visible(False)
                         ax[i].set_xlabel('Time (s)')
                         ax[i].set_xlim(-rolled_waveforms.shape[-1] / 40,
                                        rolled_waveforms.shape[-1] / 40)
                         ax[i].set_ylim(-(num_waveforms - 1) * dy - 1.5, 1.5)
+
+                        # Get the current y-axis limits
+                        ymin, ymax = ax[i].get_ylim()
+                        ax[i].set_ylim(0.95 * ymin, 0.82 * ymax)
+
                 ax[0].set_title('U')
                 ax[1].set_title('V')
                 ax[2].set_title('W')
-                fig.suptitle('Cluster {}, aligned waveforms'.format(cluster))
+
+                # fig.suptitle('Cluster {}, aligned waveforms'.format(cluster))
                 fig.subplots_adjust(top=0.80)
                 fig.tight_layout()
+
                 fig.savefig(
                     os.path.join(
                         plotsdir(
