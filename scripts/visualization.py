@@ -956,14 +956,20 @@ class Visualization(object):
         else:
             # Serial jobs for computing UMAP features.
             def serial_job(latent_features, scale):
+                print(
+                    'start computing UMAP features for scale {}'.format(scale))
                 umap_features = {
                     scale:
                     umap.UMAP(
                         n_neighbors=300,
                         min_dist=5e-1,
                         metric='euclidean',
+                        verbose=True,
+                        low_memory=False if scale == '65536' else True,
                     ).fit_transform(latent_features[scale][:, 0, :].numpy())
                 }
+                print(
+                    'done computing UMAP features for scale {}'.format(scale))
                 return umap_features
 
             # Compute UMAP features.
