@@ -2,21 +2,11 @@ import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
 import datetime
-import obspy
 import numpy as np
-from mpire import WorkerPool
-from obspy.core import UTCDateTime
 import os
-from collections import Counter
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
-from scipy.signal import spectrogram, correlate, correlation_lags
-import scipy.signal as signal
-import torch
 from tqdm import tqdm
 
-from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
-                          roll_zeropad, get_waveform_path_from_time_interval)
+from facvae.utils import plotsdir
 
 sns.set_style("white")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}
@@ -33,14 +23,17 @@ FILL_VALUE = 'interpolate'
 
 PATHS = [
     plotsdir(
-        'pyramid_2019_max_epoch-1000_batchsize-16384_lr-0.001_lr_final-0.001_ncluster-9_latent_dim-32_w_rec-0.15_wd-0.0_hidden_dim-1024_nlayer-4_window_size-65536_scales-1024-4096-16384-65536_Summer-1'
+        'nature_full-mission_max_epoch-1000_batchsize-16384_lr-0.001_lr_final-0.001_ncluster-9_latent_dim-32_w_rec-0.15_wd-0.0_hidden_dim-1024_nlayer-4_window_size-65536_scales-1024-4096-16384-65536_seed-29_full_summer1-2'
     ),
     plotsdir(
-        'pyramid_2019_max_epoch-1000_batchsize-16384_lr-0.001_lr_final-0.001_ncluster-9_latent_dim-32_w_rec-0.15_wd-0.0_hidden_dim-1024_nlayer-4_window_size-65536_scales-1024-4096-16384-65536_Fall-1'
+        'nature_full-mission_max_epoch-1000_batchsize-16384_lr-0.001_lr_final-0.001_ncluster-9_latent_dim-32_w_rec-0.15_wd-0.0_hidden_dim-1024_nlayer-4_window_size-65536_scales-1024-4096-16384-65536_seed-29_full_fall1-2'
     ),
+    # plotsdir(
+    #     'nature_full-mission_max_epoch-1000_batchsize-16384_lr-0.001_lr_final-0.001_ncluster-9_latent_dim-32_w_rec-0.15_wd-0.0_hidden_dim-1024_nlayer-4_window_size-65536_scales-1024-4096-16384-65536_seed-29_full_winter1'
+    # ),
     plotsdir(
-        'pyramid_2019_max_epoch-1000_batchsize-16384_lr-0.001_lr_final-0.001_ncluster-9_latent_dim-32_w_rec-0.15_wd-0.0_hidden_dim-1024_nlayer-4_window_size-65536_scales-1024-4096-16384-65536_Winter-1'
-    ),
+        'nature_full-mission_max_epoch-1000_batchsize-16384_lr-0.001_lr_final-0.001_ncluster-9_latent_dim-32_w_rec-0.15_wd-0.0_hidden_dim-1024_nlayer-4_window_size-65536_scales-1024-4096-16384-65536_seed-29_full_spring1-2'
+    )
 ]
 
 color_codes = [
@@ -49,24 +42,24 @@ color_codes = [
 
 cluster_idx_coverter = {
     '1024': [
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
     ],
     '4096': [
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
     ],
     '16384': [
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
     ],
     '65536': [
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
-    lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
+        lambda i: [0, 1, 2, 3, 4, 5, 6, 7, 8][i],
     ]
 }
 
@@ -79,18 +72,21 @@ for cluster in range(9):
             mid_time_intervals = np.load(os.path.join(
                 path, 'mid_time_intervals.npy'),
                                          allow_pickle=True).item()
-            sns.histplot(mid_time_intervals[scale][str(
-                cluster_idx_coverter[scale][i](cluster))],
-                         color=color_codes[i % len(color_codes)],
-                         element="step",
-                         alpha=0.3,
-                         binwidth=0.005,
-                         label = ['Summer', 'Fall', 'Winter'][i],
-                         kde=False)
+            sns.histplot(
+                mid_time_intervals[scale][str(
+                    cluster_idx_coverter[scale][i](cluster))],
+                color=color_codes[i % len(color_codes)],
+                element="step",
+                alpha=0.3,
+                binwidth=0.005,
+                label=['Summer', 'Fall', 'Spring'][i],
+                kde=False,
+                stat='density',
+            )
             #  label='cluster ' + str(cluster))
         ax = plt.gca()
         ax.set_ylabel('')
-        plt.legend(loc="upper left", fontsize=11, ncol=3)
+        plt.legend(loc="upper left", fontsize=9, ncol=3)
         ax.set_xlim([
             matplotlib.dates.date2num(datetime.datetime(
                 1900, 1, 1, 0, 0, 0, 0)),
