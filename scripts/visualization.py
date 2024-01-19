@@ -1,4 +1,5 @@
 import os
+import subprocess
 import datetime
 import matplotlib.pyplot as plt
 import matplotlib
@@ -14,7 +15,7 @@ import scipy.signal as signal
 import torch
 from tqdm import tqdm
 
-from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
+from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick, gitdir,
                           roll_nanpad, get_waveform_path_from_time_interval)
 
 sns.set_style("whitegrid")
@@ -956,35 +957,89 @@ class Visualization(object):
             file.close()
 
         else:
-
-            file = h5py.File(pre_computed_umap_file, 'w')
-            file.create_group('umap_features')
-            file.close()
-            umap_features = {}
             torch.cuda.empty_cache()
             for scale in self.scales:
-                gc.collect()
-                print(
-                    'start computing UMAP features for scale {}'.format(scale),
-                    flush=True,
+                tmp_filename = os.path.join('/tmp',
+                                            'latent_features_' + scale + '.h5')
+                tmp_file = h5py.File(tmp_filename, 'a')
+                if 'latent_features' in tmp_file.keys():
+                    del tmp_file['latent_features']
+                tmp_file.create_dataset(
+                    'latent_features',
+                    data=self.latent_features[scale][:, 0, :].numpy(),
                 )
-                umap_class = UMAP(
-                    n_neighbors=300,
-                    min_dist=5e-1,
-                    metric='euclidean',
-                    verbose=True,
-                    n_epochs=500,
-                )
-                umap_features[scale] = umap_class.fit_transform(
-                    self.latent_features[scale][:, 0, :].numpy())
-                gc.collect()
+                tmp_file.close()
 
-                file = h5py.File(pre_computed_umap_file, 'r+')
-                file['umap_features'].create_dataset(
-                    scale,
-                    data=np.array(umap_features[scale]),
+            def call_umap(gpu_id, scale_idx):
+                """
+                Calls umap on multiple GPUs.
+                """
+
+                # Run bash script with rank as argument.
+                script_path = os.path.join(
+                    gitdir(),
+                    'facvae',
+                    'utils',
+                    'call_umap.sh',
                 )
-                file.close()
+                command = "bash " + script_path + " " + str(
+                    gpu_id) + " " + str(scale_idx)
+                subprocess.check_call(command.split(),
+                                      stdout=subprocess.DEVNULL)
+
+            # Compute UMAP features.
+            with WorkerPool(
+                    n_jobs=4,
+                    start_method='fork',
+            ) as pool:
+                pool.map(
+                    call_umap,
+                    list(zip([1, 3, 1, 3], self.scales)),
+                    progress_bar=False,
+                )
+
+            file_umap = h5py.File(pre_computed_umap_file, 'w')
+            file_umap.create_group('umap_features')
+            umap_features = {}
+            for scale in self.scales:
+                filename = os.path.join('/tmp',
+                                        'umap_features_' + scale + '.h5')
+                file = h5py.File(filename, 'r')
+                file_umap['umap_features'].create_dataset(
+                    scale,
+                    data=file['umap_features'][...],
+                )
+                umap_features[scale] = file['umap_features'][...]
+
+                os.remove(filename)
+
+            file.close()
+
+            # umap_features = {}
+            # torch.cuda.empty_cache()
+            # for scale in self.scales:
+            #     gc.collect()
+            #     print(
+            #         'start computing UMAP features for scale {}'.format(scale),
+            #         flush=True,
+            #     )
+            #     umap_class = UMAP(
+            #         n_neighbors=300,
+            #         min_dist=5e-1,
+            #         metric='euclidean',
+            #         verbose=True,
+            #         n_epochs=500,
+            #     )
+            #     umap_features[scale] = umap_class.fit_transform(
+            #         self.latent_features[scale][:, 0, :].numpy())
+            #     gc.collect()
+
+            #     file = h5py.File(pre_computed_umap_file, 'r+')
+            #     file['umap_features'].create_dataset(
+            #         scale,
+            #         data=np.array(umap_features[scale]),
+            #     )
+            #     file.close()
 
         # Extract UMAP features of indices with label "BROADBAND"
         label_idx = {scale: [] for scale in self.scales}
