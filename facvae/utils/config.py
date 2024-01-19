@@ -48,6 +48,9 @@ def make_experiment_name(args):
                 'extension',
                 'event_type',
                 'event_quality',
+                'umap_n_neighbors',
+                'umap_min_dist',
+                'umap_n_epochs',
         ]:
             experiment_name += key + '-{}_'.format(value)
     return experiment_name[:-1].replace(' ', '').replace(',', '-')

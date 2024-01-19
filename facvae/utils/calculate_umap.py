@@ -7,7 +7,7 @@ import h5py
 import sys
 
 
-def calculate_umap(scale):
+def calculate_umap(scale, n_neighbors, min_dist, n_epochs):
     filename = os.path.join('/tmp', 'latent_features_' + str(scale) + '.h5')
     file = h5py.File(filename, 'r')
     latent_features = file['latent_features'][:]
@@ -19,12 +19,13 @@ def calculate_umap(scale):
         flush=True,
     )
     umap_class = UMAP(
-        n_neighbors=300,
-        min_dist=1e-2,
+        n_neighbors=int(n_neighbors),
+        min_dist=float(min_dist),
         metric='euclidean',
         verbose=True,
-        n_epochs=10000,
+        n_epochs=int(n_epochs),
     )
+    gc.collect()
     umap_features[scale] = umap_class.fit_transform(latent_features)
     gc.collect()
 
@@ -39,4 +40,4 @@ def calculate_umap(scale):
 
 
 if __name__ == '__main__':
-    calculate_umap(sys.argv[1])
+    calculate_umap(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])

@@ -211,6 +211,10 @@ class Visualization(object):
                                               [i]].item())].append(
                                                   confident_idxs[scale][i])
 
+        del self.network
+        del output
+        del x
+        gc.collect()
         return (cluster_membership, cluster_membership_prob, confident_idxs,
                 per_cluster_confident_idxs, latent_features, window_labels)
 
@@ -970,7 +974,7 @@ class Visualization(object):
                 )
                 tmp_file.close()
 
-            def call_umap(gpu_id, scale_idx):
+            def call_umap(gpu_id, scale, n_neighbors, min_dist, n_epochs):
                 """
                 Calls umap on multiple GPUs.
                 """
@@ -983,18 +987,25 @@ class Visualization(object):
                     'call_umap.sh',
                 )
                 command = "bash " + script_path + " " + str(
-                    gpu_id) + " " + str(scale_idx)
+                    gpu_id) + " " + str(scale) + " " + str(
+                        n_neighbors) + " " + str(min_dist) + " " + str(
+                            n_epochs)
                 subprocess.check_call(command.split(),
                                       stdout=subprocess.DEVNULL)
 
             # Compute UMAP features.
             with WorkerPool(
-                    n_jobs=4,
+                    n_jobs=len(self.scales),
                     start_method='fork',
             ) as pool:
                 pool.map(
                     call_umap,
-                    list(zip([1, 3, 1, 3], self.scales)),
+                    list(
+                        zip([0, 1, 2, 3], self.scales,
+                            [args.umap_n_neighbors] * len(self.scales),
+                            [args.umap_min_dist] * len(self.scales),
+                            [args.umap_n_epochs] * len(self.scales))
+                    ),  # TODO: fix this. GPU ids are hardcoded.
                     progress_bar=False,
                 )
 
@@ -1011,35 +1022,10 @@ class Visualization(object):
                 )
                 umap_features[scale] = file['umap_features'][...]
 
+                file.close()
                 os.remove(filename)
 
-            file.close()
-
-            # umap_features = {}
-            # torch.cuda.empty_cache()
-            # for scale in self.scales:
-            #     gc.collect()
-            #     print(
-            #         'start computing UMAP features for scale {}'.format(scale),
-            #         flush=True,
-            #     )
-            #     umap_class = UMAP(
-            #         n_neighbors=300,
-            #         min_dist=5e-1,
-            #         metric='euclidean',
-            #         verbose=True,
-            #         n_epochs=500,
-            #     )
-            #     umap_features[scale] = umap_class.fit_transform(
-            #         self.latent_features[scale][:, 0, :].numpy())
-            #     gc.collect()
-
-            #     file = h5py.File(pre_computed_umap_file, 'r+')
-            #     file['umap_features'].create_dataset(
-            #         scale,
-            #         data=np.array(umap_features[scale]),
-            #     )
-            #     file.close()
+            file_umap.close()
 
         # Extract UMAP features of indices with label "BROADBAND"
         label_idx = {scale: [] for scale in self.scales}

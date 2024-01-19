@@ -27,5 +27,8 @@
     "seed": 12,
     "event_type": "BROADBAND",
     "event_quality": "A,B,C",
+    "umap_n_neighbors": 300,
+    "umap_min_dist": 0.000001,
+    "umap_n_epochs": 10000,
     "extension": ""
 }
