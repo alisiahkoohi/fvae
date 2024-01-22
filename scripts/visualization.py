@@ -1,13 +1,13 @@
 import os
 import subprocess
 import datetime
+import gc
 import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
 import obspy
 import numpy as np
 import h5py
-import gc
 from mpire import WorkerPool
 from obspy.core import UTCDateTime
 from scipy.signal import correlate, correlation_lags
@@ -597,7 +597,7 @@ class Visualization(object):
                 sns.histplot(
                     mid_time_intervals[scale][str(cluster)],
                     color=self.colors[cluster % len(self.colors)],
-                    stat="density",
+                    stat="probability",
                     element="step",
                     alpha=0.3,
                     binwidth=0.005,
@@ -606,7 +606,7 @@ class Visualization(object):
                     str(mid_time_intervals[scale][str(cluster)].shape[0]),
                 )
                 ax = plt.gca()
-                ax.set_ylabel('Density', fontsize=10)
+                ax.set_ylabel('Proportion', fontsize=10)
                 ax.set_xlim([
                     matplotlib.dates.date2num(
                         datetime.datetime(1900, 1, 1, 0, 0, 0, 0)),
@@ -953,6 +953,7 @@ class Visualization(object):
                     '-'.join(args.event_quality))), 'umap_features.h5')
 
         if os.path.exists(pre_computed_umap_file):
+            print('Loading pre-computed UMAP features')
             umap_features = {}
 
             file = h5py.File(pre_computed_umap_file, 'r')
@@ -995,17 +996,19 @@ class Visualization(object):
 
             # Compute UMAP features.
             with WorkerPool(
-                    n_jobs=len(self.scales),
+                    n_jobs=3,  # TODO: fix this. Number of GPUs are hardcoded.
                     start_method='fork',
             ) as pool:
                 pool.map(
                     call_umap,
                     list(
-                        zip([0, 1, 2, 3], self.scales,
+                        zip(
+                            [1, 2, 3, 1],
+                            self.
+                            scales,  # TODO: fix this. GPU ids are hardcoded.
                             [args.umap_n_neighbors] * len(self.scales),
                             [args.umap_min_dist] * len(self.scales),
-                            [args.umap_n_epochs] * len(self.scales))
-                    ),  # TODO: fix this. GPU ids are hardcoded.
+                            [args.umap_n_epochs] * len(self.scales))),
                     progress_bar=False,
                 )
 
@@ -1073,7 +1076,8 @@ class Visualization(object):
                     markersize=10,
                 )
                 legend_elements.append(custom_legend)
-
+            plt.xlim([-35.0, 30])
+            plt.ylim([-30.0, 30])
             plt.legend(handles=legend_elements, fontsize=8)
             plt.title("Latent samples at scale {}".format(scale))
             fig.savefig(

@@ -1,9 +1,9 @@
 git_root_path=$(git rev-parse --show-toplevel)
 
 
-for umap_n_neighbors in 300 250 200
+for umap_n_neighbors in 300
     do
-    for umap_min_dist in 0.5 0.1 0.01 0.001 0.0001 0.00001 0.000001
+    for umap_min_dist in 1.0
         do
         CUDA_VISIBLE_DEVICES=0,1,2,3 python $git_root_path/scripts/train_facvae.py \
             --cuda 1 \
