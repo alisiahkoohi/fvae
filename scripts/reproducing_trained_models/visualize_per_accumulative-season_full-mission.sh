@@ -45,3 +45,17 @@ CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
     --extension full_fall1-2 \
     --seed 29 \
     --phase test
+
+CUDA_VISIBLE_DEVICES=2 python $git_root_path/scripts/train_facvae.py \
+    --cuda 1 \
+    --h5_filename "pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" \
+    --experiment_name nature_full-mission \
+    --batchsize 16384 \
+    --hidden_dim 1024 \
+    --ncluster 9 \
+    --latent_dim 32 \
+    --nlayer 4 \
+    --filter_key "2020-SEP,2020-OCT,2020-NOV,2020-DEC,2021-JAN" \
+    --extension full_winter1 \
+    --seed 29 \
+    --phase test
