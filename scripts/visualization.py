@@ -53,10 +53,15 @@ class Visualization(object):
         # Device to perform computations on.
         self.device = device
 
-        (self.cluster_membership, self.cluster_membership_prob,
-         self.confident_idxs, self.per_cluster_confident_idxs,
-         self.latent_features,
-         self.window_labels) = self.evaluate_model(args, data_loader)
+        (
+            self.cluster_membership,
+            self.cluster_membership_prob,
+            self.confident_idxs,
+            self.per_cluster_confident_idxs,
+            self.latent_features,
+            self.window_labels,
+            self.window_drops,
+        ) = self.evaluate_model(args, data_loader)
 
         # Colors to be used for visualizing different clusters.
         # self.colors = [
@@ -138,10 +143,16 @@ class Visualization(object):
             for scale in self.scales
         }
         window_labels = {scale: {} for scale in self.scales}
+        window_drops = {scale: {} for scale in self.scales}
 
         # Load all the labels to avoid time consuming slicing.
         all_labels = {
             scale: self.dataset.get_labels(data_loader.dataset, scale)
+            for scale in self.scales
+        }
+        # Load all the drops to avoid time consuming slicing.
+        all_drops = {
+            scale: self.dataset.get_drops(data_loader.dataset, scale)
             for scale in self.scales
         }
         argsorted_indices = np.argsort(data_loader.dataset)
@@ -180,6 +191,10 @@ class Visualization(object):
                         int(i)]]]
                     if label:
                         window_labels[scale][int(i)] = label
+                    drop = all_drops[scale][argsorted_indices[value_idx_map[
+                        int(i)]]]
+                    if drop:
+                        window_drops[scale][int(i)] = drop
 
             pbar.update(1)
 
@@ -215,8 +230,15 @@ class Visualization(object):
         del output
         del x
         gc.collect()
-        return (cluster_membership, cluster_membership_prob, confident_idxs,
-                per_cluster_confident_idxs, latent_features, window_labels)
+        return (
+            cluster_membership,
+            cluster_membership_prob,
+            confident_idxs,
+            per_cluster_confident_idxs,
+            latent_features,
+            window_labels,
+            window_drops,
+        )
 
     def load_per_scale_per_cluster_waveforms(
         self,
@@ -947,10 +969,8 @@ class Visualization(object):
 
         pre_computed_umap_file = os.path.join(
             plotsdir(
-                os.path.join(
-                    args.experiment, 'latent_space_visualization' + '_' +
-                    '-'.join(args.event_type) + '_' +
-                    '-'.join(args.event_quality))), 'umap_features.h5')
+                os.path.join(args.experiment, 'latent_space_visualization')),
+            'umap_features.h5')
 
         if os.path.exists(pre_computed_umap_file):
             print('Loading pre-computed UMAP features')
@@ -1040,63 +1060,114 @@ class Visualization(object):
                             ) in self.window_labels[scale][idx]:
                             label_idx[scale].append(int(idx))
 
+        # Extract UMAP features of indices with pressure drops
+        drop_idx = {scale: [] for scale in self.scales}
         for scale in self.scales:
-            fig = plt.figure(figsize=(8, 4))
-            plt.scatter(
-                umap_features[scale][:, 0],
-                umap_features[scale][:, 1],
-                marker='o',
-                c=per_point_color[scale],
-                edgecolor='none',
-                s=3 if umap_features[scale].shape[0] < 1e6 else 1,
-                alpha=0.3 if umap_features[scale].shape[0] < 1e6 else 0.1,
-            )
+            for idx in self.window_drops[scale].keys():
+                if self.window_drops[scale][idx]:
+                    drop_idx[scale].append(int(idx))
 
-            if len(label_idx[scale]) > 0:
+        for window_feature, window_marker in zip(['label', 'drop'],
+                                                 ['*', 'o']):
 
+            for scale in self.scales:
+                fig = plt.figure(figsize=(8, 4))
                 plt.scatter(
-                    umap_features[scale][label_idx[scale], 0],
-                    umap_features[scale][label_idx[scale], 1],
-                    marker='*',
-                    c="#333333",
-                    edgecolor="k",
-                    s=30,
-                    alpha=0.4,
+                    umap_features[scale][:, 0],
+                    umap_features[scale][:, 1],
+                    marker='o',
+                    c=per_point_color[scale],
+                    edgecolor='none',
+                    s=3 if umap_features[scale].shape[0] < 1e6 else 1,
+                    alpha=0.3 if umap_features[scale].shape[0] < 1e6 else 0.1,
                 )
 
-            legend_elements = []
-            for i, label in enumerate(range(args.ncluster)):
-                custom_legend = plt.Line2D(
-                    [0],
-                    [0],
-                    marker='o',
-                    color='w',
-                    label=f'{label}',
-                    markerfacecolor=colors[i],
-                    markersize=10,
+                if window_feature == 'label' and len(label_idx[scale]) > 0:
+                    plt.scatter(
+                        umap_features[scale][label_idx[scale], 0],
+                        umap_features[scale][label_idx[scale], 1],
+                        marker=window_marker,
+                        c="#333333",
+                        edgecolor="k",
+                        s=30,
+                        alpha=0.4,
+                    )
+
+                if window_feature == 'drop' and len(drop_idx[scale]) > 0:
+                    plt.scatter(
+                        umap_features[scale][drop_idx[scale], 0],
+                        umap_features[scale][drop_idx[scale], 1],
+                        marker=window_marker,
+                        c="#333333",
+                        s=1,
+                        alpha=0.1,
+                    )
+
+                legend_elements = []
+                for i, label in enumerate(range(args.ncluster)):
+                    custom_legend = plt.Line2D(
+                        [0],
+                        [0],
+                        marker='o',
+                        color='w',
+                        label='Cluster ' + f'{label}',
+                        markerfacecolor=colors[i],
+                        markersize=10,
+                    )
+                    legend_elements.append(custom_legend)
+                if window_feature == 'label':
+                    custom_legend = plt.Line2D(
+                        [0],
+                        [0],
+                        marker=window_marker,
+                        color='w',
+                        label=args.event_type[0].capitalize() + ' events',
+                        markerfacecolor='#333333',
+                        markersize=10,
+                    )
+                    legend_elements.append(custom_legend)
+                elif window_feature == 'drop':
+                    custom_legend = plt.Line2D(
+                        [0],
+                        [0],
+                        marker=window_marker,
+                        color='w',
+                        label='Pressure drop',
+                        markerfacecolor='#333333',
+                        markersize=10,
+                    )
+                    legend_elements.append(custom_legend)
+                plt.xlim([-35.0, 30])
+                plt.ylim([-35.0, 30])
+                plt.legend(
+                    handles=legend_elements,
+                    fontsize=8,
+                    loc='lower left',
+                    ncol=5,
                 )
-                legend_elements.append(custom_legend)
-            plt.xlim([-35.0, 30])
-            plt.ylim([-30.0, 30])
-            plt.legend(handles=legend_elements, fontsize=8)
-            plt.title("Latent samples at scale {}".format(scale))
-            fig.savefig(
-                os.path.join(
-                    plotsdir(
-                        os.path.join(
-                            args.experiment,
-                            'latent_space_visualization' + '_' +
-                            '-'.join(args.event_type) + '_' +
-                            '-'.join(args.event_quality),
-                        )),
-                    'umap_scale-' + scale + '.png',
-                ),
-                format="png",
-                bbox_inches="tight",
-                dpi=300,
-                pad_inches=.05,
-            )
-            plt.close(fig)
+                plt.title("Latent samples at scale {}".format(scale))
+
+                if window_feature == 'label':
+                    window_feature_dir = ('event_' +
+                                          '-'.join(args.event_type) + '_' +
+                                          '-'.join(args.event_quality))
+                elif window_feature == 'drop':
+                    window_feature_dir = 'pressure-drop'
+
+                fig.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(args.experiment,
+                                         'latent_space_visualization',
+                                         window_feature_dir)),
+                        'umap_scale-' + scale + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05,
+                )
+                plt.close(fig)
 
         font = {'family': 'serif', 'style': 'normal', 'size': 18}
         matplotlib.rc('font', **font)

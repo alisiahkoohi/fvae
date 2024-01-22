@@ -453,12 +453,13 @@ class MarsMultiscaleDataset():
                 labels.append(label)
         return labels
 
-    def get_drops(self, idx: List[int]) -> List[List[float]]:
+    def get_drops(self, idx: List[int], scale: str) -> List[List[float]]:
         """
         Returns the list of drops for the given indices.
 
         Args:
             idx: A list of indices.
+            scale: The scale of the time intervals to return.
 
         Returns:
             A list of lists of floats representing the drops for the given
@@ -468,7 +469,7 @@ class MarsMultiscaleDataset():
         # Check if there are any indices
         if len(idx) > 0:
             # Extract drops for the given indices
-            drops_list = self.file['pressure'][
+            drops_list = self.file['pressure'][scale][
                 self.idx_converter(np.sort(idx)), ...]
 
             # Process each index and create a list of drops for each one
