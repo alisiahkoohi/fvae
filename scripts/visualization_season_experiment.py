@@ -94,6 +94,30 @@ for cluster in range(9):
                     kde=False,
                     stat='probability',
                 )
+
+                if ((i % 4) - 1) // 2 == 0:
+                    plt.axvline(
+                        x=datetime.datetime(1900, 1, 1, 5, 32, 11, 592158),
+                        color=color_codes[((i % 4) - 1) // 2],
+                        linestyle='solid',
+                    )
+                    plt.axvline(
+                        x=datetime.datetime(1900, 1, 1, 17, 40, 11, 592158),
+                        color=color_codes[((i % 4) - 1) // 2],
+                        linestyle='solid',
+                    )
+                elif ((i % 4) - 1) // 2 == 1:
+                    plt.axvline(
+                        x=datetime.datetime(1900, 1, 1, 6, 50, 11, 592158),
+                        color=color_codes[((i % 4) - 1) // 2],
+                        linestyle='dashed',
+                    )
+                    plt.axvline(
+                        x=datetime.datetime(1900, 1, 1, 18, 50, 11, 592158),
+                        color=color_codes[((i % 4) - 1) // 2],
+                        linestyle='dashed',
+                    )
+
                 #  label='cluster ' + str(cluster))
                 ax = plt.gca()
                 ax.set_ylabel('Proportion', fontsize=10)
@@ -109,7 +133,7 @@ for cluster in range(9):
                     matplotlib.dates.DateFormatter('%H'))
                 # ax.set_yticklabels([])
                 ax.tick_params(axis='both', which='major', labelsize=10)
-                ax.legend(fontsize=10, ncol=4)
+                ax.legend(fontsize=8, ncol=4)
         plt.savefig(os.path.join(
             plotsdir(os.path.join('season_experiment', 'scale_' + scale)),
             'time_histogram_cluster-' + str(cluster) + '.png'),
