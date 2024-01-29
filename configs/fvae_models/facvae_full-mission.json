@@ -1,6 +1,5 @@
 {
-    "cuda": 1,
-    "seed": 12,
+    "cuda": 0,
     "max_epoch": 1000,
     "batchsize": 16384,
     "lr": 0.001,
@@ -13,7 +12,7 @@
     "w_gauss": 1.0,
     "w_rec": 0.15,
     "w_cat": 1.0,
-    "experiment_name": "pyramid_2019",
+    "experiment_name": "nature_full-mission",
     "phase": "train",
     "wd": 0.0,
     "hidden_dim": 1024,
@@ -24,5 +23,12 @@
     "clip": 20.0,
     "scales": "1024,4096,16384,65536",
     "normalize": 1,
-    "filter_key": "2019-JUN-03,2019-JUN-04,2019-JUN-05,2019-JUN-06,2019-JUN-07,2019-JUN-08,2019-JUN-09,2019-JUN-10,2019-JUN-11"
+    "filter_key": "",
+    "seed": 29,
+    "event_type": "BROADBAND",
+    "event_quality": "A,B",
+    "umap_n_neighbors": 300,
+    "umap_min_dist": 1.0,
+    "umap_n_epochs": 10000,
+    "extension": ""
 }
