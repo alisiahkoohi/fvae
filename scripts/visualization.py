@@ -96,10 +96,11 @@ class Visualization(object):
                                                               scale)[0]
         if lmst:
             # Convert to LMST format, usable by matplotlib.
-            window_time_interval = (create_lmst_xticks(*window_time_interval,
-                                                       time_zone='LMST',
-                                                       window_size=int(scale)),
-                                    window_time_interval)
+            window_time_interval = create_lmst_xticks(
+                *window_time_interval,
+                time_zone='LMST',
+                window_size=int(scale),
+            )
 
         # Return the required time interval.
         return window_time_interval
@@ -254,8 +255,7 @@ class Visualization(object):
             start2, end2 = pair2
 
             # Check for all types of overlap
-            return (start1 <= start2 <= end1 or start1 <= end2 <= end1
-                    or start2 <= start1 <= end2 or start2 <= end1 <= end2)
+            return (start1 <= end2) and (start2 <= end1)
 
         if scale_idx is None:
             scale_idx = self.scales
@@ -312,7 +312,7 @@ class Visualization(object):
                 per_scale_per_cluster_waveforms.append(
                     get_waveform(window_idx, scale))
                 per_scale_per_cluster_time_intervals.append(
-                    get_time_interval(window_idx, scale)[0])
+                    get_time_interval(window_idx, scale))
             return (
                 i,
                 per_scale_per_cluster_waveforms,

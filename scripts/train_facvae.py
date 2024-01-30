@@ -37,18 +37,9 @@ if __name__ == "__main__":
     args = parse_input_args(args)
 
     # Random seed.
-    if hasattr(args, 'seed'):
-        seed = args.seed
-    else:
-        seed = 12
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-
-    # A hack to remove the seed from the input arguments so that a specific
-    # pretrained model can be used. Not needed later.
-    if args.seed == 12:
-        del args.seed
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
 
     # Set experiment name based on input arguments
     args.experiment = make_experiment_name(args)

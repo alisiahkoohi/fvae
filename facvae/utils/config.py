@@ -23,6 +23,25 @@ def parse_input_args(args):
     return parser.parse_args()
 
 
+class Namespace:
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
+def create_namespace_from_args(args):
+    """
+    Create a custom Namespace object from a dictionary.
+
+    Parameters:
+    - args: A dictionary where keys are argument names and values are their defaults.
+
+    Returns:
+    - namespace: A custom Namespace object.
+    """
+    return Namespace(**args)
+
+
 def make_experiment_name(args):
     """Make experiment name based on input arguments"""
     experiment_name = args.experiment_name + '_'
@@ -78,4 +97,22 @@ def process_sequence_arguments(args):
         args.event_type = args.event_type.replace(' ', '').split(',')
     if hasattr(args, 'event_quality'):
         args.event_quality = args.event_quality.replace(' ', '').split(',')
+    if hasattr(args, 'cluster_n'):
+        args.cluster_n = args.cluster_n.replace(' ', '').split(',')
+        args.cluster_n = [int(_) for _ in args.cluster_n]
+    if hasattr(args, 'scale_n'):
+        args.scale_n = args.scale_n.replace(' ', '').split(',')
+        args.scale_n = [int(_) for _ in args.scale_n]
+    if hasattr(args, 'cluster_g'):
+        args.cluster_g = args.cluster_g.replace(' ', '').split(',')
+        args.cluster_g = [int(_) for _ in args.cluster_g]
+    if hasattr(args, 'scale_g'):
+        args.scale_g = args.scale_g.replace(' ', '').split(',')
+        args.scale_g = [int(_) for _ in args.scale_g]
+    if hasattr(args, 'q'):
+        args.q = args.q.replace(' ', '').split(',')
+        args.q = [int(_) for _ in args.q]
+    if hasattr(args, 'j'):
+        args.j = args.j.replace(' ', '').split(',')
+        args.j = [int(_) for _ in args.j]
     return args
