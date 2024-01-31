@@ -20,5 +20,6 @@
     "cluster_g": "1",
     "scale_n": "4096",
     "scale_g": "65536",
+    "num_workers": 40,
     "filter_key": "2019-JUN-03,2019-JUN-04"
 }

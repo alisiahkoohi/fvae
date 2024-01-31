@@ -8,7 +8,7 @@ import numpy as np
 from .project_path import checkpointsdir, configsdir, plotsdir
 from .config import make_experiment_name, parse_input_args, read_config
 
-REPO_NAME = "factorialVAE"
+REPO_NAME = "factorialVAE_nature"
 
 
 def rclone_copy_cmd(source, dest, flag='--progress'):
@@ -77,7 +77,8 @@ def query_experiments(config_file, download, **kwargs):
     experiment_args = []
     for kwargs in list_args:
         args = make_complete_args(config_file, **kwargs)
-        args.experiment = make_experiment_name(args)
+        args.experiment = make_experiment_name(args).replace('[', '').replace(
+            ']', '')
         if download:
             # Download the data from dropbox.
             get_data_from_dropbox(args)

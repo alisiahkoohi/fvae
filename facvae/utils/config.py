@@ -60,16 +60,16 @@ def make_experiment_name(args):
                 'temp_decay',
                 'min_temp',
                 'init_temp',
-                'cluster_n',
-                'scale_n',
-                'cluster_g',
-                'scale_g',
                 'extension',
+                'indep_loss_w',
+                'x_loss_w',
+                'tol_optim',
                 'event_type',
                 'event_quality',
                 'umap_n_neighbors',
                 'umap_min_dist',
                 'umap_n_epochs',
+                'num_workers',
         ]:
             experiment_name += key + '-{}_'.format(value)
     return experiment_name[:-1].replace(' ', '').replace(',', '-')

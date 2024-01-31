@@ -2,6 +2,7 @@ import obspy
 import numpy as np
 import torch
 from tqdm import tqdm
+from mpire import WorkerPool
 
 from facvae.utils import (
     create_lmst_xticks,
@@ -270,15 +271,18 @@ class SnippetExtractor(object):
 
         return fine_scale_time_intervals
 
-    def waveforms_per_scale_cluster(self,
-                                    args,
-                                    cluster_idxs,
-                                    scale_idxs,
-                                    sample_size=5,
-                                    component='U',
-                                    time_preference=None,
-                                    get_full_interval=False,
-                                    timescale=None):
+    def waveforms_per_scale_cluster(
+        self,
+        args,
+        cluster_idxs,
+        scale_idxs,
+        sample_size=5,
+        component='U',
+        time_preference=None,
+        get_full_interval=False,
+        timescale=None,
+        num_workers=40,
+    ):
         """Obtain sliced waveform and time-interval pairs.
         """
 
@@ -299,14 +303,22 @@ class SnippetExtractor(object):
             end2 = lmst_xtick(end2)
 
             # Calculate the time difference between the two intervals in hours
-            time_difference1 = abs((start1 - end2).total_seconds() / 3600)
-            time_difference2 = abs((start2 - end1).total_seconds() / 3600)
+            time_difference1 = min([
+                abs((start1 - end2).total_seconds() / 3600),
+                abs((start1.replace(day=2) - end2).total_seconds() / 3600),
+                abs((start1 - end2.replace(day=2)).total_seconds() / 3600)
+            ])
+            time_difference2 = min([
+                abs((start2 - end1).total_seconds() / 3600),
+                abs((start2.replace(day=2) - end1).total_seconds() / 3600),
+                abs((start2 - end1.replace(day=2)).total_seconds() / 3600)
+            ])
 
             # Check if the time difference is within the desired range
             if time_difference1 <= 2 or time_difference2 <= 2:
                 return True
             else:
-                print(min(time_difference1, time_difference2))
+                # print(min(time_difference1, time_difference2))
                 return False
 
         waveforms = []
@@ -315,12 +327,11 @@ class SnippetExtractor(object):
         for scale, i in zip(scale_idxs, cluster_idxs):
             scale = str(scale)
 
-            print('Reading waveforms for cluster {}, scale {}'.format(
-                i, scale))
+            # print('Reading waveforms for cluster {}, scale {}'.format(
+            #     i, scale))
             utc_time_intervals = []
             window_idx_list = []
 
-            print('using lmst, maybe utc?')
             for sample_idx in range(
                     len(self.per_cluster_confident_idxs[scale][str(i)])):
                 window_idx = self.per_cluster_confident_idxs[scale][str(
@@ -350,14 +361,33 @@ class SnippetExtractor(object):
                 if len(window_idx_list) == sample_size:
                     break
 
-            for window_idx in window_idx_list:
-                waveform, time_interval = self.get_waveform(
+            def load_serial_job(shared_in, window_idx):
+
+                (get_waveform, scale, timescale) = shared_in
+                waveform, time_interval = get_waveform(
                     window_idx,
                     scale,
                     fine_scale=timescale,
                 )
+                return waveform, time_interval
 
-                waveforms.append(waveform[:, COMPONENT_TO_INDEX[component], :])
-                time_intervals.append(time_interval)
+            with WorkerPool(
+                    n_jobs=num_workers,
+                    shared_objects=(
+                        self.get_waveform,
+                        scale,
+                        timescale,
+                    ),
+                    start_method='fork',
+            ) as pool:
+                outputs = pool.map(
+                    load_serial_job,
+                    window_idx_list,
+                    progress_bar=False,
+                )
+            (waveforms_, time_intervals_) = zip(*outputs)
+            for w_, t_ in zip(waveforms_, time_intervals_):
+                waveforms.append(w_[:, COMPONENT_TO_INDEX[component], :])
+                time_intervals.append(t_)
 
         return np.array(waveforms), time_intervals
