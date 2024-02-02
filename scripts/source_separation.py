@@ -46,6 +46,7 @@ def optimize(
     x_dataset: np.ndarray,
     x_obs: np.ndarray,
     glitch_idx: int,
+    glitch_time: Tuple[str, str],
     gpu_id: int,
 ) -> None:
     """
@@ -56,6 +57,7 @@ def optimize(
         x_dataset (np.ndarray): Mars background dataset.
         x_obs (np.ndarray): Observed data with glitch.
         glitch_idx (int): Index of the glitch.
+        glitch_time (Tuple[str, str): Glitch time.
         gpu_id (int): GPU identifier.
     """
 
@@ -117,6 +119,10 @@ def optimize(
         x_dataset=x_dataset,
         glitch_idx=glitch_idx,
         x_hat=x_hat,
+        glitch_time=[
+            str(glitch_time[0]),
+            str(glitch_time[-1]),
+        ],
     )
 
 
@@ -129,10 +135,11 @@ def load_serial_job(gpu_id: int, shared_in: Tuple, j: int) -> None:
         shared_in (Tuple): Shared input data.
         j (int): Index of the job.
     """
-    (optimize, args, snippets, glitch) = shared_in
+    optimize, args, snippets, glitch, glitch_time = shared_in
     g = glitch[j:j + 1:, :, :]
+    g_time = glitch_time[j]
     snippet = snippets[j].astype(np.float64)
-    optimize(args, snippet, g, j, gpu_id)
+    optimize(args, snippet, g, j, g_time, gpu_id)
 
 
 if __name__ == '__main__':
@@ -202,6 +209,7 @@ if __name__ == '__main__':
                 args,
                 snippets,
                 glitch,
+                glitch_time,
             ),
             start_method='fork',
     ) as pool:

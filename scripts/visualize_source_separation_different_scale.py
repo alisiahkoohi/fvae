@@ -11,6 +11,7 @@ import numpy as np
 import obspy
 import seaborn as sns
 from matplotlib.dates import DateFormatter
+from obspy.core import UTCDateTime
 
 from facvae.utils import (
     checkpointsdir,
@@ -30,8 +31,13 @@ import torch
 import torch.nn as nn
 from srcsep.frontend import analyze
 
-from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick,
-                          roll_zeropad, get_waveform_path_from_time_interval)
+from facvae.utils import (
+    plotsdir,
+    create_lmst_xticks,
+    lmst_xtick,
+    roll_zeropad,
+    get_waveform_path_from_time_interval,
+)
 from datetime import datetime
 
 from obspy import UTCDateTime
@@ -86,31 +92,49 @@ def plot_result(experiment_results):
     x_obs = {key: [] for key in experiment_results.keys()}
     x_hat = {key: [] for key in experiment_results.keys()}
     x_removed = {key: [] for key in experiment_results.keys()}
+    time_intervals = {key: [] for key in experiment_results.keys()}
 
     for filename, experiment in experiment_results.items():
         x_obs[filename] = experiment['x_obs'][0, 0, :]
         x_hat[filename] = experiment['x_hat'][0, 0, :]
         x_removed[filename] = (experiment['x_obs'][0, 0, :] -
                                experiment['x_hat'][0, 0, :])
+        time_intervals[filename] = [
+            UTCDateTime(experiment['glitch_time'][0].decode('utf-8')),
+            UTCDateTime(experiment['glitch_time'][1].decode('utf-8'))
+        ]
+
         glitch_idx = experiment['glitch_idx']
 
+        time_interval = create_lmst_xticks(
+            *time_intervals[filename],
+            time_zone='LMST',
+            window_size=args.scale_n[0],
+        )
         fig = plt.figure(figsize=(5, 1.5))
-
-        plt.plot(np.arange(args.scale_n[0]),
-                 experiment['x_obs'][0, 0, :],
-                 color="#000000",
-                 lw=.6,
-                 alpha=0.7)
+        plt.plot_date(
+            time_interval,
+            experiment['x_obs'][0, 0, :],
+            color="#000000",
+            lw=.6,
+            alpha=0.7,
+            xdate=True,
+            fmt='',
+        )
         ax = plt.gca()
         ax.grid(True)
         ax.set_xticklabels([])
+        # Set the x-axis locator and formatter
+        ax.xaxis.set_major_locator(
+            matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
+        ax.xaxis.set_major_formatter(
+            matplotlib.dates.DateFormatter('%H:%M:%S'))
         ax.set_yticklabels([])
-        plt.xlim([0, args.scale_n[0] - 1])
+        ax.set_xlim([time_interval[0], time_interval[-1]])
         plt.ylim([
             experiment['x_obs'][0, 0, :].min() * 1.02,
             experiment['x_obs'][0, 0, :].max() * 0.98
         ])
-        # plt.ylabel("Observed")
         ax.yaxis.set_label_position("right")
         ax.tick_params(axis='both', which='major', labelsize=8)
         plt.savefig(os.path.join(
@@ -125,21 +149,29 @@ def plot_result(experiment_results):
         plt.close(fig)
 
         fig = plt.figure(figsize=(5, 1.5))
-        plt.plot(np.arange(args.scale_n[0]),
-                 experiment['x_hat'][0, 0, :],
-                 color="#000000",
-                 lw=.6,
-                 alpha=0.7)
+        plt.plot_date(
+            time_interval,
+            experiment['x_hat'][0, 0, :],
+            color="#000000",
+            lw=.6,
+            alpha=0.7,
+            xdate=True,
+            fmt='',
+        )
         ax = plt.gca()
         ax.grid(True)
         ax.set_xticklabels([])
+        # Set the x-axis locator and formatter
+        ax.xaxis.set_major_locator(
+            matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
+        ax.xaxis.set_major_formatter(
+            matplotlib.dates.DateFormatter('%H:%M:%S'))
         ax.set_yticklabels([])
-        plt.xlim([0, args.scale_n[0] - 1])
+        ax.set_xlim([time_interval[0], time_interval[-1]])
         plt.ylim([
             experiment['x_obs'][0, 0, :].min() * 1.02,
             experiment['x_obs'][0, 0, :].max() * 0.98
         ])
-        # plt.ylabel("Predicted")
         ax.yaxis.set_label_position("right")
         ax.tick_params(axis='both', which='major', labelsize=8)
         plt.savefig(os.path.join(
@@ -154,21 +186,29 @@ def plot_result(experiment_results):
         plt.close(fig)
 
         fig = plt.figure(figsize=(5, 1.5))
-        plt.plot(np.arange(args.scale_n[0]),
-                 experiment['x_obs'][0, 0, :] - experiment['x_hat'][0, 0, :],
-                 color="#000000",
-                 lw=.6,
-                 alpha=0.7)
+        plt.plot_date(
+            time_interval,
+            experiment['x_obs'][0, 0, :] - experiment['x_hat'][0, 0, :],
+            color="#000000",
+            lw=.6,
+            alpha=0.7,
+            xdate=True,
+            fmt='',
+        )
         ax = plt.gca()
         ax.grid(True)
         ax.set_xticklabels([])
+        # Set the x-axis locator and formatter
+        ax.xaxis.set_major_locator(
+            matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
+        ax.xaxis.set_major_formatter(
+            matplotlib.dates.DateFormatter('%H:%M:%S'))
         ax.set_yticklabels([])
-        plt.xlim([0, args.scale_n[0] - 1])
+        ax.set_xlim([time_interval[0], time_interval[-1]])
         plt.ylim([
             experiment['x_obs'][0, 0, :].min() * 1.02,
             experiment['x_obs'][0, 0, :].max() * 0.98
         ])
-        # plt.ylabel("Estimated glitch")
         ax.yaxis.set_label_position("right")
         ax.tick_params(axis='both', which='major', labelsize=8)
         plt.savefig(os.path.join(
@@ -182,18 +222,19 @@ def plot_result(experiment_results):
                     pad_inches=.02)
         plt.close(fig)
 
-    # sunrise: 2019-06-06T13:35:47.248000Z, 2019-06-06T14:30:23.998000Z
-    # wind_0: 2019-06-03T22:35:05.631000Z, 2019-06-03T23:29:42.381000Z
-    # wind: 2019-06-04T21:08:03.201000Z, 2019-06-04T22:02:39.951000Z
-    # wind_2: 2019-06-03T21:28:32.031000Z, 2019-06-03T22:23:08.781000Z
-
-    start_time = UTCDateTime("2019-06-03T21:28:32.031000Z")
-    end_time = UTCDateTime("2019-06-03T22:23:08.781000Z")
-
-    time_intervals = create_lmst_xticks(start_time,
-                                        end_time,
-                                        time_zone='LMST',
-                                        window_size=args.scale_g[0])
+    start_time = []
+    end_time = []
+    for key in time_intervals.keys():
+        start_time.append(time_intervals[key][0])
+        end_time.append(time_intervals[key][1])
+    start_time = min(start_time)
+    end_time = max(end_time)
+    time_intervals = create_lmst_xticks(
+        start_time,
+        end_time,
+        time_zone='LMST',
+        window_size=args.scale_g[0],
+    )
 
     x_obs_arr = np.zeros([args.scale_g[0]])
     for key in x_obs.keys():
@@ -227,7 +268,7 @@ def plot_result(experiment_results):
     ax.grid(True)
     ax.xaxis.set_major_locator(
         matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
-    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M'))
+    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
     ax.set_xlim([time_intervals[0], time_intervals[-1]])
     plt.xticks(rotation=0)
 
@@ -259,7 +300,7 @@ def plot_result(experiment_results):
     ax.grid(True)
     ax.xaxis.set_major_locator(
         matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
-    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M'))
+    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
     ax.set_xlim([time_intervals[0], time_intervals[-1]])
     plt.xticks(rotation=0)
 
@@ -291,7 +332,7 @@ def plot_result(experiment_results):
     ax.grid(True)
     ax.xaxis.set_major_locator(
         matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
-    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M'))
+    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S'))
     ax.set_xlim([time_intervals[0], time_intervals[-1]])
     plt.xticks(rotation=0)
 
@@ -321,8 +362,12 @@ if __name__ == '__main__':
 
     experiment_args = query_experiments(SRC_SEP_CONFIG_FILE, True,
                                         **vars(args))
-    experiment_results = collect_results(experiment_args,
-                                         ['x_obs', 'x_hat', 'glitch_idx'])
+    experiment_results = collect_results(experiment_args, [
+        'x_obs',
+        'x_hat',
+        'glitch_idx',
+        'glitch_time',
+    ])
 
     args = process_sequence_arguments(args)
     plot_result(experiment_results)
