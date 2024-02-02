@@ -21,7 +21,8 @@ from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick, gitdir,
 sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}
 matplotlib.rc('font', **font)
-sfmt = matplotlib.ticker.ScalarFormatter(useMathText=True)
+sfmt = matplotlib.ticker.ScalarFormatter(useMathText=True, useOffset=False)
+sfmt.set_scientific(True)
 sfmt.set_powerlimits((0, 0))
 matplotlib.use("Agg")
 
@@ -642,6 +643,10 @@ class Visualization(object):
                 # ax.set_yticklabels([])
                 ax.tick_params(axis='both', which='major', labelsize=10)
                 ax.legend(fontsize=10)
+                ax.set_xlabel('Time (LMST)', fontsize=10)
+                ax.yaxis.set_major_formatter(sfmt)
+                # Adjust the font size of the exponent
+                ax.yaxis.offsetText.set_fontsize(10)
                 plt.savefig(
                     os.path.join(
                         plotsdir(
@@ -667,6 +672,8 @@ class Visualization(object):
             centroid_waveforms: (array) array containing the centroid waveforms
         """
         sns.set_style("darkgrid")
+        font = {'family': 'serif', 'style': 'normal', 'size': 24}
+        matplotlib.rc('font', **font)
         self.load_per_scale_per_cluster_waveforms(
             args,
             sample_size=500,
@@ -893,18 +900,23 @@ class Visualization(object):
                             alpha=1.0,
                         )
                         ax[i].axes.yaxis.set_visible(False)
-                        ax[i].set_xlabel('Time (s)')
+                        ax[i].set_xlabel('Aligned Time (s)')
+
                         ax[i].set_xlim(-rolled_waveforms.shape[-1] / 40,
                                        rolled_waveforms.shape[-1] / 40)
                         ax[i].set_ylim(-(num_waveforms - 1) * dy - 1.5, 1.5)
+                        ax[i].tick_params(axis='both',
+                                          which='major',
+                                          labelsize=10)
 
                         # Get the current y-axis limits
                         ymin, ymax = ax[i].get_ylim()
                         ax[i].set_ylim(0.95 * ymin, 0.82 * ymax)
 
-                ax[0].set_title('U')
-                ax[1].set_title('V')
-                ax[2].set_title('W')
+                ax[0].set_title('U channel')
+                ax[1].set_title('V channel')
+                ax[2].set_title('W channel')
+                ax[0].set_ylabel('Normalized amplitude')
 
                 # fig.suptitle('Cluster {}, aligned waveforms'.format(cluster))
                 fig.subplots_adjust(top=0.80)
@@ -927,6 +939,8 @@ class Visualization(object):
             plt.close(fig_spec)
 
         sns.set_style("whitegrid")
+        font = {'family': 'serif', 'style': 'normal', 'size': 18}
+        matplotlib.rc('font', **font)
 
     def plot_latent_space(self, args):
         """Plot the latent space learnt by the model
