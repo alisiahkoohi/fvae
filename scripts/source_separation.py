@@ -3,6 +3,8 @@
 
 import os
 import shutil
+from typing import List, Tuple
+
 import numpy as np
 import torch
 from mpire import WorkerPool
@@ -26,27 +28,44 @@ from facvae.utils import (
 from scripts.snippet_extractor import SnippetExtractor
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
-MARS_PATH = datadir('mars')
-MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
+MARS_PATH: str = datadir('mars')
+MARS_SCAT_COV_PATH: str = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # Configuration file.
-SRC_SEP_CONFIG_FILE = 'source_separation_large_scale.json'
+SRC_SEP_CONFIG_FILE: str = 'source_separation_large_scale.json'
 
-# Random seed.
-SEED = 12
+# Seed for reproducibility.
+SEED: int = 12
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 
 
-def optimize(args, x_dataset, x_obs, glitch_idx, gpu_id):
-    """Clean a glitch from a dataset of Mars background data.
+def optimize(
+    args,
+    x_dataset: np.ndarray,
+    x_obs: np.ndarray,
+    glitch_idx: int,
+    gpu_id: int,
+) -> None:
+    """
+    Cleans a glitch from a dataset of Mars background data.
+
+    Args:
+        args (Namespace): Command line arguments.
+        x_dataset (np.ndarray): Mars background dataset.
+        x_obs (np.ndarray): Observed data with glitch.
+        glitch_idx (int): Index of the glitch.
+        gpu_id (int): GPU identifier.
     """
 
-    # Whiten the dataset.
+    # Whiten the dataset if normalization is enabled.
     if args.normalize:
+        # Calculate mean and standard deviation along axis 0 and 1 for the
+        # dataset.
         x_mean = x_dataset.mean(axis=(0, 1))
         x_std = x_dataset.std(axis=(0, 1))
+        # Whiten the dataset and the observed data.
         x_dataset = (x_dataset - x_mean) / (x_std + 1e-8)
         x_obs = (x_obs - x_mean) / (x_std + 1e-8)
 
@@ -59,6 +78,7 @@ def optimize(args, x_dataset, x_obs, glitch_idx, gpu_id):
         'fixed_ts': None,
         'cuda': args.cuda
     }
+    # Generate the deglitched data.
     x_hat = generate(
         x_obs,
         x0=x_obs,
@@ -77,15 +97,18 @@ def optimize(args, x_dataset, x_obs, glitch_idx, gpu_id):
         f'glitch_idx-{glitch_idx}',
     )
 
-    # Undo the whitening.
+    # Undo the whitening if normalization is enabled.
     if args.normalize:
+        # Undo whitening for the dataset, observed data, and the reconstructed
+        # data.
         x_dataset = x_dataset * (x_std + 1e-8) + x_mean
         x_obs = x_obs * (x_std + 1e-8) + x_mean
         x_hat = x_hat * (x_std + 1e-8) + x_mean
 
+    # Plot the deglitching results.
     plot_deglitching(args, 'deglitching_' + str(glitch_idx), x_obs, x_hat)
 
-    # Save the results.
+    # Save the results to an HDF5 file.
     save_exp_to_h5(
         os.path.join(checkpointsdir(args.experiment),
                      'reconstruction_' + str(glitch_idx) + '.h5'),
@@ -97,8 +120,15 @@ def optimize(args, x_dataset, x_obs, glitch_idx, gpu_id):
     )
 
 
-def load_serial_job(gpu_id, shared_in, j):
-    # TODO: add control over which GPU to use.
+def load_serial_job(gpu_id: int, shared_in: Tuple, j: int) -> None:
+    """
+    Load a job for parallel processing.
+
+    Args:
+        gpu_id (int): GPU identifier.
+        shared_in (Tuple): Shared input data.
+        j (int): Index of the job.
+    """
     (optimize, args, snippets, glitch) = shared_in
     g = glitch[j:j + 1:, :, :]
     snippet = snippets[j].astype(np.float64)
@@ -106,9 +136,8 @@ def load_serial_job(gpu_id, shared_in, j):
 
 
 if __name__ == '__main__':
-
+    # Remove cached directory if it exists from a previous run.
     if os.path.exists(os.path.join(srcsep.__path__[0], '_cached_dir')):
-        # Remove cached directory that might have been created by a previous run.
         shutil.rmtree(os.path.join(srcsep.__path__[0], '_cached_dir'))
 
     # Command line arguments for source separation.
@@ -152,6 +181,7 @@ if __name__ == '__main__':
 
     snippets = {j: [] for j in range(glitch.shape[0])}
 
+    # Extract snippets from the Mars dataset based on specified parameters.
     for j in tqdm(range(glitch.shape[0]), desc='Extracting snippets'):
         g_time = glitch_time[j]
         snippets[j], _ = snippet_extractor.waveforms_per_scale_cluster(
@@ -163,8 +193,9 @@ if __name__ == '__main__':
             num_workers=args.num_workers,
         )
 
+    # Parallel processing using WorkerPool.
     with WorkerPool(
-            n_jobs=4,  # TODO: number of GPUs are hardcoded here.
+            n_jobs=4,  # Number of GPUs (hardcoded)
             pass_worker_id=True,
             shared_objects=(
                 optimize,
