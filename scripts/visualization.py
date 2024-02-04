@@ -674,6 +674,7 @@ class Visualization(object):
         sns.set_style("darkgrid")
         font = {'family': 'serif', 'style': 'normal', 'size': 24}
         matplotlib.rc('font', **font)
+
         self.load_per_scale_per_cluster_waveforms(
             args,
             sample_size=500,
@@ -899,15 +900,18 @@ class Visualization(object):
                             lw=0.7,
                             alpha=1.0,
                         )
-                        ax[i].axes.yaxis.set_visible(False)
+                        # ax[i].axes.yaxis.set_visible(False)
+                        ax[i].set_yticks([])
                         ax[i].set_xlabel('Aligned Time (s)')
 
                         ax[i].set_xlim(-rolled_waveforms.shape[-1] / 40,
                                        rolled_waveforms.shape[-1] / 40)
                         ax[i].set_ylim(-(num_waveforms - 1) * dy - 1.5, 1.5)
-                        ax[i].tick_params(axis='both',
-                                          which='major',
-                                          labelsize=10)
+                        ax[i].tick_params(
+                            axis='both',
+                            which='major',
+                            labelsize=18,
+                        )
 
                         # Get the current y-axis limits
                         ymin, ymax = ax[i].get_ylim()
@@ -919,7 +923,7 @@ class Visualization(object):
                 ax[0].set_ylabel('Normalized amplitude')
 
                 # fig.suptitle('Cluster {}, aligned waveforms'.format(cluster))
-                fig.subplots_adjust(top=0.80)
+                fig.subplots_adjust(hspace=0)
                 fig.tight_layout()
 
                 fig.savefig(
