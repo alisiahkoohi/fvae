@@ -32,7 +32,7 @@ MARS_PATH: str = datadir('mars')
 MARS_SCAT_COV_PATH: str = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
 
 # Configuration file.
-SRC_SEP_CONFIG_FILE: str = 'source_separation_large_scale.json'
+SRC_SEP_CONFIG_FILE: str = 'source_separation.json'
 
 # Seed for reproducibility.
 SEED: int = 12
@@ -178,9 +178,10 @@ if __name__ == '__main__':
         args.cluster_g,
         args.scale_g,
         sample_size=1,
-        get_full_interval=True,
+        component='U',
         timescale=args.scale_n[0],
         num_workers=1,
+        #TODO: add overwrite_idx argument to snippet_extractor
     )
 
     glitch = glitch[0, ...]
@@ -197,6 +198,7 @@ if __name__ == '__main__':
             args.cluster_n,
             args.scale_n,
             sample_size=args.R,
+            component='U',
             time_preference=g_time,
             num_workers=args.num_workers,
         )

@@ -32,6 +32,13 @@ SAMPLING_RATE = 20
 MERGE_METHOD = 1
 FILL_VALUE = 'interpolate'
 
+SCALE_TO_TIME = {
+    '1024': '51.2 seconds',
+    '4096': '3.4 minutes',
+    '16384': '13.6 minutes',
+    '65536': '54.6 minutes',
+}
+
 
 class Visualization(object):
     """Class visualizing results of a GMVAE training.
@@ -1163,7 +1170,8 @@ class Visualization(object):
                     loc='lower left',
                     ncol=5,
                 )
-                plt.title("Latent samples at scale {}".format(scale))
+                plt.title("Latent samples at scale {}".format(
+                    SCALE_TO_TIME[scale]))
 
                 if window_feature == 'label':
                     window_feature_dir = ('event_' +

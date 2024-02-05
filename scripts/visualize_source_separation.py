@@ -66,7 +66,7 @@ SEED = 12
 np.random.seed(SEED)
 
 # Configuration file.
-SRC_SEP_CONFIG_FILE = 'source_separation_large_scale.json'
+SRC_SEP_CONFIG_FILE = 'source_separation.json'
 SAVE_DIR = 'final_plots'
 
 # Paths to raw Mars waveforms.

@@ -384,9 +384,9 @@ class SnippetExtractor(object):
         sample_size: int = 5,
         component: str = 'U',
         time_preference: Tuple[float, float] = None,
-        get_full_interval: bool = False,
         timescale: int = None,
         num_workers: int = 40,
+        overwrite_idx: int = None,
     ) -> Tuple[np.ndarray, List[Tuple[float, float]]]:
         """
         Obtain sliced waveform and time-interval pairs for specified clusters
@@ -402,12 +402,12 @@ class SnippetExtractor(object):
                 (default is 'U').
             time_preference (Tuple[float, float], optional): Desired time
                 interval preference (default is None).
-            get_full_interval (bool, optional): If True, retrieves the full time
-                interval (default is False).
             timescale (int, optional): Fine scale value for time interval
                 (default is None).
             num_workers (int, optional): Number of worker processes for parallel
                 processing (default is 40).
+            overwrite_idx (int, optional): Overwrite index for the window
+                (default is None).
 
         Returns:
             Tuple[np.ndarray, List[Tuple[float, float]]]: A tuple containing
@@ -466,8 +466,17 @@ class SnippetExtractor(object):
 
             for sample_idx in range(
                     len(self.per_cluster_confident_idxs[scale][str(i)])):
-                window_idx = self.per_cluster_confident_idxs[scale][str(
-                    i)][sample_idx]
+
+                if sample_size == 1 and overwrite_idx is not None:
+                    # Allowing the user to overwrite the window index for the
+                    # target window to be source separated.
+                    window_idx = self.per_cluster_confident_idxs[scale][str(
+                        i)][overwrite_idx]
+                else:
+                    # Extracting the window index from the per-cluster confident
+                    # indices.
+                    window_idx = self.per_cluster_confident_idxs[scale][str(
+                        i)][sample_idx]
 
                 utc_interval = self.get_time_interval(
                     window_idx,
