@@ -9,5 +9,6 @@ CUDA_VISIBLE_DEVICES=0 python $git_root_path/scripts/train_facvae.py \
     --ncluster 9 \
     --latent_dim 32 \
     --nlayer 4 \
+    --seed 29 \
     --filter_key "" &
 

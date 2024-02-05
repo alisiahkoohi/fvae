@@ -126,7 +126,8 @@ def optimize(
     )
 
 
-def load_serial_job(gpu_id: int, shared_in: Tuple, j: int) -> None:
+def source_separation_serial_job(gpu_id: int, shared_in: Tuple,
+                                 j: int) -> None:
     """
     Load a job for parallel processing.
 
@@ -214,7 +215,7 @@ if __name__ == '__main__':
             start_method='fork',
     ) as pool:
         outputs = pool.map(
-            load_serial_job,
+            source_separation_serial_job,
             range(glitch.shape[0]),
             progress_bar=False,
         )
