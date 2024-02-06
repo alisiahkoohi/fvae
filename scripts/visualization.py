@@ -1137,7 +1137,7 @@ class Visualization(object):
                         color='w',
                         label='Cluster ' + f'{label}',
                         markerfacecolor=colors[i],
-                        markersize=10,
+                        markersize=6,
                     )
                     legend_elements.append(custom_legend)
                 if window_feature == 'label':
@@ -1146,7 +1146,8 @@ class Visualization(object):
                         [0],
                         marker=window_marker,
                         color='w',
-                        label=args.event_type[0].capitalize() + ' events',
+                        label=(args.event_type[0].capitalize() + ' events (' +
+                               str(len(label_idx[scale])) + ' windows)'),
                         markerfacecolor='#333333',
                         markersize=10,
                     )
@@ -1157,16 +1158,17 @@ class Visualization(object):
                         [0],
                         marker=window_marker,
                         color='w',
-                        label='Pressure drop',
+                        label=('Pressure drops (' + str(len(drop_idx[scale])) +
+                               ' windows)'),
                         markerfacecolor='#333333',
-                        markersize=10,
+                        markersize=6,
                     )
                     legend_elements.append(custom_legend)
                 plt.xlim([-35.0, 30])
                 plt.ylim([-35.0, 30])
                 plt.legend(
                     handles=legend_elements,
-                    fontsize=8,
+                    fontsize=7,
                     loc='lower left',
                     ncol=5,
                 )
