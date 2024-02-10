@@ -30,5 +30,5 @@
     "umap_n_neighbors": 300,
     "umap_min_dist": 1.0,
     "umap_n_epochs": 10000,
-    "extension": ""
+    "extension": "full-mission"
 }

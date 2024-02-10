@@ -61,15 +61,15 @@ class Visualization(object):
         # Device to perform computations on.
         self.device = device
 
-        (
-            self.cluster_membership,
-            self.cluster_membership_prob,
-            self.confident_idxs,
-            self.per_cluster_confident_idxs,
-            self.latent_features,
-            self.window_labels,
-            self.window_drops,
-        ) = self.evaluate_model(args, data_loader)
+        # (
+        #     self.cluster_membership,
+        #     self.cluster_membership_prob,
+        #     self.confident_idxs,
+        #     self.per_cluster_confident_idxs,
+        #     self.latent_features,
+        #     self.window_labels,
+        #     self.window_drops,
+        # ) = self.evaluate_model(args, data_loader)
 
         # Colors to be used for visualizing different clusters.
         # self.colors = [
@@ -235,7 +235,6 @@ class Visualization(object):
                                               [i]].item())].append(
                                                   confident_idxs[scale][i])
 
-        del self.network
         del output
         del x
         gc.collect()
@@ -953,6 +952,150 @@ class Visualization(object):
         font = {'family': 'serif', 'style': 'normal', 'size': 18}
         matplotlib.rc('font', **font)
 
+    def reconstruct_vae_input(self, args, sample_size=5):
+        """Reconstruct Data
+
+        Args:
+            data_loader: (DataLoader) loader containing the data
+            sample_size: (int) size of random data to consider from data_loader
+
+        Returns:
+            reconstructed: (array) array containing the reconstructed data
+        """
+
+        # Load data.
+        x = self.dataset.sample_data(
+            np.random.choice(
+                self.dataset.train_idx,
+                size=sample_size,
+                replace=False,
+            ),
+            'scat_cov',
+        )
+
+        # Move to `device`.
+        x = {scale: x[scale].to(self.device) for scale in self.scales}
+
+        # Run the input data through the pretrained GMVAE network.
+        with torch.no_grad():
+            output = self.network(x)
+
+        # Extract the reconstructed data.
+        x_rec = {scale: output['x_rec'][scale].cpu() for scale in self.scales}
+
+        # Move x back to CPU.
+        x = {scale: x[scale].cpu() for scale in self.scales}
+
+        # Unnormalize the data.
+        x = {
+            scale:
+            self.dataset.unnormalize(
+                x[scale],
+                'scat_cov',
+                dset_name=scale,
+            ).numpy()
+            for scale in self.scales
+        }
+
+        x_rec = {
+            scale:
+            self.dataset.unnormalize(
+                x_rec[scale],
+                'scat_cov',
+                dset_name=scale,
+            ).numpy()
+            for scale in self.scales
+        }
+
+        rmse_across_indices = np.zeros((
+            len(self.scales),
+            len(x[self.scales[0]]),
+        ))
+        for j, scale in enumerate(self.scales):
+            for i in range(len(x[self.scales[0]])):
+                rmse_across_indices[j, i] = np.sqrt(
+                    np.mean((x[scale][i] - x_rec[scale][i])**2))
+
+        rmse_across_indices = np.mean(rmse_across_indices, axis=0)
+        sorted_indices = np.argsort(rmse_across_indices)
+
+        print(' [*] Plotting reconstructed data')
+        for scale in tqdm(self.scales, desc="Scale loop"):
+
+            fig, axes = plt.subplots(
+                nrows=3,
+                sharex=True,
+                figsize=(12, 12),
+            )
+            y_labels = ['U', 'V', 'W']
+
+            for i in range(sample_size):
+                for j in range(3):
+                    # Plot input scattering spectra.
+                    axes[j].plot(
+                        x[scale][sorted_indices[i], j, :],
+                        color="k",
+                        lw=1.0,
+                        alpha=0.9,
+                    )
+                    axes[j].plot(
+                        x_rec[scale][sorted_indices[i], j, :],
+                        color="r",
+                        lw=0.8,
+                        alpha=0.6,
+                    )
+                    axes[j].set_ylim([
+                        np.min(x[scale][sorted_indices[i], j, :]),
+                        np.max(x[scale][sorted_indices[i], j, :]),
+                    ])
+                    axes[j].tick_params(
+                        axis='both',
+                        which='major',
+                    )
+
+                    axes[j].grid(True)
+                    axes[j].set_ylabel(y_labels[j])
+
+                axes[0].set_title(
+                    'fVAE reconstruction at scale {}'.format(scale))
+                # axes[2].axes.xaxis.set_visible(False)
+                axes[2].set_xlabel('Scattering spectra coefficients')
+                axes[2].set_xlim(
+                    0,
+                    x[scale].shape[-1],
+                )
+
+                legend_elements = []
+                for c, label in zip(["k", "r"], ['Input', 'Reconstructed']):
+                    custom_legend = plt.Line2D(
+                        [0],
+                        [0],
+                        color=c,
+                        label=label,
+                        markerfacecolor=c,
+                        markersize=12,
+                    )
+                    legend_elements.append(custom_legend)
+                plt.legend(
+                    handles=legend_elements,
+                    fontsize=12,
+                    loc='lower left',
+                    ncol=2,
+                )
+                fig.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(args.experiment, 'scale_' + scale,
+                                         'reconstructed_data')),
+                        'reconstructed_data_' + str(i) + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05,
+                )
+            plt.close(fig)
+
     def plot_latent_space(self, args):
         """Plot the latent space learnt by the model
 
@@ -964,6 +1107,10 @@ class Visualization(object):
         Returns:
             fig: (figure) plot of the latent space
         """
+
+        # Free some memory.
+        del self.network
+
         # DO NOT PLACE THIS IMPORT AT THE BEGINNING OF THE FILE. umap alters the
         # environment variables, which causes errors when using multiprocessing.
         # from umap import UMAP

@@ -111,7 +111,8 @@ if __name__ == "__main__":
         # vis.plot_waveforms(args)
         # vis.plot_cluster_time_histograms(args)
         # vis.centroid_waveforms(args)
-        vis.plot_latent_space(args)
+        vis.reconstruct_vae_input(args)
+        # vis.plot_latent_space(args)
 
     # Upload results to Weights & Biases for tracking training progress.
     upload_results(args, flag='--progress --transfers 20')
