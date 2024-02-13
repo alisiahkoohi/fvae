@@ -15,8 +15,15 @@ import scipy.signal as signal
 import torch
 from tqdm import tqdm
 
-from facvae.utils import (plotsdir, create_lmst_xticks, lmst_xtick, gitdir,
-                          roll_nanpad, get_waveform_path_from_time_interval)
+from facvae.utils import (
+    plotsdir,
+    create_lmst_xticks,
+    lmst_xtick,
+    gitdir,
+    roll_nanpad,
+    get_waveform_path_from_time_interval,
+    detect_outliers_and_centered_points,
+)
 
 sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 18}
@@ -61,15 +68,15 @@ class Visualization(object):
         # Device to perform computations on.
         self.device = device
 
-        # (
-        #     self.cluster_membership,
-        #     self.cluster_membership_prob,
-        #     self.confident_idxs,
-        #     self.per_cluster_confident_idxs,
-        #     self.latent_features,
-        #     self.window_labels,
-        #     self.window_drops,
-        # ) = self.evaluate_model(args, data_loader)
+        (
+            self.cluster_membership,
+            self.cluster_membership_prob,
+            self.confident_idxs,
+            self.per_cluster_confident_idxs,
+            self.latent_features,
+            self.window_labels,
+            self.window_drops,
+        ) = self.evaluate_model(args, data_loader)
 
         # Colors to be used for visualizing different clusters.
         # self.colors = [
@@ -354,7 +361,7 @@ class Visualization(object):
                 self.waveforms[scale][str(i)] = waveforms[i]
                 self.time_intervals[scale][str(i)] = time_intervals[i]
 
-    def plot_fourier(self, args, sample_size):
+    def plot_fourier(self, args):
 
         # Serial worker for plotting Fourier transforms for each cluster.
         def fourier_serial_job(shared_in, clusters):
@@ -686,17 +693,19 @@ class Visualization(object):
             sample_size=500,
             overlap=False,
         )
-        clustert_colors = [
-            '#1f77b4',
-            '#ff7f0e',
-            '#2ca02c',
-            '#d62728',
-            '#9467bd',
-            '#8c564b',
-            '#e377c2',
-            '#7f7f7f',
-            '#bcbd22',
-            '#17becf',
+        cluster_colors = [
+            '#1f77b4',  # blue
+            '#ff7f0e',  # orange
+            '#2ca02c',  # green
+            '#d62728',  # red
+            '#9467bd',  # purple
+            '#8c564b',  # brown
+            '#e377c2',  # pink
+            '#7f7f7f',  # gray
+            '#bcbd22',  # olive
+            '#17becf',  # cyan
+            '#ff1493',  # deep pink
+            '#00ced1',  # dark turquoise
         ]
         print(' [*] Computing and plotting centroid and centered waveforms')
         for scale in tqdm(self.scales, desc="Scale loop"):
@@ -966,8 +975,8 @@ class Visualization(object):
         # Load data.
         x = self.dataset.sample_data(
             np.random.choice(
-                self.dataset.train_idx,
-                size=sample_size,
+                self.dataset.test_idx,
+                size=64,
                 replace=False,
             ),
             'scat_cov',
@@ -1022,14 +1031,16 @@ class Visualization(object):
         print(' [*] Plotting reconstructed data')
         for scale in tqdm(self.scales, desc="Scale loop"):
 
-            fig, axes = plt.subplots(
-                nrows=3,
-                sharex=True,
-                figsize=(12, 12),
-            )
             y_labels = ['U', 'V', 'W']
 
             for i in range(sample_size):
+
+                fig, axes = plt.subplots(
+                    nrows=3,
+                    sharex=True,
+                    figsize=(12, 12),
+                )
+
                 for j in range(3):
                     # Plot input scattering spectra.
                     axes[j].plot(
@@ -1094,7 +1105,7 @@ class Visualization(object):
                     dpi=300,
                     pad_inches=.05,
                 )
-            plt.close(fig)
+                plt.close(fig)
 
     def plot_latent_space(self, args):
         """Plot the latent space learnt by the model
@@ -1120,16 +1131,18 @@ class Visualization(object):
 
         # Colors for each cluster.
         colors = [
-            '#1f77b4',
-            '#ff7f0e',
-            '#2ca02c',
-            '#d62728',
-            '#9467bd',
-            '#8c564b',
-            '#e377c2',
-            '#7f7f7f',
-            '#bcbd22',
-            '#17becf',
+            '#1f77b4',  # blue
+            '#ff7f0e',  # orange
+            '#2ca02c',  # green
+            '#d62728',  # red
+            '#9467bd',  # purple
+            '#8c564b',  # brown
+            '#e377c2',  # pink
+            '#7f7f7f',  # gray
+            '#bcbd22',  # olive
+            '#17becf',  # cyan
+            '#ff1493',  # deep pink
+            '#00ced1',  # dark turquoise
         ]
         per_point_color = {
             scale: [
@@ -1239,6 +1252,173 @@ class Visualization(object):
                 if self.window_drops[scale][idx]:
                     drop_idx[scale].append(int(idx))
 
+        print(' [*] Plotting outlier and centered event waveforms')
+        for scale in tqdm(self.scales[-1:], desc="Scale loop"):
+
+            if len(label_idx[scale]) == 0:
+                break
+
+            (outlier_points,
+             centered_points) = detect_outliers_and_centered_points(
+                 umap_features[scale][label_idx[scale]],
+                 num_samples=2,
+             )
+            outlier_points = [label_idx[scale][idx] for idx in outlier_points]
+            centered_points = [
+                label_idx[scale][idx] for idx in centered_points
+            ]
+
+            outlier_waveforms = {
+                'waveform':
+                [self.get_waveform(idx, scale) for idx in outlier_points],
+                'time_interval':
+                [self.get_time_interval(idx, scale) for idx in outlier_points]
+            }
+            center_waveforms = {
+                'waveform':
+                [self.get_waveform(idx, scale) for idx in centered_points],
+                'time_interval': [
+                    self.get_time_interval(idx, scale)
+                    for idx in centered_points
+                ]
+            }
+
+            y_labels = ['U', 'V', 'W']
+
+            for i in range(len(outlier_points)):
+
+                fig, axes = plt.subplots(
+                    nrows=3,
+                    sharex=True,
+                    figsize=(12, 12),
+                )
+
+                for j in range(3):
+
+                    outlier_waveforms['waveform'][i][j, :] = (
+                        outlier_waveforms['waveform'][i][j, :] /
+                        np.linalg.norm(outlier_waveforms['waveform'][i][j, :]))
+
+                    axes[j].plot_date(
+                        outlier_waveforms['time_interval'][i],
+                        outlier_waveforms['waveform'][i][j, :],
+                        xdate=True,
+                        color="k",
+                        lw=1.0,
+                        alpha=0.9,
+                        fmt='',
+                    )
+
+                    axes[j].set_ylim([
+                        min(outlier_waveforms['waveform'][i][j, :].reshape(
+                            -1)),
+                        max(outlier_waveforms['waveform'][i][j, :].reshape(-1))
+                    ])
+                    axes[j].set_yticklabels([])
+                    axes[j].set_ylabel(y_labels[j])
+                    # axes[j].set_xticklabels([])
+                    axes[j].tick_params(
+                        axis='both',
+                        which='major',
+                    )
+                    axes[j].grid(True)
+                plt.subplots_adjust(hspace=0)
+                axes[2].set_xticklabels([])
+                # Set the x-axis locator and formatter
+                axes[2].xaxis.set_major_locator(
+                    matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
+                axes[2].xaxis.set_major_formatter(
+                    matplotlib.dates.DateFormatter('%H:%M:%S'))
+                axes[2].set_xlim([
+                    outlier_waveforms['time_interval'][i][0],
+                    outlier_waveforms['time_interval'][i][-1]
+                ])
+                axes[0].set_title('Outlier event waveform')
+                # axes[2].axes.xaxis.set_visible(False)
+                axes[2].set_xlabel('Time (LMST)')
+                fig.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(
+                                args.experiment, 'latent_space_visualization',
+                                'event_' + '-'.join(args.event_type) + '_' +
+                                '-'.join(args.event_quality), 'outliers')),
+                        'outlier-' + str(i) + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05,
+                )
+                plt.close(fig)
+
+            for i in range(len(centered_points)):
+
+                fig, axes = plt.subplots(
+                    nrows=3,
+                    sharex=True,
+                    figsize=(12, 12),
+                )
+
+                for j in range(3):
+
+                    center_waveforms['waveform'][i][j, :] = (
+                        center_waveforms['waveform'][i][j, :] /
+                        np.linalg.norm(center_waveforms['waveform'][i][j, :]))
+
+                    axes[j].plot_date(
+                        center_waveforms['time_interval'][i],
+                        center_waveforms['waveform'][i][j, :],
+                        xdate=True,
+                        color="k",
+                        lw=1.0,
+                        alpha=0.9,
+                        fmt='',
+                    )
+
+                    axes[j].set_ylim([
+                        min(center_waveforms['waveform'][i][j, :].reshape(-1)),
+                        max(center_waveforms['waveform'][i][j, :].reshape(-1))
+                    ])
+                    axes[j].set_yticklabels([])
+                    axes[j].set_ylabel(y_labels[j])
+                    # axes[j].set_xticklabels([])
+                    axes[j].tick_params(
+                        axis='both',
+                        which='major',
+                    )
+                    axes[j].grid(True)
+                plt.subplots_adjust(hspace=0)
+                axes[2].set_xticklabels([])
+                # Set the x-axis locator and formatter
+                axes[2].xaxis.set_major_locator(
+                    matplotlib.dates.AutoDateLocator(minticks=4, maxticks=6))
+                axes[2].xaxis.set_major_formatter(
+                    matplotlib.dates.DateFormatter('%H:%M:%S'))
+                axes[2].set_xlim([
+                    center_waveforms['time_interval'][i][0],
+                    center_waveforms['time_interval'][i][-1]
+                ])
+                axes[0].set_title('Event waveform')
+                # axes[2].axes.xaxis.set_visible(False)
+                axes[2].set_xlabel('Time (LMST)')
+                fig.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(
+                                args.experiment, 'latent_space_visualization',
+                                'event_' + '-'.join(args.event_type) + '_' +
+                                '-'.join(args.event_quality),
+                                'center_waveforms')),
+                        'center_waveform-' + str(i) + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05,
+                )
+                plt.close(fig)
+
         for window_feature, window_marker in zip(['label', 'drop'],
                                                  ['*', 'o']):
 
@@ -1315,9 +1495,10 @@ class Visualization(object):
                 plt.ylim([-35.0, 30])
                 plt.legend(
                     handles=legend_elements,
-                    fontsize=7,
+                    fontsize=8,
                     loc='lower left',
                     ncol=5,
+                    handletextpad=0.02,
                 )
                 plt.title("Latent samples at scale {}".format(
                     SCALE_TO_TIME[scale]))
