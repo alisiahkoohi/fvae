@@ -850,7 +850,7 @@ class Visualization(object):
                     axes_spec[j].loglog(
                         frequencies,
                         np.sqrt(asd),
-                        color=clustert_colors[cluster % len(clustert_colors)],
+                        color=cluster_colors[cluster % len(cluster_colors)],
                         lw=1.0,
                         alpha=0.9,
                         label='cluster ' + str(cluster),
