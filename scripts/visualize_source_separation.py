@@ -54,7 +54,7 @@ class Pooling(nn.Module):
         return y.view(x.shape[:-1] + (-1, ))
 
 
-sns.set_style("darkgrid")
+sns.set_style("whitegrid")
 font = {'family': 'serif', 'style': 'normal', 'size': 10}
 matplotlib.rc('font', **font)
 sfmt = matplotlib.ticker.ScalarFormatter(useMathText=True)

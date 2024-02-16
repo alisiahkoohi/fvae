@@ -482,7 +482,8 @@ class Visualization(object):
             sample_size=sample_size,
             overlap=False,
         )
-        sns.set_style("darkgrid")
+
+        # sns.set_style("darkgrid")
 
         # self.plot_fourier(args, sample_size)
 
@@ -684,7 +685,7 @@ class Visualization(object):
         Returns:
             centroid_waveforms: (array) array containing the centroid waveforms
         """
-        sns.set_style("darkgrid")
+        # sns.set_style("darkgrid")
         font = {'family': 'serif', 'style': 'normal', 'size': 24}
         matplotlib.rc('font', **font)
 
