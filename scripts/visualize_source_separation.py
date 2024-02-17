@@ -8,54 +8,24 @@ import h5py
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import obspy
 import seaborn as sns
-from matplotlib.dates import DateFormatter
 from obspy.core import UTCDateTime
 
 from facvae.utils import (
     checkpointsdir,
     configsdir,
     datadir,
-    GlitchSeparationSetup,
     parse_input_args,
     plotsdir,
     query_experiments,
     read_config,
     process_sequence_arguments,
-)
-
-from srcsep.utils import GlitchSeparationSetup
-
-import torch
-import torch.nn as nn
-from srcsep.frontend import analyze
-
-from facvae.utils import (
-    plotsdir,
     create_lmst_xticks,
-    lmst_xtick,
-    roll_zeropad,
-    get_waveform_path_from_time_interval,
+    collect_results,
 )
-from datetime import datetime
-
-from obspy import UTCDateTime
-
-
-class Pooling(nn.Module):
-
-    def __init__(self, kernel_size):
-        super(Pooling, self).__init__()
-        self.pool = nn.AvgPool1d(kernel_size)
-
-    def forward(self, x):
-        y = self.pool(x.view(x.shape[0], -1, x.shape[-1]))
-        return y.view(x.shape[:-1] + (-1, ))
-
 
 sns.set_style("whitegrid")
-font = {'family': 'serif', 'style': 'normal', 'size': 10}
+font = {'family': 'serif', 'style': 'normal', 'size': 11}
 matplotlib.rc('font', **font)
 sfmt = matplotlib.ticker.ScalarFormatter(useMathText=True)
 sfmt.set_powerlimits((0, 0))
@@ -74,20 +44,7 @@ MARS_PATH = datadir('mars')
 MARS_RAW_PATH = datadir(os.path.join(MARS_PATH, 'raw'))
 
 
-def collect_results(experiment_args, keys):
-    """Collect the results from the experiments."""
-    results = {}
-    for args in experiment_args:
-        for file in os.listdir(checkpointsdir(args.experiment)):
-            h5_path = os.path.join(checkpointsdir(args.experiment), file)
-            with h5py.File(h5_path, 'r') as f:
-                results[file] = {key: f[key][...] for key in keys}
-                results[file]['args'] = args
-
-    return results
-
-
-def plot_result(experiment_results):
+def plot_result(args, experiment_results):
 
     x_obs = {key: [] for key in experiment_results.keys()}
     x_hat = {key: [] for key in experiment_results.keys()}
@@ -136,10 +93,11 @@ def plot_result(experiment_results):
             experiment['x_obs'][0, 0, :].max() * 0.98
         ])
         ax.yaxis.set_label_position("right")
-        ax.tick_params(axis='both', which='major', labelsize=8)
+        plt.xlabel("Time (LMST)")
+        ax.tick_params(axis='both', which='major', labelsize=10)
         plt.savefig(os.path.join(
             plotsdir(
-                os.path.join(SAVE_DIR, experiment['args'].experiment,
+                os.path.join(experiment['args'].experiment, SAVE_DIR,
                              filename[:-3])),
             "x_obs_" + str(glitch_idx) + ".png"),
                     format="png",
@@ -173,10 +131,11 @@ def plot_result(experiment_results):
             experiment['x_obs'][0, 0, :].max() * 0.98
         ])
         ax.yaxis.set_label_position("right")
-        ax.tick_params(axis='both', which='major', labelsize=8)
+        plt.xlabel("Time (LMST)")
+        ax.tick_params(axis='both', which='major', labelsize=10)
         plt.savefig(os.path.join(
             plotsdir(
-                os.path.join(SAVE_DIR, experiment['args'].experiment,
+                os.path.join(experiment['args'].experiment, SAVE_DIR,
                              filename[:-3])),
             "x_hat_" + str(glitch_idx) + ".png"),
                     format="png",
@@ -210,10 +169,11 @@ def plot_result(experiment_results):
             experiment['x_obs'][0, 0, :].max() * 0.98
         ])
         ax.yaxis.set_label_position("right")
-        ax.tick_params(axis='both', which='major', labelsize=8)
+        plt.xlabel("Time (LMST)")
+        ax.tick_params(axis='both', which='major', labelsize=10)
         plt.savefig(os.path.join(
             plotsdir(
-                os.path.join(SAVE_DIR, experiment['args'].experiment,
+                os.path.join(experiment['args'].experiment, SAVE_DIR,
                              filename[:-3])),
             "glitch_" + str(glitch_idx) + ".png"),
                     format="png",
@@ -277,11 +237,12 @@ def plot_result(experiment_results):
     # plt.xlim([-70, len(x_obs_arr) - 1 + 70])
     # ax.yaxis.set_label_position("left")
     # plt.ylabel("Raw data")
-    ax.tick_params(axis='both', which='major', labelsize=8)
+    plt.xlabel("Time (LMST)")
+    ax.tick_params(axis='both', which='major', labelsize=10)
     ax.set_yticklabels([])
     # ax.set_xticklabels([])
     plt.savefig(os.path.join(
-        plotsdir(os.path.join(SAVE_DIR, experiment['args'].experiment)),
+        plotsdir(os.path.join(experiment['args'].experiment, SAVE_DIR)),
         "real-data.png"),
                 format="png",
                 bbox_inches="tight",
@@ -309,11 +270,12 @@ def plot_result(experiment_results):
     # plt.xlim([-70, len(x_obs_arr) - 1 + 70])
     # ax.yaxis.set_label_position("left")
     # plt.ylabel("Raw data")
-    ax.tick_params(axis='both', which='major', labelsize=8)
+    plt.xlabel("Time (LMST)")
+    ax.tick_params(axis='both', which='major', labelsize=10)
     ax.set_yticklabels([])
     # ax.set_xticklabels([])
     plt.savefig(os.path.join(
-        plotsdir(os.path.join(SAVE_DIR, experiment['args'].experiment)),
+        plotsdir(os.path.join(experiment['args'].experiment, SAVE_DIR)),
         "deglitched.png"),
                 format="png",
                 bbox_inches="tight",
@@ -341,11 +303,12 @@ def plot_result(experiment_results):
     # plt.xlim([-70, len(x_obs_arr) - 1 + 70])
     # ax.yaxis.set_label_position("left")
     # plt.ylabel("Raw data")
-    ax.tick_params(axis='both', which='major', labelsize=8)
+    plt.xlabel("Time (LMST)")
+    ax.tick_params(axis='both', which='major', labelsize=10)
     ax.set_yticklabels([])
     # ax.set_xticklabels([])
     plt.savefig(os.path.join(
-        plotsdir(os.path.join(SAVE_DIR, experiment['args'].experiment)),
+        plotsdir(os.path.join(experiment['args'].experiment, SAVE_DIR)),
         "separated.png"),
                 format="png",
                 bbox_inches="tight",
@@ -370,4 +333,4 @@ if __name__ == '__main__':
     ])
 
     args = process_sequence_arguments(args)
-    plot_result(experiment_results)
+    plot_result(args, experiment_results)

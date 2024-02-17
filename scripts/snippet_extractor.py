@@ -458,48 +458,63 @@ class SnippetExtractor(object):
         waveforms: List[np.ndarray] = []
         time_intervals: List[Tuple[float, float]] = []
 
+        utc_time_intervals: List[Tuple[float, float]] = []
+        window_idx_list: List[int] = []
+
         for scale, i in zip(scale_idxs, cluster_idxs):
             scale = str(scale)
 
-            utc_time_intervals: List[Tuple[float, float]] = []
-            window_idx_list: List[int] = []
+            per_scale_windows = 0
 
-            for sample_idx in range(
-                    len(self.per_cluster_confident_idxs[scale][str(i)])):
-
-                if sample_size == 1 and overwrite_idx is not None:
-                    # Allowing the user to overwrite the window index for the
-                    # target window to be source separated.
-                    window_idx = self.per_cluster_confident_idxs[scale][str(
-                        i)][overwrite_idx]
-                else:
-                    # Extracting the window index from the per-cluster confident
-                    # indices.
-                    window_idx = self.per_cluster_confident_idxs[scale][str(
-                        i)][sample_idx]
+            if sample_size == 1 and overwrite_idx != -1 and i == -1:
+                # Allowing the user to overwrite the window index for the
+                # target window to be source separated.
+                window_idx = 0
+                while self.dataset.idx_converter([window_idx
+                                                  ])[0] != overwrite_idx:
+                    window_idx += 1
 
                 utc_interval = self.get_time_interval(
                     window_idx,
                     scale,
                     lmst=False,
                 )[0]
-                should_add = True
 
-                if time_preference is not None:
-                    if not is_close(utc_interval, time_preference):
-                        should_add = False
+                utc_time_intervals.append(utc_interval)
+                window_idx_list.append(window_idx)
 
-                for interval in utc_time_intervals:
-                    if do_overlap(interval, utc_interval):
-                        should_add = False
+            else:
+                for sample_idx in range(
+                        len(self.per_cluster_confident_idxs[scale][str(i)])):
+
+                    # Extracting the window index from the per-cluster confident
+                    # indices.
+                    window_idx = self.per_cluster_confident_idxs[scale][str(
+                        i)][sample_idx]
+
+                    utc_interval = self.get_time_interval(
+                        window_idx,
+                        scale,
+                        lmst=False,
+                    )[0]
+                    should_add = True
+
+                    if time_preference is not None:
+                        if not is_close(utc_interval, time_preference):
+                            should_add = False
+
+                    for interval in utc_time_intervals:
+                        if do_overlap(interval, utc_interval):
+                            should_add = False
+                            break
+
+                    if should_add:
+                        utc_time_intervals.append(utc_interval)
+                        window_idx_list.append(window_idx)
+                        per_scale_windows += 1
+
+                    if per_scale_windows == sample_size:
                         break
-
-                if should_add:
-                    utc_time_intervals.append(utc_interval)
-                    window_idx_list.append(window_idx)
-
-                if len(window_idx_list) == sample_size:
-                    break
 
             def load_serial_job(
                 shared_in: Tuple,

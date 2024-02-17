@@ -3,7 +3,7 @@
 
 import os
 import shutil
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -24,8 +24,11 @@ from facvae.utils import (
     plot_deglitching,
     process_sequence_arguments,
     create_namespace_from_args,
+    query_experiments,
+    collect_results,
 )
 from scripts.snippet_extractor import SnippetExtractor
+from scripts.visualize_source_separation import plot_result
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
 MARS_PATH: str = datadir('mars')
@@ -75,8 +78,8 @@ def optimize(
     deglitching_params = {
         'nks': torch.from_numpy(x_dataset).unsqueeze(-2).unsqueeze(-2),
         'x_init': torch.from_numpy(x_obs).unsqueeze(-2).unsqueeze(-2),
-        'indep_loss_w': args.indep_loss_w,
-        'x_loss_w': args.x_loss_w,
+        'indep_loss_w': 1.0,
+        'x_loss_w': 1.0,
         'fixed_ts': None,
         'cuda': args.cuda
     }
@@ -92,10 +95,9 @@ def optimize(
         deglitching_params=deglitching_params,
         cuda=args.cuda,
         nchunks=args.nchunks,
-        gpus=[gpu_id],
+        gpus=[args.gpu_id[gpu_id]],
         exp_name=f'{args.experiment_name}_'
         f'R-{args.R}_'
-        f'glitch-{args.glitch}_'
         f'glitch_idx-{glitch_idx}',
     )
 
@@ -151,6 +153,14 @@ if __name__ == '__main__':
     # Command line arguments for source separation.
     args = read_config(os.path.join(configsdir(), SRC_SEP_CONFIG_FILE))
     args = parse_input_args(args)
+
+    # To be used for plotting the results.
+    experiment_args = query_experiments(
+        SRC_SEP_CONFIG_FILE,
+        False,
+        **vars(args),
+    )
+
     args.experiment = make_experiment_name(args)
     args = process_sequence_arguments(args)
 
@@ -181,9 +191,8 @@ if __name__ == '__main__':
         component='U',
         timescale=args.scale_n[0],
         num_workers=1,
-        #TODO: add overwrite_idx argument to snippet_extractor
+        overwrite_idx=args.overwrite_idx,
     )
-
     glitch = glitch[0, ...]
     glitch_time = glitch_time[0]
     glitch = glitch[:, None, :].astype(np.float64)
@@ -191,17 +200,32 @@ if __name__ == '__main__':
     snippets = {j: [] for j in range(glitch.shape[0])}
 
     # Extract snippets from the Mars dataset based on specified parameters.
-    for j in tqdm(range(glitch.shape[0]), desc='Extracting snippets'):
-        g_time = glitch_time[j]
-        snippets[j], _ = snippet_extractor.waveforms_per_scale_cluster(
+    if args.same_snippets:
+        print('Extracting same snippets for all glitches.')
+        snippet, _ = snippet_extractor.waveforms_per_scale_cluster(
             vae_args,
             args.cluster_n,
             args.scale_n,
             sample_size=args.R,
             component='U',
-            time_preference=g_time,
+            time_preference=(glitch_time[0][0], glitch_time[-1][-1]),
             num_workers=args.num_workers,
         )
+        for j in range(glitch.shape[0]):
+            snippets[j] = snippet
+
+    else:
+        for j in tqdm(range(glitch.shape[0]), desc='Extracting snippets'):
+            g_time = glitch_time[j]
+            snippets[j], _ = snippet_extractor.waveforms_per_scale_cluster(
+                vae_args,
+                args.cluster_n,
+                args.scale_n,
+                sample_size=args.R,
+                component='U',
+                time_preference=g_time,
+                num_workers=args.num_workers,
+            )
 
     # Parallel processing using WorkerPool.
     with WorkerPool(
@@ -222,5 +246,13 @@ if __name__ == '__main__':
             progress_bar=False,
         )
 
+    experiment_results = collect_results(experiment_args, [
+        'x_obs',
+        'x_hat',
+        'glitch_idx',
+        'glitch_time',
+    ])
+    plot_result(args, experiment_results)
+
     # Upload results to Weights & Biases for tracking training progress.
-    upload_results(args, flag='--progress --transfers 8')
+    upload_results(args, flag='--progress --transfers 20')

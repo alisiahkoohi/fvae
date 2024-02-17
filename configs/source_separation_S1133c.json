@@ -1,0 +1,22 @@
+{
+    "cuda": 1,
+    "max_itr": 1000,
+    "window_size": 4096,
+    "j": "8,8",
+    "q": "1,1",
+    "R": 300,
+    "tol_optim": 0.1,
+    "nchunks": 1,
+    "experiment_name": "mars_wind_2",
+    "normalize": 1,
+    "gpu_id": "0,1,2,3",
+    "wavelet": "battle_lemarie",
+    "facvae_model": "facvae_full-mission.json",
+    "cluster_n": "5",
+    "cluster_g": "-1",
+    "scale_n": "1024",
+    "scale_g": "16384",
+    "overwrite_idx": 101210,
+    "num_workers": 40,
+    "filter_key": "2022-FEB"
+}

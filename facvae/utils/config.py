@@ -70,6 +70,7 @@ def make_experiment_name(args):
                 'umap_min_dist',
                 'umap_n_epochs',
                 'num_workers',
+                'gpu_id',
         ]:
             experiment_name += key + '-{}_'.format(value)
     return experiment_name[:-1].replace(' ', '').replace(',', '-')
@@ -115,4 +116,7 @@ def process_sequence_arguments(args):
     if hasattr(args, 'j'):
         args.j = args.j.replace(' ', '').split(',')
         args.j = [int(_) for _ in args.j]
+    if hasattr(args, 'gpu_id'):
+        args.gpu_id = args.gpu_id.replace(' ', '').split(',')
+        args.gpu_id = [int(_) for _ in args.gpu_id]
     return args

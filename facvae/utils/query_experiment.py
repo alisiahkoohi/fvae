@@ -11,12 +11,12 @@ from .config import make_experiment_name, parse_input_args, read_config
 REPO_NAME = "factorialVAE_nature"
 
 
-def rclone_copy_cmd(source, dest, flag='--progress'):
+def rclone_copy_cmd(source, dest, flag='--progress --transfers 20'):
     """Return the rclone copy command."""
     return "rclone copy " + flag + " " + source + " " + dest
 
 
-def rclone_move_cmd(source, dest, flag='--progress'):
+def rclone_move_cmd(source, dest, flag='--progress --transfers 20'):
     """Return the rclone move command."""
     return "rclone move " + flag + " " + source + " " + dest
 
@@ -89,35 +89,12 @@ def query_experiments(config_file, download, **kwargs):
 
 def collect_results(experiment_args, keys):
     """Collect the results from the experiments."""
-    results = []
+    results = {}
     for args in experiment_args:
-        h5_path = os.path.join(checkpointsdir(args.experiment),
-                               'reconstruction.h5')
-        if os.path.exists(h5_path):
+        for file in os.listdir(checkpointsdir(args.experiment)):
+            h5_path = os.path.join(checkpointsdir(args.experiment), file)
             with h5py.File(h5_path, 'r') as f:
-                results.append({key: f[key][...] for key in keys})
-                results[-1]['args'] = args
+                results[file] = {key: f[key][...] for key in keys}
+                results[file]['args'] = args
 
     return results
-
-
-def plot_results(experiment_args):
-    """Collect the results from the experiments."""
-    for args in experiment_args:
-        h5_path = os.path.join(checkpointsdir(args.experiment),
-                               'reconstruction.h5')
-        if os.path.exists(h5_path):
-
-            file = h5py.File(h5_path, 'r')
-            x_hat_with_reg, x_obs = file['x_hat_with_reg'][...], file['x_obs'][
-                ...]
-            if x_hat_with_reg.ndim == 4:
-                x_hat_with_reg = np.mean(x_hat_with_reg, axis=0)
-            file.close()
-            plot_deglitching(args, 'deglitching', x_obs, x_hat_with_reg)
-
-
-if __name__ == '__main__':
-    experiment_args = query_experiments('toy_example.json', True, q=([4, 4], ))
-    # experiment_results = collect_results(experiment_args, ['x_hat_with_reg'])
-    plot_results(experiment_args)
