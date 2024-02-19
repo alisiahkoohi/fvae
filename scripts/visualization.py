@@ -1068,8 +1068,8 @@ class Visualization(object):
                     axes[j].grid(True)
                     axes[j].set_ylabel(y_labels[j])
 
-                axes[0].set_title(
-                    'fVAE reconstruction at scale {}'.format(scale))
+                axes[0].set_title('fVAE reconstruction at scale {}'.format(
+                    SCALE_TO_TIME[scale]))
                 # axes[2].axes.xaxis.set_visible(False)
                 axes[2].set_xlabel('Scattering spectra coefficients')
                 axes[2].set_xlim(
