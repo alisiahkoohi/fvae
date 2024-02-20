@@ -1,16 +1,16 @@
 name: facvae
 channels:
   - pytorch
-  - conda-forge
-  - defaults
   - nvidia
 dependencies:
-  - nvidia::cudatoolkit=11.6
-  - python==3.9
-  - pytorch::pytorch
+  - pytorch
+  - pytorch-cuda=11.8
+  - python=3.9
   - pip
   - pip:
+    - --extra-index-url https://pypi.nvidia.com
     - git+https://github.com/alisiahkoohi/scattering_covariance
+    - git+https://github.com/alisiahkoohi/insight_src_sep
     - matplotlib
     - tensorboard
     - obspy
@@ -24,8 +24,5 @@ dependencies:
     - termcolor
     - h5py
     - seaborn
-    - umap-learn
-    - cudf-cu11==23.12.* --extra-index-url=https://pypi.nvidia.com
-    - cuml-cu11==23.12.* --extra-index-url=https://pypi.nvidia.com
-    - protobuf==3.20.3
-    - requests
+    - cuml-cu11==23.12.*
+    - cudf-cu11==23.12.*

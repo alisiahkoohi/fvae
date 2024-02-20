@@ -2,7 +2,7 @@
 
 ## Installation
 
-Run the commands below to install the required packages.
+Run the commands below to install the required packages. Make sure to adapt the `pytorch-cuda` version to your CUDA version in `environment.yml`.
 
 ```bash
 git clone https://github.com/alisiahkoohi/facvae
@@ -34,9 +34,15 @@ mkdir -p data/mars/scat_covs_h5/
 wget -O "data/mars/scat_covs_h5/pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat-cov_filter_key-true.h5" "https://www.dropbox.com/scl/fi/pwv4hwf0mu43b256dvt0q/pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat-cov_filter_key-true.h5?rlkey=f3g0q2y5vrnpj6oaz68edf813&dl=0" --no-check-certificate
 ```
 
-### Raw data for visualization
+### Raw data for visualization and source separation
 
 In order to visualize the results, including the aligned waveforms, time histograms, and latent space, the raw data is also required. The raw data can be downloaded from [here](https://www.dropbox.com/scl/fo/38tr0k9kghtben1mwv3qs/h?rlkey=tlccygf71nutreqakq9p54a0w&dl=0) and it must be placed in the `data/mars/raw/` directory.
+
+After downloading the raw data, run the following command to extract the raw unprocessed UVW data:
+
+```bash
+bash facvae/utils/bash-utils/extract-mars-waveforms_raw_UVW.sh
+```
 
 ### Pretrained model
 

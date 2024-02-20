@@ -6,14 +6,14 @@ with open('README.md', 'r') as fh:
 reqs = []
 setuptools.setup(
     name='facvae',
-    version='0.1',
-    author='Rudy Morel and Ali Siahkoohi',
+    version='1.2',
+    author='Ali Siahkoohi and Rudy Morel',
     author_email='alisk@rice.edu',
-    description='Factorial VAEs for blind source separation',
+    description='fVAEs for unsupervised source separation',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/alisiahkoohi/factorialVAE',
+    url='https://github.com/alisiahkoohi/facvae',
     license='MIT',
     install_requires=reqs,
-    packages=setuptools.find_packages()
+    packages=setuptools.find_packages(),
 )

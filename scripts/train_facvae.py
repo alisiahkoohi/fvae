@@ -17,7 +17,6 @@ from facvae.utils import (
     make_experiment_name,
     process_sequence_arguments,
     MarsMultiscaleDataset,
-    upload_results,
 )
 from scripts.facvae_trainer import FactorialVAETrainer
 from scripts.visualization import Visualization
@@ -107,12 +106,8 @@ if __name__ == "__main__":
         # Create an instance of Visualization class.
         vis = Visualization(args, network, dataset, test_loader, device)
 
-        print('Some plotting functions are commented out for development.')
-        # vis.plot_waveforms(args)
-        # vis.plot_cluster_time_histograms(args)
+        vis.plot_waveforms(args)
+        vis.plot_cluster_time_histograms(args)
         vis.centroid_waveforms(args)
-        # vis.reconstruct_vae_input(args)
-        # vis.plot_latent_space(args)
-
-    # Upload results to Weights & Biases for tracking training progress.
-    upload_results(args, flag='--progress --transfers 20')
+        vis.reconstruct_vae_input(args)
+        vis.plot_latent_space(args)

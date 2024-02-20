@@ -17,7 +17,6 @@ from facvae.utils import (
     parse_input_args,
     read_config,
     make_experiment_name,
-    upload_results,
     checkpointsdir,
     datadir,
     save_exp_to_h5,
@@ -253,6 +252,3 @@ if __name__ == '__main__':
         'glitch_time',
     ])
     plot_result(args, experiment_results)
-
-    # Upload results to Weights & Biases for tracking training progress.
-    upload_results(args, flag='--progress --transfers 20')

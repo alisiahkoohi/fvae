@@ -1017,18 +1017,6 @@ class Visualization(object):
             for scale in self.scales
         }
 
-        rmse_across_indices = np.zeros((
-            len(self.scales),
-            len(x[self.scales[0]]),
-        ))
-        for j, scale in enumerate(self.scales):
-            for i in range(len(x[self.scales[0]])):
-                rmse_across_indices[j, i] = np.sqrt(
-                    np.mean((x[scale][i] - x_rec[scale][i])**2))
-
-        rmse_across_indices = np.mean(rmse_across_indices, axis=0)
-        sorted_indices = np.argsort(rmse_across_indices)
-
         print(' [*] Plotting reconstructed data')
         for scale in tqdm(self.scales, desc="Scale loop"):
 
@@ -1045,20 +1033,20 @@ class Visualization(object):
                 for j in range(3):
                     # Plot input scattering spectra.
                     axes[j].plot(
-                        x[scale][sorted_indices[i], j, :],
+                        x[scale][i, j, :],
                         color="k",
                         lw=1.0,
                         alpha=0.9,
                     )
                     axes[j].plot(
-                        x_rec[scale][sorted_indices[i], j, :],
+                        x_rec[scale][i, j, :],
                         color="r",
                         lw=0.8,
                         alpha=0.6,
                     )
                     axes[j].set_ylim([
-                        np.min(x[scale][sorted_indices[i], j, :]),
-                        np.max(x[scale][sorted_indices[i], j, :]),
+                        np.min(x[scale][i, j, :]),
+                        np.max(x[scale][i, j, :]),
                     ])
                     axes[j].tick_params(
                         axis='both',
