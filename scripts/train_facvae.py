@@ -106,8 +106,9 @@ if __name__ == "__main__":
         # Create an instance of Visualization class.
         vis = Visualization(args, network, dataset, test_loader, device)
 
-        vis.plot_waveforms(args)
-        vis.plot_cluster_time_histograms(args)
-        vis.centroid_waveforms(args)
-        vis.reconstruct_vae_input(args)
-        vis.plot_latent_space(args)
+        # vis.plot_waveforms(args)
+        # vis.plot_cluster_time_histograms(args)
+        # vis.centroid_waveforms(args)
+        # vis.reconstruct_vae_input(args)
+        # vis.plot_latent_space(args)
+        vis.plot_scatspec_umap(args)
