@@ -1554,9 +1554,6 @@ class Visualization(object):
             for scale in self.scales
         }
 
-        from IPython import embed
-        embed()
-
         pre_computed_umap_file = os.path.join(
             plotsdir(
                 os.path.join(args.experiment, 'scatspec_umap_visualization')),
@@ -1581,7 +1578,8 @@ class Visualization(object):
                     del tmp_file['latent_features']
                 tmp_file.create_dataset(
                     'latent_features',
-                    data=self.latent_features[scale][:, 0, :].numpy(),
+                    data=self.dataset.data['scat_cov'][scale][...].reshape(
+                        [self.dataset.data['scat_cov'][scale].shape[0], -1]),
                 )
                 tmp_file.close()
 
@@ -1606,16 +1604,16 @@ class Visualization(object):
 
             # Compute UMAP features.
             with WorkerPool(
-                    n_jobs=3,  # TODO: fix this. Number of GPUs are hardcoded.
+                    n_jobs=1,  # TODO: fix this. Number of GPUs are hardcoded.
                     start_method='fork',
             ) as pool:
                 pool.map(
                     call_umap,
                     list(
                         zip(
-                            [1, 2, 3, 1],
-                            self.
-                            scales,  # TODO: fix this. GPU ids are hardcoded.
+                            [2, 2, 2, 2
+                             ],  # TODO: fix this. GPU ids are hardcoded.
+                            self.scales,
                             [args.umap_n_neighbors] * len(self.scales),
                             [args.umap_min_dist] * len(self.scales),
                             [args.umap_n_epochs] * len(self.scales))),
