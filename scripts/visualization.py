@@ -1554,6 +1554,7 @@ class Visualization(object):
             ]
             for scale in self.scales
         }
+        args.umap_n_neighbors = 100  # For memory reasons, we use a smaller number of neighbors.
 
         pre_computed_umap_file = os.path.join(
             plotsdir(
@@ -1728,8 +1729,8 @@ class Visualization(object):
                         markersize=6,
                     )
                     legend_elements.append(custom_legend)
-                plt.xlim([-35.0, 30])
-                plt.ylim([-35.0, 30])
+                # plt.xlim([-35.0, 30])
+                # plt.ylim([-35.0, 30])
                 plt.legend(
                     handles=legend_elements,
                     fontsize=8,
