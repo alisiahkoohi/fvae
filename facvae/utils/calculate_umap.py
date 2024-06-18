@@ -6,9 +6,12 @@ import h5py
 
 import sys
 
+from facvae.utils import datadir
+
 
 def calculate_umap(scale, n_neighbors, min_dist, n_epochs):
-    filename = os.path.join('/tmp', 'latent_features_' + str(scale) + '.h5')
+    filename = os.path.join(datadir('tmp'),
+                            'latent_features_' + str(scale) + '.h5')
     file = h5py.File(filename, 'r')
     latent_features = file['latent_features'][:]
     file.close()
@@ -31,7 +34,8 @@ def calculate_umap(scale, n_neighbors, min_dist, n_epochs):
 
     os.remove(filename)
 
-    filename = os.path.join('/tmp', 'umap_features_' + str(scale) + '.h5')
+    filename = os.path.join(datadir('tmp'),
+                            'umap_features_' + str(scale) + '.h5')
     file = h5py.File(filename, 'a')
     if 'umap_features' in file.keys():
         del file['umap_features']

@@ -17,6 +17,7 @@ from tqdm import tqdm
 
 from facvae.utils import (
     plotsdir,
+    datadir,
     create_lmst_xticks,
     lmst_xtick,
     gitdir,
@@ -1158,7 +1159,7 @@ class Visualization(object):
         else:
             torch.cuda.empty_cache()
             for scale in self.scales:
-                tmp_filename = os.path.join('/tmp',
+                tmp_filename = os.path.join(datadir('tmp'),
                                             'latent_features_' + scale + '.h5')
                 tmp_file = h5py.File(tmp_filename, 'a')
                 if 'latent_features' in tmp_file.keys():
@@ -1210,7 +1211,7 @@ class Visualization(object):
             file_umap.create_group('umap_features')
             umap_features = {}
             for scale in self.scales:
-                filename = os.path.join('/tmp',
+                filename = os.path.join(datadir('tmp'),
                                         'umap_features_' + scale + '.h5')
                 file = h5py.File(filename, 'r')
                 file_umap['umap_features'].create_dataset(
@@ -1571,7 +1572,7 @@ class Visualization(object):
         else:
             torch.cuda.empty_cache()
             for scale in self.scales:
-                tmp_filename = os.path.join('/tmp',
+                tmp_filename = os.path.join(datadir('tmp'),
                                             'latent_features_' + scale + '.h5')
                 tmp_file = h5py.File(tmp_filename, 'a')
                 if 'latent_features' in tmp_file.keys():
@@ -1624,7 +1625,7 @@ class Visualization(object):
             file_umap.create_group('umap_features')
             umap_features = {}
             for scale in self.scales:
-                filename = os.path.join('/tmp',
+                filename = os.path.join(datadir('tmp'),
                                         'umap_features_' + scale + '.h5')
                 file = h5py.File(filename, 'r')
                 file_umap['umap_features'].create_dataset(
