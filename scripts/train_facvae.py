@@ -111,3 +111,4 @@ if __name__ == "__main__":
         vis.centroid_waveforms(args)
         vis.reconstruct_vae_input(args)
         vis.plot_latent_space(args)
+        vis.plot_scatspec_umap(args)

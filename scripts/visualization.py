@@ -17,6 +17,7 @@ from tqdm import tqdm
 
 from facvae.utils import (
     plotsdir,
+    datadir,
     create_lmst_xticks,
     lmst_xtick,
     gitdir,
@@ -1158,7 +1159,7 @@ class Visualization(object):
         else:
             torch.cuda.empty_cache()
             for scale in self.scales:
-                tmp_filename = os.path.join('/tmp',
+                tmp_filename = os.path.join(datadir('tmp'),
                                             'latent_features_' + scale + '.h5')
                 tmp_file = h5py.File(tmp_filename, 'a')
                 if 'latent_features' in tmp_file.keys():
@@ -1210,7 +1211,7 @@ class Visualization(object):
             file_umap.create_group('umap_features')
             umap_features = {}
             for scale in self.scales:
-                filename = os.path.join('/tmp',
+                filename = os.path.join(datadir('tmp'),
                                         'umap_features_' + scale + '.h5')
                 file = h5py.File(filename, 'r')
                 file_umap['umap_features'].create_dataset(
@@ -1504,6 +1505,254 @@ class Visualization(object):
                         plotsdir(
                             os.path.join(args.experiment,
                                          'latent_space_visualization',
+                                         window_feature_dir)),
+                        'umap_scale-' + scale + '.png',
+                    ),
+                    format="png",
+                    bbox_inches="tight",
+                    dpi=300,
+                    pad_inches=.05,
+                )
+                plt.close(fig)
+
+        font = {'family': 'serif', 'style': 'normal', 'size': 18}
+        matplotlib.rc('font', **font)
+
+    def plot_scatspec_umap(self, args):
+        """Plot scattering spectra in UMAP space.
+        """
+
+        # Free some memory.
+        del self.network
+
+        # DO NOT PLACE THIS IMPORT AT THE BEGINNING OF THE FILE. umap alters the
+        # environment variables, which causes errors when using multiprocessing.
+        # from umap import UMAP
+        from cuml.manifold import UMAP
+        font = {'family': 'serif', 'style': 'normal', 'size': 12}
+        matplotlib.rc('font', **font)
+
+        # Colors for each cluster.
+        colors = [
+            '#1f77b4',  # blue
+            '#ff7f0e',  # orange
+            '#2ca02c',  # green
+            '#d62728',  # red
+            '#9467bd',  # purple
+            '#8c564b',  # brown
+            '#e377c2',  # pink
+            '#7f7f7f',  # gray
+            '#bcbd22',  # olive
+            '#17becf',  # cyan
+            '#ff1493',  # deep pink
+            '#00ced1',  # dark turquoise
+        ]
+        per_point_color = {
+            scale: [
+                colors[cluster_idx]
+                for cluster_idx in self.cluster_membership[scale][:, 0]
+            ]
+            for scale in self.scales
+        }
+        args.umap_n_neighbors = 100  # For memory reasons, we use a smaller number of neighbors.
+
+        pre_computed_umap_file = os.path.join(
+            plotsdir(
+                os.path.join(args.experiment, 'scatspec_umap_visualization')),
+            'umap_features.h5')
+
+        if os.path.exists(pre_computed_umap_file):
+            print('Loading pre-computed UMAP features')
+            umap_features = {}
+
+            file = h5py.File(pre_computed_umap_file, 'r')
+            for scale in self.scales:
+                umap_features[scale] = file['umap_features'][scale][...]
+            file.close()
+
+        else:
+            torch.cuda.empty_cache()
+            for scale in self.scales:
+                tmp_filename = os.path.join(datadir('tmp'),
+                                            'latent_features_' + scale + '.h5')
+                tmp_file = h5py.File(tmp_filename, 'a')
+                if 'latent_features' in tmp_file.keys():
+                    del tmp_file['latent_features']
+                tmp_file.create_dataset(
+                    'latent_features',
+                    data=self.dataset.data['scat_cov'][scale][...].reshape(
+                        [self.dataset.data['scat_cov'][scale].shape[0], -1]),
+                )
+                tmp_file.close()
+
+            def call_umap(gpu_id, scale, n_neighbors, min_dist, n_epochs):
+                """
+                Calls umap on multiple GPUs.
+                """
+
+                # Run bash script with rank as argument.
+                script_path = os.path.join(
+                    gitdir(),
+                    'facvae',
+                    'utils',
+                    'call_umap.sh',
+                )
+                command = "bash " + script_path + " " + str(
+                    gpu_id) + " " + str(scale) + " " + str(
+                        n_neighbors) + " " + str(min_dist) + " " + str(
+                            n_epochs)
+                subprocess.check_call(command.split(),
+                                      stdout=subprocess.DEVNULL)
+
+            # Compute UMAP features.
+            with WorkerPool(
+                    n_jobs=1,  # TODO: fix this. Number of GPUs are hardcoded.
+                    start_method='fork',
+            ) as pool:
+                pool.map(
+                    call_umap,
+                    list(
+                        zip(
+                            [2, 2, 2, 2
+                             ],  # TODO: fix this. GPU ids are hardcoded.
+                            self.scales,
+                            [args.umap_n_neighbors] * len(self.scales),
+                            [args.umap_min_dist] * len(self.scales),
+                            [args.umap_n_epochs] * len(self.scales))),
+                    progress_bar=False,
+                )
+
+            file_umap = h5py.File(pre_computed_umap_file, 'w')
+            file_umap.create_group('umap_features')
+            umap_features = {}
+            for scale in self.scales:
+                filename = os.path.join(datadir('tmp'),
+                                        'umap_features_' + scale + '.h5')
+                file = h5py.File(filename, 'r')
+                file_umap['umap_features'].create_dataset(
+                    scale,
+                    data=file['umap_features'][...],
+                )
+                umap_features[scale] = file['umap_features'][...]
+
+                file.close()
+                os.remove(filename)
+
+            file_umap.close()
+
+        # Extract UMAP features of indices with label "BROADBAND"
+        label_idx = {scale: [] for scale in self.scales}
+        for scale in self.scales:
+            for idx in self.window_labels[scale].keys():
+                for event_type in args.event_type:
+                    for event_quality in args.event_quality:
+                        if (event_type + '_' + event_quality
+                            ) in self.window_labels[scale][idx]:
+                            label_idx[scale].append(int(idx))
+
+        # Extract UMAP features of indices with pressure drops
+        drop_idx = {scale: [] for scale in self.scales}
+        for scale in self.scales:
+            for idx in self.window_drops[scale].keys():
+                if self.window_drops[scale][idx]:
+                    drop_idx[scale].append(int(idx))
+
+        for window_feature, window_marker in zip(['label', 'drop'],
+                                                 ['*', 'o']):
+
+            for scale in self.scales:
+                fig = plt.figure(figsize=(8, 4))
+                plt.scatter(
+                    umap_features[scale][:, 0],
+                    umap_features[scale][:, 1],
+                    marker='o',
+                    c=per_point_color[scale],
+                    edgecolor='none',
+                    s=3 if umap_features[scale].shape[0] < 1e6 else 1,
+                    alpha=0.3 if umap_features[scale].shape[0] < 1e6 else 0.1,
+                )
+
+                if window_feature == 'label' and len(label_idx[scale]) > 0:
+                    plt.scatter(
+                        umap_features[scale][label_idx[scale], 0],
+                        umap_features[scale][label_idx[scale], 1],
+                        marker=window_marker,
+                        c="#333333",
+                        edgecolor="k",
+                        s=30,
+                        alpha=0.4,
+                    )
+
+                if window_feature == 'drop' and len(drop_idx[scale]) > 0:
+                    plt.scatter(
+                        umap_features[scale][drop_idx[scale], 0],
+                        umap_features[scale][drop_idx[scale], 1],
+                        marker=window_marker,
+                        c="#333333",
+                        s=1,
+                        alpha=0.1,
+                    )
+
+                legend_elements = []
+                for i, label in enumerate(range(args.ncluster)):
+                    custom_legend = plt.Line2D(
+                        [0],
+                        [0],
+                        marker='o',
+                        color='w',
+                        label='Cluster ' + f'{label}',
+                        markerfacecolor=colors[i],
+                        markersize=6,
+                    )
+                    legend_elements.append(custom_legend)
+                if window_feature == 'label':
+                    custom_legend = plt.Line2D(
+                        [0],
+                        [0],
+                        marker=window_marker,
+                        color='w',
+                        label=(args.event_type[0].capitalize() + ' events (' +
+                               str(len(label_idx[scale])) + ' windows)'),
+                        markerfacecolor='#333333',
+                        markersize=10,
+                    )
+                    legend_elements.append(custom_legend)
+                elif window_feature == 'drop':
+                    custom_legend = plt.Line2D(
+                        [0],
+                        [0],
+                        marker=window_marker,
+                        color='w',
+                        label=('Pressure drops (' + str(len(drop_idx[scale])) +
+                               ' windows)'),
+                        markerfacecolor='#333333',
+                        markersize=6,
+                    )
+                    legend_elements.append(custom_legend)
+                # plt.xlim([-35.0, 30])
+                # plt.ylim([-35.0, 30])
+                plt.legend(
+                    handles=legend_elements,
+                    fontsize=8,
+                    loc='lower left',
+                    ncol=5,
+                    handletextpad=0.02,
+                )
+                plt.title("Latent samples at scale {}".format(
+                    SCALE_TO_TIME[scale]))
+
+                if window_feature == 'label':
+                    window_feature_dir = ('event_' +
+                                          '-'.join(args.event_type) + '_' +
+                                          '-'.join(args.event_quality))
+                elif window_feature == 'drop':
+                    window_feature_dir = 'pressure-drop'
+
+                fig.savefig(
+                    os.path.join(
+                        plotsdir(
+                            os.path.join(args.experiment,
+                                         'scatspec_umap_visualization',
                                          window_feature_dir)),
                         'umap_scale-' + scale + '.png',
                     ),
