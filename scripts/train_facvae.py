@@ -17,6 +17,7 @@ from facvae.utils import (
     make_experiment_name,
     process_sequence_arguments,
     MarsMultiscaleDataset,
+    upload_to_dropbox,
 )
 from scripts.facvae_trainer import FactorialVAETrainer
 from scripts.visualization import Visualization
@@ -112,3 +113,5 @@ if __name__ == "__main__":
         # vis.reconstruct_vae_input(args)
         vis.plot_latent_space(args)
         vis.plot_scatspec_umap(args)
+
+    upload_to_dropbox(args)

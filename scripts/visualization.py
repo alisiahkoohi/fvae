@@ -1522,9 +1522,6 @@ class Visualization(object):
         """Plot scattering spectra in UMAP space.
         """
 
-        # Free some memory.
-        del self.network
-
         # DO NOT PLACE THIS IMPORT AT THE BEGINNING OF THE FILE. umap alters the
         # environment variables, which causes errors when using multiprocessing.
         # from umap import UMAP

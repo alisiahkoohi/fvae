@@ -12,12 +12,35 @@ import os
 from typing import Optional
 
 
+def find_project_root(marker='setup.py') -> str:
+    """Find the absolute path to the project's root directory.
+
+    Args:
+        marker (str): The filename that identifies the root of the project.
+        Defaults to 'setup.py'.
+
+    Returns:
+        str: The absolute path to the project's root directory.
+    """
+    current_dir = os.getcwd()
+    while current_dir != os.path.dirname(current_dir):
+        if marker in os.listdir(current_dir):
+            return current_dir
+        current_dir = os.path.dirname(current_dir)
+    raise FileNotFoundError(
+        f"Could not find the project root. No {marker} found in any parent "
+        "directories.")
+
+
 def gitdir() -> str:
     """Find the absolute path to the GitHub repository root.
     """
-    git_repo = git.Repo(os.getcwd(), search_parent_directories=True)
-    git_root = git_repo.git.rev_parse('--show-toplevel')
-    return git_root
+    try:
+        git_repo = git.Repo(os.getcwd(), search_parent_directories=True)
+        git_root = git_repo.git.rev_parse('--show-toplevel')
+        return git_root
+    except:
+        return find_project_root()
 
 
 def datadir(path: str, mkdir: Optional[bool] = True) -> str:
