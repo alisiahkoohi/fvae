@@ -549,7 +549,6 @@ class SnippetExtractor(object):
                 )
                 return waveform, time_interval
 
-            print("timescale:", timescale, "scale:", scale)
             with WorkerPool(
                 n_jobs=num_workers,
                 shared_objects=(

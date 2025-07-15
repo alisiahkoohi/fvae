@@ -9,6 +9,7 @@ import torch
 from mpire import WorkerPool
 from tqdm import tqdm
 from sklearn.decomposition import FastICA
+from scipy.stats import kurtosis
 
 import srcsep
 from srcsep import generate
@@ -52,11 +53,11 @@ def optimize_ica(
     gpu_id: int,
 ) -> None:
     """
-    Separates sources using ICA on windowed data.
+    Separates sources using ICA directly on x_obs (already windowed data).
 
     Args:
         args (Namespace): Command line arguments.
-        x_dataset (np.ndarray): Mars background dataset.
+        x_dataset (np.ndarray): Mars background dataset (kept for compatibility).
         x_obs (np.ndarray): Observed data with glitch.
         glitch_idx (int): Index of the glitch.
         glitch_time (Tuple[str, str): Glitch time.
@@ -67,160 +68,67 @@ def optimize_ica(
     x_obs_orig = x_obs.copy()
     x_dataset_orig = x_dataset.copy()
 
-    # Whiten the dataset if normalization is enabled.
+    # Whiten the data if normalization is enabled.
     if args.normalize:
         # Calculate mean and standard deviation along axis 0 and 1 for the
         # dataset.
         x_mean = x_dataset.mean(axis=(0, 1))
         x_std = x_dataset.std(axis=(0, 1))
-        # Whiten the dataset and the observed data.
-        x_dataset = (x_dataset - x_mean) / (x_std + 1e-8)
+        # Whiten the observed data.
         x_obs = (x_obs - x_mean) / (x_std + 1e-8)
 
-    # Get data dimensions
-    n_samples, n_channels, n_timepoints = x_dataset.shape
-    _, _, obs_timepoints = x_obs.shape
+    # Cast to float32 for compatibility with FastICA
+    x_dataset = x_dataset.astype(np.float32)
+    x_obs = x_obs.astype(np.float32)
+    x_mean = x_mean.astype(np.float32)
+    x_std = x_std.astype(np.float32)
 
-    # Initialize output array
-    x_hat = np.zeros_like(x_obs)
+    # Get data dimensions: x_obs shape is (1, n_channels, n_timepoints)
+    _, n_channels, n_timepoints = x_obs.shape
 
-    # Define window size (you can adjust this based on your needs)
-    window_size = min(1024, obs_timepoints)  # Adjust as needed
-    overlap = window_size // 2
+    # Prepare data for ICA: transpose to (n_timepoints, n_channels)
+    mixed_signals = x_obs[0, :, :].T  # Shape: (n_timepoints, n_channels)
 
-    # Process each channel separately
-    for ch in range(n_channels):
-        # Prepare data for ICA
-        # Combine dataset and observed data for this channel
-        dataset_ch = x_dataset[:, ch, :].T  # Shape: (timepoints, samples)
-        obs_ch = x_obs[0, ch, :].reshape(-1, 1)  # Shape: (timepoints, 1)
+    try:
+        # Apply FastICA
+        ica = FastICA(
+            n_components=n_channels, random_state=SEED, max_iter=1000, tol=1e-4
+        )
 
-        # Process in overlapping windows
-        for start_idx in range(0, obs_timepoints - window_size + 1, overlap):
-            end_idx = start_idx + window_size
+        # Fit ICA and transform
+        sources = ica.fit_transform(
+            mixed_signals
+        )  # Shape: (n_timepoints, n_channels)
+        mixing_matrix = ica.mixing_  # Shape: (n_channels, n_channels)
 
-            # Extract window from observed data
-            obs_window = obs_ch[start_idx:end_idx, :]  # Shape: (window_size, 1)
+        # Select which component to remove (simple heuristic: remove the one with highest kurtosis)
+        # Higher kurtosis often indicates spiky/glitchy behavior
 
-            # Find suitable background segments from dataset
-            # Take segments from dataset that match the window size
-            if dataset_ch.shape[0] >= window_size:
-                # Sample random segments from dataset
-                n_components = min(
-                    args.R, n_samples, window_size
-                )  # Ensure we don't exceed dimensions
-                dataset_segments = []
+        kurtosis_vals = [
+            abs(kurtosis(sources[:, i])) for i in range(n_channels)
+        ]
 
-                for i in range(n_components):
-                    if i < n_samples:
-                        # Take segment from sample i
-                        seg_start = np.random.randint(
-                            0, max(1, dataset_ch.shape[0] - window_size + 1)
-                        )
-                        seg_end = seg_start + window_size
-                        dataset_segments.append(
-                            dataset_ch[seg_start:seg_end, i : i + 1]
-                        )
-                    else:
-                        # If we need more components, take random segments
-                        rand_sample = np.random.randint(0, n_samples)
-                        seg_start = np.random.randint(
-                            0, max(1, dataset_ch.shape[0] - window_size + 1)
-                        )
-                        seg_end = seg_start + window_size
-                        dataset_segments.append(
-                            dataset_ch[
-                                seg_start:seg_end, rand_sample : rand_sample + 1
-                            ]
-                        )
+        # Remove the component with highest kurtosis (likely the glitch)
+        glitch_component = np.argmax(kurtosis_vals)
+        sources_filtered = sources.copy()
+        sources_filtered[:, glitch_component] = 0
 
-                # Combine segments
-                dataset_window = np.concatenate(
-                    dataset_segments, axis=1
-                )  # Shape: (window_size, n_components)
+        # Reconstruct the mixed signals without the glitch component
+        reconstructed = (
+            sources_filtered @ mixing_matrix.T
+        )  # Shape: (n_timepoints, n_channels)
 
-                # Combine observed data with dataset segments for ICA
-                mixed_signals = np.concatenate(
-                    [obs_window, dataset_window], axis=1
-                )  # Shape: (window_size, n_components+1)
+        # Convert back to original shape: (1, n_channels, n_timepoints)
+        x_hat = reconstructed.T[None, :, :]
 
-                # Apply ICA if we have enough components
-                if mixed_signals.shape[1] >= 2:
-                    try:
-                        # Apply FastICA
-                        ica = FastICA(
-                            n_components=mixed_signals.shape[1],
-                            random_state=SEED,
-                            max_iter=1000,
-                            tol=1e-4,
-                        )
-
-                        # Fit ICA and transform
-                        sources = ica.fit_transform(
-                            mixed_signals
-                        )  # Shape: (window_size, n_components)
-
-                        # Reconstruct without the first component (assuming it contains the glitch)
-                        # This is a simple approach - you might want to use more sophisticated component selection
-                        mixing_matrix = (
-                            ica.mixing_
-                        )  # Shape: (n_components, n_components)
-
-                        # Zero out the first component (or select based on some criterion)
-                        sources_filtered = sources.copy()
-                        sources_filtered[:, 0] = 0  # Remove first component
-
-                        # Reconstruct the signal
-                        reconstructed = (
-                            sources_filtered @ mixing_matrix.T
-                        )  # Shape: (window_size, n_components)
-
-                        # Take the first column (corresponding to the observed signal)
-                        x_hat_window = reconstructed[:, 0]
-
-                    except Exception as e:
-                        print(
-                            f"ICA failed for channel {ch}, window {start_idx}-{end_idx}: {e}"
-                        )
-                        # Fallback: use original signal
-                        x_hat_window = obs_window[:, 0]
-                else:
-                    # Not enough components for ICA
-                    x_hat_window = obs_window[:, 0]
-            else:
-                # Dataset too small
-                x_hat_window = obs_window[:, 0]
-
-            # Apply window overlap handling (simple averaging for overlapping regions)
-            if start_idx == 0:
-                x_hat[0, ch, start_idx:end_idx] = x_hat_window
-            else:
-                # Average overlapping regions
-                overlap_start = start_idx
-                overlap_end = min(start_idx + overlap, end_idx)
-                non_overlap_start = overlap_end
-
-                if overlap_start < overlap_end:
-                    # Weighted average for overlap region
-                    weight_old = np.linspace(1, 0, overlap_end - overlap_start)
-                    weight_new = np.linspace(0, 1, overlap_end - overlap_start)
-
-                    x_hat[0, ch, overlap_start:overlap_end] = (
-                        weight_old * x_hat[0, ch, overlap_start:overlap_end]
-                        + weight_new
-                        * x_hat_window[: overlap_end - overlap_start]
-                    )
-
-                # Non-overlapping region
-                if non_overlap_start < end_idx:
-                    x_hat[0, ch, non_overlap_start:end_idx] = x_hat_window[
-                        non_overlap_start - start_idx :
-                    ]
+    except Exception as e:
+        print(f"ICA failed: {e}")
+        # Fallback: use original signal
+        x_hat = x_obs.copy()
 
     # Undo the whitening if normalization is enabled.
     if args.normalize:
-        # Undo whitening for the dataset, observed data, and the reconstructed
-        # data.
+        # Undo whitening for the dataset, observed data, and the reconstructed data.
         x_dataset = x_dataset_orig
         x_obs = x_obs_orig
         x_hat = x_hat * (x_std + 1e-8) + x_mean
@@ -339,13 +247,11 @@ def source_separation_serial_job(gpu_id: int, shared_in: Tuple, j: int) -> None:
         shared_in (Tuple): Shared input data.
         j (int): Index of the job.
     """
-    print(f"Starting job {j} on GPU {gpu_id} with shared input.")
-    print(f"Shared input keys: {[type(_) for _ in shared_in]}")
-    optimize, args, snippets, glitch, glitch_time = shared_in
+    optimize_func, args, snippets, glitch, glitch_time = shared_in
     g = glitch[j : j + 1 :, :, :]
     g_time = glitch_time[j]
     snippet = snippets[j].astype(np.float64)
-    optimize(args, snippet, g, j, g_time, gpu_id)
+    optimize_func(args, snippet, g, j, g_time, gpu_id)
 
 
 if __name__ == "__main__":
@@ -400,9 +306,6 @@ if __name__ == "__main__":
     glitch = glitch[0, ...]
     glitch_time = glitch_time[0]
     glitch = glitch[:, None, :].astype(np.float64)
-    from IPython import embed
-
-    embed()
 
     snippets = {j: [] for j in range(glitch.shape[0])}
 

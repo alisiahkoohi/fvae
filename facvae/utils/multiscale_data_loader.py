@@ -10,7 +10,7 @@ from facvae.utils import RunningStats, Normalizer
 NORMALIZATION_BATCH_SIZE = 4096
 
 
-class MarsMultiscaleDataset():
+class MarsMultiscaleDataset:
     """
     A lass to load data from a HDF5 file containing multiscale Martian  data.
 
@@ -60,7 +60,7 @@ class MarsMultiscaleDataset():
         self,
         file_path: str,
         train_proportion: float,
-        data_types: list = ['scat_cov'],
+        data_types: list = ["scat_cov"],
         scatcov_datasets: list = None,
         load_to_memory: bool = True,
         normalize_data: bool = False,
@@ -76,68 +76,63 @@ class MarsMultiscaleDataset():
 
         # Open the HDF5 file specified by the file_path argument in read mode.
         self.file_path = file_path
-        self.file = h5py.File(file_path, 'r')
+        self.file = h5py.File(file_path, "r")
 
         # If scatcov_datasets is not specified, get a list of all datasets in
         # the scat_cov group.
         if not scatcov_datasets:
-            scatcov_datasets = list(self.file['scat_cov'].keys())
+            scatcov_datasets = list(self.file["scat_cov"].keys())
         self.scatcov_datasets = scatcov_datasets
 
         # Get the number of windows in the waveform dataset.
-        self.num_windows = self.file['scat_cov'][
-            self.scatcov_datasets[0]].shape[0]
+        self.num_windows = self.file["scat_cov"][
+            self.scatcov_datasets[0]
+        ].shape[0]
 
         # Create a dictionary that stores the shape of the waveform and
         # scat_cov datasets.
         self.shape = {
             # 'waveform': self.file['waveform'].shape[1:],
-            'scat_cov': {}
+            "scat_cov": {}
         }
 
         # For each dataset in scatcov_datasets, store its shape in the
         # dictionary.
         for dset_name in scatcov_datasets:
-            self.shape['scat_cov'][dset_name] = (
-                self.file['scat_cov'][dset_name].shape[1],
-                np.prod(self.file['scat_cov'][dset_name].shape[2:]))
+            self.shape["scat_cov"][dset_name] = (
+                self.file["scat_cov"][dset_name].shape[1],
+                np.prod(self.file["scat_cov"][dset_name].shape[2:]),
+            )
 
         # Split the data into training, validation, and test sets using the
         # specified proportion.
-        (self.file_idx, self.train_idx, self.val_idx,
-         self.test_idx) = self.split_data(train_proportion)
+        (self.file_idx, self.train_idx, self.val_idx, self.test_idx) = (
+            self.split_data(train_proportion)
+        )
 
         # If filter_key is True, create a dictionary that maps indices in the
         # original data to indices in the filtered data.
         if filter_key:
             idxs_dict = {str(i): idx for i, idx in enumerate(self.file_idx)}
             self.idx_converter = lambda idx: np.array(
-                [idxs_dict[str(j)] for j in idx])
+                [idxs_dict[str(j)] for j in idx]
+            )
         else:
             self.idx_converter = lambda idx: idx
 
         # Create dictionaries to store the data and normalization parameters
         # for each dataset.
         self.data = {
-            'waveform': None,
-            'scat_cov': {
-                dset_name: None
-                for dset_name in scatcov_datasets
-            }
+            "waveform": None,
+            "scat_cov": {dset_name: None for dset_name in scatcov_datasets},
         }
         self.normalizer = {
-            'waveform': None,
-            'scat_cov': {
-                dset_name: None
-                for dset_name in scatcov_datasets
-            }
+            "waveform": None,
+            "scat_cov": {dset_name: None for dset_name in scatcov_datasets},
         }
         self.already_normalized = {
-            'waveform': False,
-            'scat_cov': {
-                dset_name: False
-                for dset_name in scatcov_datasets
-            }
+            "waveform": False,
+            "scat_cov": {dset_name: False for dset_name in scatcov_datasets},
         }
 
         # If load_to_memory is True, load all data into memory.
@@ -169,8 +164,10 @@ class MarsMultiscaleDataset():
             file_idx = []
             for filter_key in self.filter_key:
                 filtered_filenames = list(
-                    filter(lambda k: filter_key in k[1],
-                           enumerate(all_filenames)))
+                    filter(
+                        lambda k: filter_key in k[1], enumerate(all_filenames)
+                    )
+                )
                 file_idx.extend([file[0] for file in filtered_filenames])
             # Sort here allows arbitrary filter_key orders.
             file_idx = np.sort(np.array(file_idx))
@@ -184,7 +181,7 @@ class MarsMultiscaleDataset():
 
             # Assign file indices to the train, validation and test sets.
             train_idx = idxs[:ntrain]
-            val_idx = idxs[ntrain:ntrain + nval]
+            val_idx = idxs[ntrain : ntrain + nval]
             test_idx = idxs
 
         else:
@@ -201,7 +198,7 @@ class MarsMultiscaleDataset():
 
             # Assign file indices to the train, validation and test sets.
             train_idx = idxs[:ntrain]
-            val_idx = idxs[ntrain:ntrain + nval]
+            val_idx = idxs[ntrain : ntrain + nval]
             test_idx = idxs
 
         return file_idx, train_idx, val_idx, test_idx
@@ -218,20 +215,25 @@ class MarsMultiscaleDataset():
             None
         """
         for type in data_types:
-            if type == 'scat_cov':
+            if type == "scat_cov":
                 for dset_name in self.scatcov_datasets:
                     # Load scat_cov data
-                    self.data['scat_cov'][dset_name] = torch.from_numpy(
-                        self.file['scat_cov'][dset_name][
-                            self.file_idx,
-                            ...].reshape(self.file_idx.shape[0], 1,
-                                         *self.shape['scat_cov'][dset_name]))
+                    self.data["scat_cov"][dset_name] = torch.from_numpy(
+                        self.file["scat_cov"][dset_name][
+                            self.file_idx, ...
+                        ].reshape(
+                            self.file_idx.shape[0],
+                            1,
+                            *self.shape["scat_cov"][dset_name],
+                        )
+                    )
             else:
                 # Load other data types
                 self.data[type] = torch.from_numpy(
-                    self.file[type][self.file_idx,
-                                    ...].reshape(self.file_idx.shape[0],
-                                                 *self.shape[type]))
+                    self.file[type][self.file_idx, ...].reshape(
+                        self.file_idx.shape[0], *self.shape[type]
+                    )
+                )
 
     def setup_data_normalizer(self, data_types: List[str]) -> None:
         """
@@ -247,69 +249,90 @@ class MarsMultiscaleDataset():
         # For each data type in data_types.
         for type in data_types:
             # If the data type is 'scat_cov'.
-            if type == 'scat_cov':
+            if type == "scat_cov":
                 # For each dataset in the 'scat_cov_datasets'.
                 for dset_name in self.scatcov_datasets:
                     # Create a RunningStats object with the shape of the
                     # current dataset.
                     running_stats = RunningStats(
-                        self.shape['scat_cov'][dset_name], dtype=torch.float32)
+                        self.shape["scat_cov"][dset_name], dtype=torch.float32
+                    )
                     if self.load_to_memory:
                         # If the data is loaded in memory, add the samples to
                         # the running_stats object.
                         running_stats.input_samples(
-                            self.data['scat_cov'][dset_name]
-                            [self.train_idx,
-                             ...].reshape(-1,
-                                          *self.shape['scat_cov'][dset_name]),
-                            n_workers=16)
+                            self.data["scat_cov"][dset_name][
+                                self.train_idx, ...
+                            ].reshape(-1, *self.shape["scat_cov"][dset_name]),
+                            n_workers=16,
+                        )
                     else:
                         # If the data is not loaded in memory, load it from the
                         # file in batches and add the samples to the
                         # running_stats object.
-                        for i in range(0, len(self.train_idx),
-                                       NORMALIZATION_BATCH_SIZE):
+                        for i in range(
+                            0, len(self.train_idx), NORMALIZATION_BATCH_SIZE
+                        ):
                             batch = torch.from_numpy(
-                                self.file['scat_cov'][dset_name]
-                                [self.idx_converter(
-                                    np.sort(self.
-                                            train_idx[i:i +
-                                                      NORMALIZATION_BATCH_SIZE]
-                                            )), ...])
-                            running_stats.input_samples(batch.reshape(
-                                -1, *self.shape['scat_cov'][dset_name]),
-                                                        n_workers=1)
+                                self.file["scat_cov"][dset_name][
+                                    self.idx_converter(
+                                        np.sort(
+                                            self.train_idx[
+                                                i : i + NORMALIZATION_BATCH_SIZE
+                                            ]
+                                        )
+                                    ),
+                                    ...,
+                                ]
+                            )
+                            running_stats.input_samples(
+                                batch.reshape(
+                                    -1, *self.shape["scat_cov"][dset_name]
+                                ),
+                                n_workers=1,
+                            )
                     # Compute the mean and standard deviation of the samples.
                     mean, std = running_stats.compute_stats()
                     # Create a Normalizer object with the computed mean and
                     # standard deviation.
-                    self.normalizer['scat_cov'][dset_name] = Normalizer(
-                        mean, std)
+                    self.normalizer["scat_cov"][dset_name] = Normalizer(
+                        mean, std
+                    )
             else:
                 # Create a RunningStats object with the shape of the current
                 # data type.
-                running_stats = RunningStats(self.shape[type],
-                                             dtype=torch.float32)
+                running_stats = RunningStats(
+                    self.shape[type], dtype=torch.float32
+                )
                 if self.load_to_memory:
                     # If the data is loaded in memory, add the samples to the
                     # running_stats object.
-                    running_stats.input_samples(self.data[type][self.train_idx,
-                                                                ...])
+                    running_stats.input_samples(
+                        self.data[type][self.train_idx, ...]
+                    )
                 else:
                     # If the data is not loaded in memory, load it from the
                     # file in batches and add the samples to the running_stats
                     # object.
-                    for i in range(0, len(self.train_idx),
-                                   NORMALIZATION_BATCH_SIZE):
+                    for i in range(
+                        0, len(self.train_idx), NORMALIZATION_BATCH_SIZE
+                    ):
                         batch = torch.from_numpy(
-                            self.file[type][self.idx_converter(
-                                np.sort(self.
-                                        train_idx[i:i +
-                                                  NORMALIZATION_BATCH_SIZE])),
-                                            ...])
-                        running_stats.input_samples(batch.reshape(
-                            batch.shape[0], *self.shape[type]),
-                                                    n_workers=16)
+                            self.file[type][
+                                self.idx_converter(
+                                    np.sort(
+                                        self.train_idx[
+                                            i : i + NORMALIZATION_BATCH_SIZE
+                                        ]
+                                    )
+                                ),
+                                ...,
+                            ]
+                        )
+                        running_stats.input_samples(
+                            batch.reshape(batch.shape[0], *self.shape[type]),
+                            n_workers=16,
+                        )
                 # Compute the mean and standard deviation of the samples.
                 mean, std = running_stats.compute_stats()
                 # Create a Normalizer object with the computed mean and
@@ -317,10 +340,9 @@ class MarsMultiscaleDataset():
                 self.normalizer[type] = Normalizer(mean, std)
         return None
 
-    def normalize(self,
-                  x: torch.Tensor,
-                  type: str,
-                  dset_name: Optional[str] = None) -> torch.Tensor:
+    def normalize(
+        self, x: torch.Tensor, type: str, dset_name: Optional[str] = None
+    ) -> torch.Tensor:
         """
         Normalize a given tensor based on its corresponding mean and standard
         deviation.
@@ -343,10 +365,9 @@ class MarsMultiscaleDataset():
                 x = self.normalizer[type].normalize(x)
         return x
 
-    def unnormalize(self,
-                    x: torch.Tensor,
-                    type: str,
-                    dset_name: Optional[str] = None) -> torch.Tensor:
+    def unnormalize(
+        self, x: torch.Tensor, type: str, dset_name: Optional[str] = None
+    ) -> torch.Tensor:
         """
         Unnormalize a given tensor based on its corresponding mean and standard
         deviation.
@@ -369,8 +390,9 @@ class MarsMultiscaleDataset():
                 x = self.normalizer[type].unnormalize(x)
         return x
 
-    def sample_data(self, idx: np.ndarray,
-                    type: str) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+    def sample_data(
+        self, idx: np.ndarray, type: str
+    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
         """
         Returns a dictionary of samples of the specified data type for each
         dataset.
@@ -382,44 +404,46 @@ class MarsMultiscaleDataset():
         Returns:
             dict: A dictionary containing the samples for each dataset.
         """
-        if type == 'scat_cov':
+        if type == "scat_cov":
             out = {}
             for dset_name in self.scatcov_datasets:
-                if self.data['scat_cov'][dset_name] is None:
+                if self.data["scat_cov"][dset_name] is None:
                     # If the data is not in memory, read a chunk of data from
                     # the file.
-                    x = self.file['scat_cov'][dset_name][
-                        self.idx_converter(np.sort(idx)),
-                        ...].reshape(-1, *self.shape['scat_cov'][dset_name])
+                    x = self.file["scat_cov"][dset_name][
+                        self.idx_converter(np.sort(idx)), ...
+                    ].reshape(-1, *self.shape["scat_cov"][dset_name])
                     x = torch.from_numpy(x)
-                    x = self.normalize(x, 'scat_cov', dset_name=dset_name)
+                    x = self.normalize(x, "scat_cov", dset_name=dset_name)
                     out[dset_name] = x
                 else:
-                    if (not self.already_normalized['scat_cov'][dset_name]
-                        ) and self.normalize_data:
+                    if (
+                        not self.already_normalized["scat_cov"][dset_name]
+                    ) and self.normalize_data:
                         # Normalize the data if it hasn't already been
                         # normalized.
-                        self.data['scat_cov'][dset_name] = self.normalize(
-                            self.data['scat_cov'][dset_name],
-                            'scat_cov',
-                            dset_name=dset_name)
-                        self.already_normalized['scat_cov'][dset_name] = True
-                    out[dset_name] = self.data['scat_cov'][dset_name][
-                        np.sort(idx),
-                        ...].reshape(-1, *self.shape['scat_cov'][dset_name])
+                        self.data["scat_cov"][dset_name] = self.normalize(
+                            self.data["scat_cov"][dset_name],
+                            "scat_cov",
+                            dset_name=dset_name,
+                        )
+                        self.already_normalized["scat_cov"][dset_name] = True
+                    out[dset_name] = self.data["scat_cov"][dset_name][
+                        np.sort(idx), ...
+                    ].reshape(-1, *self.shape["scat_cov"][dset_name])
         else:
             if self.data[type] is None:
                 # If the data is not in memory, read a chunk of data from the
                 # file.
-                x = self.file[type][self.idx_converter(np.sort(idx)),
-                                    ...].reshape(len(idx), *self.shape[type])
+                x = self.file[type][
+                    self.idx_converter(np.sort(idx)), ...
+                ].reshape(len(idx), *self.shape[type])
                 x = torch.from_numpy(x)
                 out = self.normalize(x, type)
             else:
                 if (not self.already_normalized[type]) and self.normalize_data:
                     # Normalize the data if it hasn't already been normalized.
-                    self.data[type] = self.normalize(self.data[type][...],
-                                                     type)
+                    self.data[type] = self.normalize(self.data[type][...], type)
                     self.already_normalized[type] = True
                 out = self.data[type][np.sort(idx), ...]
         return out
@@ -440,15 +464,16 @@ class MarsMultiscaleDataset():
         # Check if there are any indices
         if len(idx) > 0:
             # Extract labels for the given indices
-            labels_list = self.file['labels'][scale][
-                self.idx_converter(np.sort(idx)), ...].astype(str)
+            labels_list = self.file["labels"][scale][
+                self.idx_converter(np.sort(idx)), ...
+            ].astype(str)
 
             # Process each index and create a list of labels for each one
             for i in range(len(idx)):
                 label = []
                 # Extract the label values and append them to the label list
                 for v in labels_list[i]:
-                    if v != '':
+                    if v != "":
                         label.append(v)
                 labels.append(label)
         return labels
@@ -469,8 +494,9 @@ class MarsMultiscaleDataset():
         # Check if there are any indices
         if len(idx) > 0:
             # Extract drops for the given indices
-            drops_list = self.file['pressure'][scale][
-                self.idx_converter(np.sort(idx)), ...]
+            drops_list = self.file["pressure"][scale][
+                self.idx_converter(np.sort(idx)), ...
+            ]
 
             # Process each index and create a list of drops for each one
             for i, _ in enumerate(idx):
@@ -497,8 +523,9 @@ class MarsMultiscaleDataset():
         # Check if there are any indices
         if len(idx) > 0:
             # Extract glitches for the given indices
-            glitches_list = self.file['glitches'][
-                self.idx_converter(np.sort(idx)), ...]
+            glitches_list = self.file["glitches"][
+                self.idx_converter(np.sort(idx)), ...
+            ]
 
             # Process each index and create a list of glitches for each one
             for i, _ in enumerate(idx):
@@ -521,25 +548,28 @@ class MarsMultiscaleDataset():
             A list of strings representing the waveform filenames for the given
             indices.
         """
-        if hasattr(self, 'idx_converter'):
+        if hasattr(self, "idx_converter"):
             # If `idx_converter` exists, it is used to convert the given
             # indices to a format that can be used to index into the `file`
             # dataset.
             filenames = [
-                f.decode('utf-8') for f in self.file['filename'][
-                    self.idx_converter(np.sort(idx)), ...]
+                f.decode("utf-8")
+                for f in self.file["filename"][
+                    self.idx_converter(np.sort(idx)), ...
+                ]
             ]
         else:
             # Otherwise, the indices are sorted and used directly to index into
             # the `file` dataset.
             filenames = [
-                f.decode('utf-8')
-                for f in self.file['filename'][np.sort(idx), ...]
+                f.decode("utf-8")
+                for f in self.file["filename"][np.sort(idx), ...]
             ]
         return filenames
 
-    def get_time_interval(self, idx: List[int],
-                          scale: str) -> List[Tuple[UTCDateTime, UTCDateTime]]:
+    def get_time_interval(
+        self, idx: List[int], scale: str
+    ) -> List[Tuple[UTCDateTime, UTCDateTime]]:
         """
         Returns the list of time intervals for the given indices.
 
@@ -553,19 +583,15 @@ class MarsMultiscaleDataset():
             the start and end times.
         """
         # Check if self.file['time_interval'] is a h5 group and has scale as a key
-        if isinstance(self.file['time_interval'], h5py.Group):
-            if scale in self.file['time_interval'].keys():
-                return [(UTCDateTime(s.decode('utf-8')),
-                         UTCDateTime(e.decode('utf-8')))
-                        for s, e in self.file['time_interval'][scale][
-                            self.idx_converter(np.sort(idx)), ...]]
-        return [(UTCDateTime(s.decode('utf-8')),
-                 UTCDateTime(e.decode('utf-8')))
-                for s, e in self.file['time_interval'][
-                    self.idx_converter(np.sort(idx)), ...]]
+        return [
+            (UTCDateTime(s.decode("utf-8")), UTCDateTime(e.decode("utf-8")))
+            for s, e in self.file["time_interval"][scale][
+                self.idx_converter(np.sort(idx)), ...
+            ]
+        ]
 
 
-class SyntheticMultiscaleDataset():
+class SyntheticMultiscaleDataset:
     """
     A lass to load data from a HDF5 file containing multiscale synthetic data.
 
@@ -612,7 +638,7 @@ class SyntheticMultiscaleDataset():
         self,
         file_path: str,
         train_proportion: float,
-        data_types: list = ['scat_cov'],
+        data_types: list = ["scat_cov"],
         scatcov_datasets: list = None,
         load_to_memory: bool = True,
         normalize_data: bool = False,
@@ -626,69 +652,63 @@ class SyntheticMultiscaleDataset():
 
         # Open the HDF5 file specified by the file_path argument in read mode.
         self.file_path = file_path
-        self.file = h5py.File(file_path, 'r')
+        self.file = h5py.File(file_path, "r")
 
         # If scatcov_datasets is not specified, get a list of all datasets in
         # the scat_cov group.
         if not scatcov_datasets:
-            scatcov_datasets = list(self.file['scat_cov'].keys())
+            scatcov_datasets = list(self.file["scat_cov"].keys())
         self.scatcov_datasets = scatcov_datasets
 
         # Get the number of windows in the waveform dataset.
-        self.num_windows = self.file['scat_cov'][
-            self.scatcov_datasets[0]].shape[0]
+        self.num_windows = self.file["scat_cov"][
+            self.scatcov_datasets[0]
+        ].shape[0]
 
         # Create a dictionary that stores the shape of the waveform and
         # scat_cov datasets.
         self.shape = {
-            'waveform': self.file['waveform'].shape[1:],
-            'scat_cov': {}
+            "waveform": self.file["waveform"].shape[1:],
+            "scat_cov": {},
         }
 
         # For each dataset in scatcov_datasets, store its shape in the
         # dictionary.
         for dset_name in scatcov_datasets:
-            self.shape['scat_cov'][dset_name] = (
-                self.file['scat_cov'][dset_name].shape[1],
-                np.prod(self.file['scat_cov'][dset_name].shape[2:]))
+            self.shape["scat_cov"][dset_name] = (
+                self.file["scat_cov"][dset_name].shape[1],
+                np.prod(self.file["scat_cov"][dset_name].shape[2:]),
+            )
 
         # Split the data into training, validation, and test sets using the
         # specified proportion.
-        (self.file_idx, self.train_idx, self.val_idx,
-         self.test_idx) = self.split_data(train_proportion)
+        (self.file_idx, self.train_idx, self.val_idx, self.test_idx) = (
+            self.split_data(train_proportion)
+        )
         self.idx_converter = lambda idx: idx
 
         # Create dictionaries to store the data and normalization parameters
         # for each dataset.
         self.data = {
-            'waveform': None,
-            'waveform_large_scale': None,
-            'waveform_mid_scale': None,
-            'waveform_fine_scale': None,
-            'scat_cov': {
-                dset_name: None
-                for dset_name in scatcov_datasets
-            }
+            "waveform": None,
+            "waveform_large_scale": None,
+            "waveform_mid_scale": None,
+            "waveform_fine_scale": None,
+            "scat_cov": {dset_name: None for dset_name in scatcov_datasets},
         }
         self.normalizer = {
-            'waveform': None,
-            'waveform_large_scale': None,
-            'waveform_mid_scale': None,
-            'waveform_fine_scale': None,
-            'scat_cov': {
-                dset_name: None
-                for dset_name in scatcov_datasets
-            }
+            "waveform": None,
+            "waveform_large_scale": None,
+            "waveform_mid_scale": None,
+            "waveform_fine_scale": None,
+            "scat_cov": {dset_name: None for dset_name in scatcov_datasets},
         }
         self.already_normalized = {
-            'waveform': False,
-            'waveform_large_scale': False,
-            'waveform_mid_scale': False,
-            'waveform_fine_scale': False,
-            'scat_cov': {
-                dset_name: False
-                for dset_name in scatcov_datasets
-            }
+            "waveform": False,
+            "waveform_large_scale": False,
+            "waveform_mid_scale": False,
+            "waveform_fine_scale": False,
+            "scat_cov": {dset_name: False for dset_name in scatcov_datasets},
         }
 
         # If load_to_memory is True, load all data into memory.
@@ -725,7 +745,7 @@ class SyntheticMultiscaleDataset():
 
         # Assign file indices to the train, validation and test sets.
         train_idx = idxs[:ntrain]
-        val_idx = idxs[ntrain:ntrain + nval]
+        val_idx = idxs[ntrain : ntrain + nval]
         test_idx = idxs
 
         return file_idx, train_idx, val_idx, test_idx
@@ -742,20 +762,25 @@ class SyntheticMultiscaleDataset():
             None
         """
         for type in data_types:
-            if type == 'scat_cov':
+            if type == "scat_cov":
                 for dset_name in self.scatcov_datasets:
                     # Load scat_cov data
-                    self.data['scat_cov'][dset_name] = torch.from_numpy(
-                        self.file['scat_cov'][dset_name][
-                            self.file_idx,
-                            ...].reshape(self.file_idx.shape[0], 1,
-                                         *self.shape['scat_cov'][dset_name]))
+                    self.data["scat_cov"][dset_name] = torch.from_numpy(
+                        self.file["scat_cov"][dset_name][
+                            self.file_idx, ...
+                        ].reshape(
+                            self.file_idx.shape[0],
+                            1,
+                            *self.shape["scat_cov"][dset_name],
+                        )
+                    )
             else:
                 # Load other data types
                 self.data[type] = torch.from_numpy(
-                    self.file[type][self.file_idx,
-                                    ...].reshape(self.file_idx.shape[0],
-                                                 *self.shape[type]))
+                    self.file[type][self.file_idx, ...].reshape(
+                        self.file_idx.shape[0], *self.shape[type]
+                    )
+                )
 
     def setup_data_normalizer(self, data_types: List[str]) -> None:
         """
@@ -771,69 +796,90 @@ class SyntheticMultiscaleDataset():
         # For each data type in data_types.
         for type in data_types:
             # If the data type is 'scat_cov'.
-            if type == 'scat_cov':
+            if type == "scat_cov":
                 # For each dataset in the 'scat_cov_datasets'.
                 for dset_name in self.scatcov_datasets:
                     # Create a RunningStats object with the shape of the
                     # current dataset.
                     running_stats = RunningStats(
-                        self.shape['scat_cov'][dset_name], dtype=torch.float32)
+                        self.shape["scat_cov"][dset_name], dtype=torch.float32
+                    )
                     if self.load_to_memory:
                         # If the data is loaded in memory, add the samples to
                         # the running_stats object.
                         running_stats.input_samples(
-                            self.data['scat_cov'][dset_name]
-                            [self.train_idx,
-                             ...].reshape(-1,
-                                          *self.shape['scat_cov'][dset_name]),
-                            n_workers=16)
+                            self.data["scat_cov"][dset_name][
+                                self.train_idx, ...
+                            ].reshape(-1, *self.shape["scat_cov"][dset_name]),
+                            n_workers=16,
+                        )
                     else:
                         # If the data is not loaded in memory, load it from the
                         # file in batches and add the samples to the
                         # running_stats object.
-                        for i in range(0, len(self.train_idx),
-                                       NORMALIZATION_BATCH_SIZE):
+                        for i in range(
+                            0, len(self.train_idx), NORMALIZATION_BATCH_SIZE
+                        ):
                             batch = torch.from_numpy(
-                                self.file['scat_cov'][dset_name]
-                                [self.idx_converter(
-                                    np.sort(self.
-                                            train_idx[i:i +
-                                                      NORMALIZATION_BATCH_SIZE]
-                                            )), ...])
-                            running_stats.input_samples(batch.reshape(
-                                -1, *self.shape['scat_cov'][dset_name]),
-                                                        n_workers=1)
+                                self.file["scat_cov"][dset_name][
+                                    self.idx_converter(
+                                        np.sort(
+                                            self.train_idx[
+                                                i : i + NORMALIZATION_BATCH_SIZE
+                                            ]
+                                        )
+                                    ),
+                                    ...,
+                                ]
+                            )
+                            running_stats.input_samples(
+                                batch.reshape(
+                                    -1, *self.shape["scat_cov"][dset_name]
+                                ),
+                                n_workers=1,
+                            )
                     # Compute the mean and standard deviation of the samples.
                     mean, std = running_stats.compute_stats()
                     # Create a Normalizer object with the computed mean and
                     # standard deviation.
-                    self.normalizer['scat_cov'][dset_name] = Normalizer(
-                        mean, std)
+                    self.normalizer["scat_cov"][dset_name] = Normalizer(
+                        mean, std
+                    )
             else:
                 # Create a RunningStats object with the shape of the current
                 # data type.
-                running_stats = RunningStats(self.shape[type],
-                                             dtype=torch.float32)
+                running_stats = RunningStats(
+                    self.shape[type], dtype=torch.float32
+                )
                 if self.load_to_memory:
                     # If the data is loaded in memory, add the samples to the
                     # running_stats object.
-                    running_stats.input_samples(self.data[type][self.train_idx,
-                                                                ...])
+                    running_stats.input_samples(
+                        self.data[type][self.train_idx, ...]
+                    )
                 else:
                     # If the data is not loaded in memory, load it from the
                     # file in batches and add the samples to the running_stats
                     # object.
-                    for i in range(0, len(self.train_idx),
-                                   NORMALIZATION_BATCH_SIZE):
+                    for i in range(
+                        0, len(self.train_idx), NORMALIZATION_BATCH_SIZE
+                    ):
                         batch = torch.from_numpy(
-                            self.file[type][self.idx_converter(
-                                np.sort(self.
-                                        train_idx[i:i +
-                                                  NORMALIZATION_BATCH_SIZE])),
-                                            ...])
-                        running_stats.input_samples(batch.reshape(
-                            batch.shape[0], *self.shape[type]),
-                                                    n_workers=16)
+                            self.file[type][
+                                self.idx_converter(
+                                    np.sort(
+                                        self.train_idx[
+                                            i : i + NORMALIZATION_BATCH_SIZE
+                                        ]
+                                    )
+                                ),
+                                ...,
+                            ]
+                        )
+                        running_stats.input_samples(
+                            batch.reshape(batch.shape[0], *self.shape[type]),
+                            n_workers=16,
+                        )
                 # Compute the mean and standard deviation of the samples.
                 mean, std = running_stats.compute_stats()
                 # Create a Normalizer object with the computed mean and
@@ -841,10 +887,9 @@ class SyntheticMultiscaleDataset():
                 self.normalizer[type] = Normalizer(mean, std)
         return None
 
-    def normalize(self,
-                  x: torch.Tensor,
-                  type: str,
-                  dset_name: Optional[str] = None) -> torch.Tensor:
+    def normalize(
+        self, x: torch.Tensor, type: str, dset_name: Optional[str] = None
+    ) -> torch.Tensor:
         """
         Normalize a given tensor based on its corresponding mean and standard
         deviation.
@@ -867,10 +912,9 @@ class SyntheticMultiscaleDataset():
                 x = self.normalizer[type].normalize(x)
         return x
 
-    def unnormalize(self,
-                    x: torch.Tensor,
-                    type: str,
-                    dset_name: Optional[str] = None) -> torch.Tensor:
+    def unnormalize(
+        self, x: torch.Tensor, type: str, dset_name: Optional[str] = None
+    ) -> torch.Tensor:
         """
         Unnormalize a given tensor based on its corresponding mean and standard
         deviation.
@@ -893,8 +937,9 @@ class SyntheticMultiscaleDataset():
                 x = self.normalizer[type].unnormalize(x)
         return x
 
-    def sample_data(self, idx: np.ndarray,
-                    type: str) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+    def sample_data(
+        self, idx: np.ndarray, type: str
+    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
         """
         Returns a dictionary of samples of the specified data type for each
         dataset.
@@ -906,44 +951,46 @@ class SyntheticMultiscaleDataset():
         Returns:
             dict: A dictionary containing the samples for each dataset.
         """
-        if type == 'scat_cov':
+        if type == "scat_cov":
             out = {}
             for dset_name in self.scatcov_datasets:
-                if self.data['scat_cov'][dset_name] is None:
+                if self.data["scat_cov"][dset_name] is None:
                     # If the data is not in memory, read a chunk of data from
                     # the file.
-                    x = self.file['scat_cov'][dset_name][
-                        self.idx_converter(np.sort(idx)),
-                        ...].reshape(-1, *self.shape['scat_cov'][dset_name])
+                    x = self.file["scat_cov"][dset_name][
+                        self.idx_converter(np.sort(idx)), ...
+                    ].reshape(-1, *self.shape["scat_cov"][dset_name])
                     x = torch.from_numpy(x)
-                    x = self.normalize(x, 'scat_cov', dset_name=dset_name)
+                    x = self.normalize(x, "scat_cov", dset_name=dset_name)
                     out[dset_name] = x
                 else:
-                    if (not self.already_normalized['scat_cov'][dset_name]
-                        ) and self.normalize_data:
+                    if (
+                        not self.already_normalized["scat_cov"][dset_name]
+                    ) and self.normalize_data:
                         # Normalize the data if it hasn't already been
                         # normalized.
-                        self.data['scat_cov'][dset_name] = self.normalize(
-                            self.data['scat_cov'][dset_name],
-                            'scat_cov',
-                            dset_name=dset_name)
-                        self.already_normalized['scat_cov'][dset_name] = True
-                    out[dset_name] = self.data['scat_cov'][dset_name][
-                        np.sort(idx),
-                        ...].reshape(-1, *self.shape['scat_cov'][dset_name])
+                        self.data["scat_cov"][dset_name] = self.normalize(
+                            self.data["scat_cov"][dset_name],
+                            "scat_cov",
+                            dset_name=dset_name,
+                        )
+                        self.already_normalized["scat_cov"][dset_name] = True
+                    out[dset_name] = self.data["scat_cov"][dset_name][
+                        np.sort(idx), ...
+                    ].reshape(-1, *self.shape["scat_cov"][dset_name])
         else:
             if self.data[type] is None:
                 # If the data is not in memory, read a chunk of data from the
                 # file.
-                x = self.file[type][self.idx_converter(np.sort(idx)),
-                                    ...].reshape(len(idx), *self.shape[type])
+                x = self.file[type][
+                    self.idx_converter(np.sort(idx)), ...
+                ].reshape(len(idx), *self.shape[type])
                 x = torch.from_numpy(x)
                 out = self.normalize(x, type)
             else:
                 if (not self.already_normalized[type]) and self.normalize_data:
                     # Normalize the data if it hasn't already been normalized.
-                    self.data[type] = self.normalize(self.data[type][...],
-                                                     type)
+                    self.data[type] = self.normalize(self.data[type][...], type)
                     self.already_normalized[type] = True
                 out = self.data[type][np.sort(idx), ...]
         return out
