@@ -16,13 +16,13 @@ from scripts.facvae_trainer import FactorialVAETrainer
 
 # Constants for datastream merge method and fill value
 MERGE_METHOD: int = 1
-FILL_VALUE: str = 'interpolate'
+FILL_VALUE: str = "interpolate"
 
 # Mapping of component to index
 COMPONENT_TO_INDEX: dict = {
-    'U': 0,
-    'V': 1,
-    'W': 2,
+    "U": 0,
+    "V": 1,
+    "W": 2,
 }
 
 
@@ -45,10 +45,10 @@ class SnippetExtractor(object):
     """
 
     def __init__(
-            self,
-            args: argparse.Namespace,
-            dataset_path: str,
-            device: torch.device = torch.device('cpu'),
+        self,
+        args: argparse.Namespace,
+        dataset_path: str,
+        device: torch.device = torch.device("cpu"),
     ) -> None:
         """
         Initializes the SnippetExtractor.
@@ -98,13 +98,14 @@ class SnippetExtractor(object):
         # Scales.
         self.scales: List[int] = args.scales
         self.in_shape: dict = {
-            scale: self.dataset.shape['scat_cov'][scale]
+            scale: self.dataset.shape["scat_cov"][scale]
             for scale in self.scales
         }
 
         # Dictionary to store per-cluster confident indices
         self.per_cluster_confident_idxs: dict = self.evaluate_model(
-            args, data_loader)
+            args, data_loader
+        )
 
     def evaluate_model(
         self,
@@ -126,43 +127,50 @@ class SnippetExtractor(object):
 
         # Placeholder for cluster membership and probability for all the data.
         cluster_membership: dict = {
-            scale:
-            torch.zeros(len(data_loader.dataset),
-                        self.dataset.data['scat_cov'][scale].shape[1],
-                        dtype=torch.long)
+            scale: torch.zeros(
+                len(data_loader.dataset),
+                self.dataset.data["scat_cov"][scale].shape[1],
+                dtype=torch.long,
+            )
             for scale in self.scales
         }
         cluster_membership_prob: dict = {
-            scale:
-            torch.zeros(len(data_loader.dataset),
-                        self.dataset.data['scat_cov'][scale].shape[1],
-                        dtype=torch.float)
+            scale: torch.zeros(
+                len(data_loader.dataset),
+                self.dataset.data["scat_cov"][scale].shape[1],
+                dtype=torch.float,
+            )
             for scale in self.scales
         }
 
         # Extract cluster memberships.
-        pbar: tqdm = tqdm(total=len(data_loader), desc='Evaluating the model')
+        pbar: tqdm = tqdm(total=len(data_loader), desc="Evaluating the model")
         for _, idx in enumerate(data_loader):
             # Load data.
-            x: dict = self.dataset.sample_data(idx, 'scat_cov')
+            x: dict = self.dataset.sample_data(idx, "scat_cov")
             # Move to `device`.
-            x: dict = {
-                scale: x[scale].to(self.device)
-                for scale in self.scales
-            }
+            x: dict = {scale: x[scale].to(self.device) for scale in self.scales}
             # Run the input data through the pretrained GMVAE network.
             with torch.no_grad():
                 output = self.network(x)
             # Extract the predicted cluster memberships.
             for scale in self.scales:
-                cluster_membership[scale][np.sort(idx), :] = output['logits'][
-                    scale].argmax(axis=1).reshape(
-                        len(idx),
-                        self.dataset.data['scat_cov'][scale].shape[1]).cpu()
-                cluster_membership_prob[scale][np.sort(idx), :] = output[
-                    'prob_cat'][scale].max(axis=1)[0].reshape(
-                        len(idx),
-                        self.dataset.data['scat_cov'][scale].shape[1]).cpu()
+                cluster_membership[scale][np.sort(idx), :] = (
+                    output["logits"][scale]
+                    .argmax(axis=1)
+                    .reshape(
+                        len(idx), self.dataset.data["scat_cov"][scale].shape[1]
+                    )
+                    .cpu()
+                )
+                cluster_membership_prob[scale][np.sort(idx), :] = (
+                    output["prob_cat"][scale]
+                    .max(axis=1)[0]
+                    .reshape(
+                        len(idx), self.dataset.data["scat_cov"][scale].shape[1]
+                    )
+                    .cpu()
+                )
             pbar.update(1)
 
         # Sort indices based on most confident cluster predictions by the
@@ -176,22 +184,23 @@ class SnippetExtractor(object):
             # Sort the values in the flattened tensor in descending order and
             # return the indices.
             confident_idxs[scale]: np.ndarray = torch.argsort(
-                prob_flat, descending=True).numpy()
+                prob_flat, descending=True
+            ).numpy()
 
         per_cluster_confident_idxs: dict = {
-            scale: {
-                str(i): []
-                for i in range(args.ncluster)
-            }
+            scale: {str(i): [] for i in range(args.ncluster)}
             for scale in self.scales
         }
 
         for scale in self.scales:
             for i in range(len(confident_idxs[scale])):
-                per_cluster_confident_idxs[scale][str(
-                    cluster_membership[scale][confident_idxs[scale]
-                                              [i]].item())].append(
-                                                  confident_idxs[scale][i])
+                per_cluster_confident_idxs[scale][
+                    str(
+                        cluster_membership[scale][
+                            confident_idxs[scale][i]
+                        ].item()
+                    )
+                ].append(confident_idxs[scale][i])
 
         return per_cluster_confident_idxs
 
@@ -201,8 +210,8 @@ class SnippetExtractor(object):
         scale: int,
         fine_scale: int = None,
     ) -> Tuple[
-            np.ndarray,
-            List[Tuple[float, float]],
+        np.ndarray,
+        List[Tuple[float, float]],
     ]:
         """
         Retrieves the waveform data for a specific window and scale.
@@ -218,13 +227,13 @@ class SnippetExtractor(object):
                 waveform data
             and the corresponding time intervals.
         """
-        window_time_intervals: List[
-            Tuple[float, float],
-        ] = self.get_time_interval(
-            window_idx,
-            scale,
-            lmst=False,
-            fine_scale=fine_scale,
+        window_time_intervals: List[Tuple[float, float],] = (
+            self.get_time_interval(
+                window_idx,
+                scale,
+                lmst=False,
+                fine_scale=fine_scale,
+            )
         )
 
         # Find filename of the waveform. Note that we only use the first time
@@ -233,7 +242,8 @@ class SnippetExtractor(object):
         # since the largest window size (i.e., largest scale) does not span
         # multiple days.
         filepath: str = get_waveform_path_from_time_interval(
-            *window_time_intervals[0])
+            *window_time_intervals[0]
+        )
 
         # Extract the data, merge the traces, and detrend to prepare for source
         # separation.
@@ -243,7 +253,7 @@ class SnippetExtractor(object):
             fill_value=FILL_VALUE,
         )
         data_stream: obspy.Stream = data_stream.detrend(
-            type='spline',
+            type="spline",
             order=2,
             dspline=2000,
             plot=False,
@@ -252,9 +262,11 @@ class SnippetExtractor(object):
         waveforms: List[np.ndarray] = []
         for window_time_interval in window_time_intervals:
             sliced_stream: obspy.Stream = data_stream.slice(
-                *window_time_interval)
+                *window_time_interval
+            )
             waveforms.append(
-                np.array([td.data[-int(scale):] for td in sliced_stream]))
+                np.array([td.data[-int(scale) :] for td in sliced_stream])
+            )
 
         # Return the required subwindow.
         return np.stack(waveforms), window_time_intervals
@@ -282,19 +294,19 @@ class SnippetExtractor(object):
         """
         if fine_scale:
             # Extract window time interval.
-            window_time_intervals: List[
-                Tuple[float, float],
-            ] = self.find_cross_scale_intersecting_windows(
-                scale,
-                window_idx,
-                fine_scale,
+            window_time_intervals: List[Tuple[float, float],] = (
+                self.find_cross_scale_intersecting_windows(
+                    scale,
+                    window_idx,
+                    fine_scale,
+                )
             )
         else:
-            window_time_intervals: List[
-                Tuple[float, float],
-            ] = self.dataset.get_time_interval(
-                [window_idx],
-                scale,
+            window_time_intervals: List[Tuple[float, float],] = (
+                self.dataset.get_time_interval(
+                    [window_idx],
+                    scale,
+                )
             )
 
         if lmst:
@@ -302,9 +314,10 @@ class SnippetExtractor(object):
             window_time_intervals: List[Tuple[float, float]] = [
                 create_lmst_xticks(
                     *interval,
-                    time_zone='LMST',
+                    time_zone="LMST",
                     window_size=int(fine_scale) if fine_scale else int(scale),
-                ) for interval in window_time_intervals
+                )
+                for interval in window_time_intervals
             ]
 
         return window_time_intervals
@@ -331,14 +344,14 @@ class SnippetExtractor(object):
         if isinstance(fine_scale, int):
             fine_scale = str(fine_scale)
 
-        coarse_scale_time_interval: List[
-            Tuple[float, float],
-        ] = self.get_time_interval(
-            coarse_scale_window_idx,
-            coarse_scale,
-            lmst=False,
-            fine_scale=None,
-        )[0]
+        coarse_scale_time_interval: List[Tuple[float, float],] = (
+            self.get_time_interval(
+                coarse_scale_window_idx,
+                coarse_scale,
+                lmst=False,
+                fine_scale=None,
+            )[0]
+        )
 
         min_scale: int = min([int(s) for s in self.scales])
 
@@ -351,27 +364,29 @@ class SnippetExtractor(object):
                 coarse_scale_window_idx - scale_ratio,
                 -scale_stride,
                 dtype=int,
-            ))
+            )
+        )
 
         fine_scale_time_intervals: List[Tuple[float, float]] = []
         for idx in candidate_idxs:
             try:
                 # Obtaining candidate time interval.
-                candidate_time_interval: List[
-                    Tuple[float, float],
-                ] = self.get_time_interval(
-                    idx,
-                    fine_scale,
-                    lmst=False,
-                    fine_scale=None,
-                )[0]
+                candidate_time_interval: List[Tuple[float, float],] = (
+                    self.get_time_interval(
+                        idx,
+                        fine_scale,
+                        lmst=False,
+                        fine_scale=None,
+                    )[0]
+                )
             except Exception:
                 # Continue to the next iteration of the 'for idx' loop.
                 continue
 
-            if (coarse_scale_time_interval[0] <= candidate_time_interval[0]
-                    and candidate_time_interval[1]
-                    <= coarse_scale_time_interval[1]):
+            if (
+                coarse_scale_time_interval[0] <= candidate_time_interval[0]
+                and candidate_time_interval[1] <= coarse_scale_time_interval[1]
+            ):
                 fine_scale_time_intervals.append(candidate_time_interval)
 
         return fine_scale_time_intervals
@@ -382,7 +397,7 @@ class SnippetExtractor(object):
         cluster_idxs: List[int],
         scale_idxs: List[int],
         sample_size: int = 5,
-        component: str = 'U',
+        component: str = "U",
         time_preference: Tuple[float, float] = None,
         timescale: int = None,
         num_workers: int = 40,
@@ -437,16 +452,20 @@ class SnippetExtractor(object):
             end2 = lmst_xtick(end2)
 
             # Calculate the time difference between the two intervals in hours
-            time_difference1: float = min([
-                abs((start1 - end2).total_seconds() / 3600),
-                abs((start1.replace(day=2) - end2).total_seconds() / 3600),
-                abs((start1 - end2.replace(day=2)).total_seconds() / 3600)
-            ])
-            time_difference2: float = min([
-                abs((start2 - end1).total_seconds() / 3600),
-                abs((start2.replace(day=2) - end1).total_seconds() / 3600),
-                abs((start2 - end1.replace(day=2)).total_seconds() / 3600)
-            ])
+            time_difference1: float = min(
+                [
+                    abs((start1 - end2).total_seconds() / 3600),
+                    abs((start1.replace(day=2) - end2).total_seconds() / 3600),
+                    abs((start1 - end2.replace(day=2)).total_seconds() / 3600),
+                ]
+            )
+            time_difference2: float = min(
+                [
+                    abs((start2 - end1).total_seconds() / 3600),
+                    abs((start2.replace(day=2) - end1).total_seconds() / 3600),
+                    abs((start2 - end1.replace(day=2)).total_seconds() / 3600),
+                ]
+            )
 
             # Check if the time difference is within the desired range
             if time_difference1 <= 2 or time_difference2 <= 2:
@@ -470,8 +489,9 @@ class SnippetExtractor(object):
                 # Allowing the user to overwrite the window index for the
                 # target window to be source separated.
                 window_idx = 0
-                while self.dataset.idx_converter([window_idx
-                                                  ])[0] != overwrite_idx:
+                while (
+                    self.dataset.idx_converter([window_idx])[0] != overwrite_idx
+                ):
                     window_idx += 1
 
                 utc_interval = self.get_time_interval(
@@ -485,12 +505,13 @@ class SnippetExtractor(object):
 
             else:
                 for sample_idx in range(
-                        len(self.per_cluster_confident_idxs[scale][str(i)])):
-
+                    len(self.per_cluster_confident_idxs[scale][str(i)])
+                ):
                     # Extracting the window index from the per-cluster confident
                     # indices.
-                    window_idx = self.per_cluster_confident_idxs[scale][str(
-                        i)][sample_idx]
+                    window_idx = self.per_cluster_confident_idxs[scale][str(i)][
+                        sample_idx
+                    ]
 
                     utc_interval = self.get_time_interval(
                         window_idx,
@@ -528,21 +549,22 @@ class SnippetExtractor(object):
                 )
                 return waveform, time_interval
 
+            print("timescale:", timescale, "scale:", scale)
             with WorkerPool(
-                    n_jobs=num_workers,
-                    shared_objects=(
-                        self.get_waveform,
-                        scale,
-                        timescale,
-                    ),
-                    start_method='fork',
+                n_jobs=num_workers,
+                shared_objects=(
+                    self.get_waveform,
+                    scale,
+                    timescale,
+                ),
+                start_method="fork",
             ) as pool:
-                outputs: List[
-                    Tuple[np.ndarray, List[Tuple[float, float]]],
-                ] = pool.map(
-                    load_serial_job,
-                    window_idx_list,
-                    progress_bar=False,
+                outputs: List[Tuple[np.ndarray, List[Tuple[float, float]]],] = (
+                    pool.map(
+                        load_serial_job,
+                        window_idx_list,
+                        progress_bar=False,
+                    )
                 )
             (waveforms_, time_intervals_) = zip(*outputs)
             for w_, t_ in zip(waveforms_, time_intervals_):

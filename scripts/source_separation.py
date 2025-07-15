@@ -34,7 +34,7 @@ MARS_PATH: str = datadir("mars")
 MARS_SCAT_COV_PATH: str = datadir(os.path.join(MARS_PATH, "scat_covs_h5"))
 
 # Configuration file.
-SRC_SEP_CONFIG_FILE: str = "source_separation.json"
+SRC_SEP_CONFIG_FILE: str = "source_separation_glitch.json"
 
 # Seed for reproducibility.
 SEED: int = 12
@@ -339,11 +339,13 @@ def source_separation_serial_job(gpu_id: int, shared_in: Tuple, j: int) -> None:
         shared_in (Tuple): Shared input data.
         j (int): Index of the job.
     """
-    optimize_func, args, snippets, glitch, glitch_time = shared_in
+    print(f"Starting job {j} on GPU {gpu_id} with shared input.")
+    print(f"Shared input keys: {[type(_) for _ in shared_in]}")
+    optimize, args, snippets, glitch, glitch_time = shared_in
     g = glitch[j : j + 1 :, :, :]
     g_time = glitch_time[j]
     snippet = snippets[j].astype(np.float64)
-    optimize_func(args, snippet, g, j, g_time, gpu_id)
+    optimize(args, snippet, g, j, g_time, gpu_id)
 
 
 if __name__ == "__main__":
@@ -398,6 +400,9 @@ if __name__ == "__main__":
     glitch = glitch[0, ...]
     glitch_time = glitch_time[0]
     glitch = glitch[:, None, :].astype(np.float64)
+    from IPython import embed
+
+    embed()
 
     snippets = {j: [] for j in range(glitch.shape[0])}
 
