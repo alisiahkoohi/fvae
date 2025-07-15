@@ -17,5 +17,6 @@
     "scale_g": "16384",
     "overwrite_idx": 101210,
     "num_workers": 40,
+    "run_ica": 0,
     "filter_key": "2022-FEB"
 }

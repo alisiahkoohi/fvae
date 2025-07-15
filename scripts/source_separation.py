@@ -340,32 +340,55 @@ if __name__ == "__main__":
     # Choose optimization function based on args.ica
     optimize_func = optimize_ica if args.run_ica else optimize
 
-    # Parallel processing using WorkerPool.
-    with WorkerPool(
-        n_jobs=4,  # Number of GPUs (hardcoded)
-        pass_worker_id=True,
-        shared_objects=(
-            optimize_func,
-            args,
-            snippets,
-            glitch,
-            glitch_time,
-        ),
-        start_method="fork",
-    ) as pool:
-        outputs = pool.map(
-            source_separation_serial_job,
-            range(glitch.shape[0]),
-            progress_bar=False,
-        )
+    if args.run_ica:
+        # Sequential processing
+        outputs = []
+        for i in range(glitch.shape[0]):
+            result = source_separation_serial_job(
+                0,
+                (optimize_func, args, snippets, glitch, glitch_time),
+                i,
+            )
+            outputs.append(result)
 
-    experiment_results = collect_results(
-        experiment_args,
-        [
-            "x_obs",
-            "x_hat",
-            "glitch_idx",
-            "glitch_time",
-        ],
-    )
-    plot_result(args, experiment_results)
+        experiment_results = collect_results(
+            experiment_args,
+            [
+                "x_obs",
+                "x_hat",
+                "glitch_idx",
+                "glitch_time",
+            ],
+        )
+        plot_result(args, experiment_results)
+
+    else:
+        # Parallel processing using WorkerPool.
+        with WorkerPool(
+            n_jobs=4,  # Number of GPUs (hardcoded)
+            pass_worker_id=True,
+            shared_objects=(
+                optimize_func,
+                args,
+                snippets,
+                glitch,
+                glitch_time,
+            ),
+            start_method="fork",
+        ) as pool:
+            outputs = pool.map(
+                source_separation_serial_job,
+                range(glitch.shape[0]),
+                progress_bar=False,
+            )
+
+        experiment_results = collect_results(
+            experiment_args,
+            [
+                "x_obs",
+                "x_hat",
+                "glitch_idx",
+                "glitch_time",
+            ],
+        )
+        plot_result(args, experiment_results)
