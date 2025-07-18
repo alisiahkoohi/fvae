@@ -298,9 +298,6 @@ class SnippetExtractor(object):
 
         # Extract the data, merge the traces, and detrend to prepare for source
         # separation.
-        from IPython import embed
-
-        embed()
         data_stream: obspy.Stream = obspy.read(filepath)
         data_stream: obspy.Stream = data_stream.merge(
             method=MERGE_METHOD,
@@ -313,12 +310,11 @@ class SnippetExtractor(object):
             plot=False,
         )
 
-        waveforms: List[np.ndarray] = []
         sliced_stream: obspy.Stream = data_stream.slice(*window_time_interval)
         waveform = np.array([td.data for td in sliced_stream])
 
         # Return the required subwindow.
-        return np.stack(waveform)
+        return waveform
 
     def get_time_interval(
         self,
