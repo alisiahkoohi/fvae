@@ -271,6 +271,55 @@ class SnippetExtractor(object):
         # Return the required subwindow.
         return np.stack(waveforms), window_time_intervals
 
+    def get_waveform_with_time_interval(
+        self,
+        window_time_interval: Tuple[float, float],
+        filepath: str = None,
+    ) -> np.ndarray:
+        """
+        Retrieves the waveform data for a specific time interval.
+
+        Args:
+            time_interval (Tuple[float, float]): Time interval for which to
+                retrieve the waveform data.
+        Returns:
+            np.ndarray: Waveform data for the specified time interval.
+        """
+
+        # Find filename of the waveform. Note that we only use the first time
+        # interval in the list to find the filename as all the time intervals
+        # inherently belong to the same day (even if fine_scale is not None)
+        # since the largest window size (i.e., largest scale) does not span
+        # multiple days.
+        if not filepath:
+            filepath: str = get_waveform_path_from_time_interval(
+                *window_time_interval
+            )
+
+        # Extract the data, merge the traces, and detrend to prepare for source
+        # separation.
+        from IPython import embed
+
+        embed()
+        data_stream: obspy.Stream = obspy.read(filepath)
+        data_stream: obspy.Stream = data_stream.merge(
+            method=MERGE_METHOD,
+            fill_value=FILL_VALUE,
+        )
+        data_stream: obspy.Stream = data_stream.detrend(
+            type="spline",
+            order=2,
+            dspline=2000,
+            plot=False,
+        )
+
+        waveforms: List[np.ndarray] = []
+        sliced_stream: obspy.Stream = data_stream.slice(*window_time_interval)
+        waveform = np.array([td.data for td in sliced_stream])
+
+        # Return the required subwindow.
+        return np.stack(waveform)
+
     def get_time_interval(
         self,
         window_idx: int,
