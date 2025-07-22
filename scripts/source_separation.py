@@ -53,100 +53,132 @@ def optimize_ica(
     gpu_id: int,
 ) -> None:
     """
-    Separates sources using ICA directly on x_obs (already windowed data).
-
-    Args:
-        args (Namespace): Command line arguments.
-        x_dataset (np.ndarray): Mars background dataset (kept for compatibility).
-        x_obs (np.ndarray): Observed data with glitch.
-        glitch_idx (int): Index of the glitch.
-        glitch_time (Tuple[str, str): Glitch time.
-        gpu_id (int): GPU identifier (unused for ICA but kept for compatibility).
+    Separates sources using ICA on 3-channel seismic data and plots all components.
     """
-
     # Store original data for later use
     x_obs_orig = x_obs.copy()
     x_dataset_orig = x_dataset.copy()
 
-    # Whiten the data if normalization is enabled.
+    # Whiten the data if normalization is enabled
     if args.normalize:
-        # Calculate mean and standard deviation along axis 0 and 1 for the
-        # dataset.
         x_mean = x_dataset.mean(axis=(0, 1))
         x_std = x_dataset.std(axis=(0, 1))
-        # Whiten the observed data.
         x_obs = (x_obs - x_mean) / (x_std + 1e-8)
 
     # Cast to float32 for compatibility with FastICA
     x_dataset = x_dataset.astype(np.float32)
     x_obs = x_obs.astype(np.float32)
-    x_mean = x_mean.astype(np.float32)
-    x_std = x_std.astype(np.float32)
+    if args.normalize:
+        x_mean = x_mean.astype(np.float32)
+        x_std = x_std.astype(np.float32)
 
-    # Get data dimensions: x_obs shape is (1, n_channels, n_timepoints)
-    _, n_channels, n_timepoints = x_obs.shape
+    # Get data dimensions
+    if len(x_obs.shape) == 4:
+        _, _, n_channels, n_timepoints = x_obs.shape
+        mixed_signals = x_obs[0, 0, :, :].T  # Shape: (n_timepoints, n_channels)
+    elif len(x_obs.shape) == 3:
+        _, n_channels, n_timepoints = x_obs.shape
+        mixed_signals = x_obs[0, :, :].T  # Shape: (n_timepoints, n_channels)
+    else:
+        raise ValueError(f"Unexpected x_obs shape: {x_obs.shape}")
 
-    # Prepare data for ICA: transpose to (n_timepoints, n_channels)
-    mixed_signals = x_obs[0, :, :].T  # Shape: (n_timepoints, n_channels)
+    print(
+        f"Applying ICA to {n_channels}-channel data: {n_timepoints} timepoints"
+    )
 
     try:
-        # Apply FastICA
+        # Apply FastICA with 3 components for 3-channel data
         ica = FastICA(
-            n_components=n_channels, random_state=SEED, max_iter=1000, tol=1e-4
+            n_components=3, random_state=SEED, max_iter=1000, tol=1e-4
         )
+        sources = ica.fit_transform(mixed_signals)  # Shape: (n_timepoints, 3)
+        mixing_matrix = ica.mixing_  # Shape: (3, 3)
 
-        # Fit ICA and transform
-        sources = ica.fit_transform(
-            mixed_signals
-        )  # Shape: (n_timepoints, n_channels)
-        mixing_matrix = ica.mixing_  # Shape: (n_channels, n_channels)
+        # Calculate and print source characteristics for interpretation
+        for i in range(3):
+            source_i = sources[:, i]
+            kurt = kurtosis(source_i)
+            energy = np.sum(source_i**2)
+            peak_to_rms = np.max(np.abs(source_i)) / np.sqrt(
+                np.mean(source_i**2)
+            )
+            print(
+                f"Source {i}: kurtosis={kurt:.3f}, energy={energy:.3f}, peak/rms={peak_to_rms:.3f}"
+            )
 
-        # Select which component to remove (simple heuristic: remove the one with highest kurtosis)
-        # Higher kurtosis often indicates spiky/glitchy behavior
+        # Plot all 3 separated sources and all 3 reconstructed signals without each source
+        for i in range(3):
+            # Create signal with only source i
+            source_i_only = np.zeros_like(sources)
+            source_i_only[:, i] = sources[:, i]
+            reconstructed_source_i = (
+                source_i_only @ mixing_matrix.T
+            )  # Shape: (n_timepoints, 3)
 
-        kurtosis_vals = [
-            abs(kurtosis(sources[:, i])) for i in range(n_channels)
-        ]
+            # Create signal without source i (background)
+            sources_without_i = sources.copy()
+            sources_without_i[:, i] = 0
+            reconstructed_without_i = (
+                sources_without_i @ mixing_matrix.T
+            )  # Shape: (n_timepoints, 3)
 
-        # Remove the component with highest kurtosis (likely the glitch)
-        glitch_component = np.argmax(kurtosis_vals)
-        sources_filtered = sources.copy()
-        sources_filtered[:, glitch_component] = 0
+            # Convert to original format for plotting (focusing on U component)
+            x_hat_source_i = reconstructed_source_i.T[
+                None, None, :, :
+            ]  # Shape: (1, 1, 3, n_timepoints)
+            x_hat_without_i = reconstructed_without_i.T[
+                None, None, :, :
+            ]  # Shape: (1, 1, 3, n_timepoints)
 
-        # Reconstruct the mixed signals without the glitch component
-        reconstructed = (
-            sources_filtered @ mixing_matrix.T
-        )  # Shape: (n_timepoints, n_channels)
+            # Undo whitening if normalization was applied
+            if args.normalize:
+                x_hat_source_i = x_hat_source_i * (x_std + 1e-8) + x_mean
+                x_hat_without_i = x_hat_without_i * (x_std + 1e-8) + x_mean
 
-        # Convert back to original shape: (1, n_channels, n_timepoints)
-        x_hat = reconstructed.T[None, :, :]
+            # Plot separated source i (using U component for visualization)
+            plot_deglitching(
+                args,
+                f"ica_source_{i}_glitch_{glitch_idx}",
+                x_obs_orig[:, :, 0, :],  # Original U component
+                x_hat_source_i[:, :, 0, :],  # Separated source i (U component)
+            )
+
+            # Plot signal without source i (background after removing source i)
+            plot_deglitching(
+                args,
+                f"ica_background_without_source_{i}_glitch_{glitch_idx}",
+                x_obs_orig[:, :, 0, :],  # Original U component
+                x_hat_without_i[
+                    :, :, 0, :
+                ],  # Background without source i (U component)
+            )
+
+        # For saving purposes, use the original signal (or you could choose a specific reconstruction)
+        x_hat = x_obs_orig[
+            :, :, 0, :
+        ]  # Shape: (1, 1, 1024) - removes channel dim
 
     except Exception as e:
         print(f"ICA failed: {e}")
-        # Fallback: use original signal
-        x_hat = x_obs.copy()
+        # Make sure fallback also uses correct shape
+        x_hat = x_obs_orig[:, :, 0, :]  # Shape: (1, 1, 1024)
 
-    # Undo the whitening if normalization is enabled.
+    # Prepare data for saving
     if args.normalize:
-        # Undo whitening for the dataset, observed data, and the reconstructed data.
         x_dataset = x_dataset_orig
-        x_obs = x_obs_orig
-        x_hat = x_hat * (x_std + 1e-8) + x_mean
+        x_obs = x_obs_orig[:, :, 0, :]  # Shape: (1, 1, 1024)
 
-    # Plot the deglitching results.
-    plot_deglitching(args, "deglitching_ica_" + str(glitch_idx), x_obs, x_hat)
-
-    # Save the results to an HDF5 file.
+    # Save results
     save_exp_to_h5(
         os.path.join(
             checkpointsdir(args.experiment),
             "reconstruction_ica_" + str(glitch_idx) + ".h5",
         ),
         args,
-        x_obs=x_obs,
+        x_obs=x_obs,  # Shape: (1, 1, 1024)
         x_dataset=x_dataset,
         glitch_idx=glitch_idx,
-        x_hat=x_hat,
+        x_hat=x_hat,  # Shape: (1, 1, 1024)
         glitch_time=[
             str(glitch_time[0]),
             str(glitch_time[-1]),
@@ -298,11 +330,12 @@ if __name__ == "__main__":
         args.cluster_g,
         args.scale_g,
         sample_size=1,
-        component="U",
+        component="all" if args.run_ica else "U",
         timescale=args.scale_n[0],
         num_workers=1,
         overwrite_idx=args.overwrite_idx,
     )
+
     glitch = glitch[0, ...]
     glitch_time = glitch_time[0]
     glitch = glitch[:, None, :].astype(np.float64)

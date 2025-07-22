@@ -612,7 +612,11 @@ class SnippetExtractor(object):
                 )
             (waveforms_, time_intervals_) = zip(*outputs)
             for w_, t_ in zip(waveforms_, time_intervals_):
-                waveforms.append(w_[:, COMPONENT_TO_INDEX[component], :])
+                if component == "all":
+                    # If the component is 'all', append all components.
+                    waveforms.append(w_)
+                else:
+                    waveforms.append(w_[:, COMPONENT_TO_INDEX[component], :])
                 time_intervals.append(t_)
 
         return np.array(waveforms), time_intervals
