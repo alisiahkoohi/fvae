@@ -31,7 +31,7 @@ Data required for training---i.e., the pyramidal scattering spectra, can be down
 
 ```bash
 mkdir -p data/mars/scat_covs_h5/
-wget -O "data/mars/scat_covs_h5/pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat-cov_filter_key-true.h5" "https://www.dropbox.com/scl/fi/pwv4hwf0mu43b256dvt0q/pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat-cov_filter_key-true.h5?rlkey=f3g0q2y5vrnpj6oaz68edf813&dl=0" --no-check-certificate
+wget -O "data/mars/scat_covs_h5/pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true.h5" "https://www.dropbox.com/scl/fi/pwv4hwf0mu43b256dvt0q/pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat-cov_filter_key-true.h5?rlkey=f3g0q2y5vrnpj6oaz68edf813&dl=0" --no-check-certificate
 ```
 
 ### Raw data for visualization and source separation
@@ -91,7 +91,7 @@ python scripts/separate_facvae.py --cluster_n "1,6" --cluster_g "3" --scale_n "1
 
 ## Questions
 
-Please contact alisk@rice.edu for questions.
+Please contact alisk@ucf.edu for questions.
 
 ## Author
 
