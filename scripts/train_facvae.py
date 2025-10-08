@@ -23,11 +23,11 @@ from scripts.facvae_trainer import FactorialVAETrainer
 from scripts.visualization import Visualization
 
 # Paths to raw Mars waveforms and the scattering covariance thereof.
-MARS_PATH = datadir('mars')
-MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, 'scat_covs_h5'))
+MARS_PATH = datadir("mars")
+MARS_SCAT_COV_PATH = datadir(os.path.join(MARS_PATH, "scat_covs_h5"))
 
 # GMVAE training default hyperparameters.
-MARS_CONFIG_FILE = 'facvae_full-mission.json'
+MARS_CONFIG_FILE = "facvae_full-mission.json"
 
 if __name__ == "__main__":
     # Read configuration from the JSON file specified by MARS_CONFIG_FILE.
@@ -51,67 +51,74 @@ if __name__ == "__main__":
     # Setting default device (cpu/cuda) depending on CUDA availability and
     # input arguments.
     if torch.cuda.is_available() and args.cuda:
-        device = torch.device('cuda')
+        device = torch.device("cuda")
     else:
-        device = torch.device('cpu')
+        device = torch.device("cpu")
 
     # Load data from the Mars dataset
-    dataset = MarsMultiscaleDataset(os.path.join(MARS_SCAT_COV_PATH,
-                                                 args.h5_filename),
-                                    0.90,
-                                    scatcov_datasets=args.scales,
-                                    load_to_memory=args.load_to_memory,
-                                    normalize_data=args.normalize,
-                                    filter_key=args.filter_key)
+    dataset = MarsMultiscaleDataset(
+        os.path.join(MARS_SCAT_COV_PATH, args.h5_filename),
+        0.90,
+        scatcov_datasets=args.scales,
+        load_to_memory=args.load_to_memory,
+        normalize_data=args.normalize,
+        filter_key=args.filter_key,
+    )
 
     # Create data loaders for train, validation and test datasets
 
     if len(dataset.train_idx) < args.batchsize:
         args.batchsize = len(dataset.train_idx)
 
-    train_loader = torch.utils.data.DataLoader(dataset.train_idx,
-                                               batch_size=args.batchsize,
-                                               shuffle=True,
-                                               drop_last=True)
-    val_loader = torch.utils.data.DataLoader(dataset.val_idx,
-                                             batch_size=args.batchsize,
-                                             shuffle=True,
-                                             drop_last=False)
-    test_loader = torch.utils.data.DataLoader(dataset.test_idx,
-                                              batch_size=args.batchsize,
-                                              shuffle=False,
-                                              drop_last=False)
+    train_loader = torch.utils.data.DataLoader(
+        dataset.train_idx,
+        batch_size=args.batchsize,
+        shuffle=True,
+        drop_last=True,
+    )
+    val_loader = torch.utils.data.DataLoader(
+        dataset.val_idx,
+        batch_size=args.batchsize,
+        shuffle=True,
+        drop_last=False,
+    )
+    test_loader = torch.utils.data.DataLoader(
+        dataset.test_idx,
+        batch_size=args.batchsize,
+        shuffle=False,
+        drop_last=False,
+    )
 
     # Initialize facvae trainer with the input arguments, dataset, and device
     facvae_trainer = FactorialVAETrainer(args, dataset, device)
 
-    if args.phase == 'train':
+    if args.phase == "train":
         # Training Phase.
         # Train the model using train_loader and val_loader.
         facvae_trainer.train(args, train_loader, val_loader)
 
-    elif args.phase == 'test':
+    elif args.phase == "test":
         # Load a saved checkpoint for testing.
         network = facvae_trainer.load_checkpoint(args, args.max_epoch - 1)
         # Set the gumbel temperature for sampling from the categorical
         # distribution.
         network.gumbel_temp = np.maximum(
             args.init_temp * np.exp(-args.temp_decay * (args.max_epoch - 1)),
-            args.min_temp)
+            args.min_temp,
+        )
         # Append the number of test samples to the experiment name.
-        if args.extension == '':
-            args.experiment = args.experiment + '_' + str(len(
-                dataset.test_idx))
+        if args.extension == "":
+            args.experiment = args.experiment + "_" + str(len(dataset.test_idx))
         else:
-            args.experiment = args.experiment + '_' + args.extension
+            args.experiment = args.experiment + "_" + args.extension
         # Create an instance of Visualization class.
         vis = Visualization(args, network, dataset, test_loader, device)
 
-        vis.plot_waveforms(args)
-        vis.plot_cluster_time_histograms(args)
+        # vis.plot_waveforms(args)
+        # vis.plot_cluster_time_histograms(args)
         vis.centroid_waveforms(args)
-        vis.reconstruct_vae_input(args)
-        vis.plot_latent_space(args)
-        vis.plot_scatspec_umap(args)
+        # vis.reconstruct_vae_input(args)
+        # vis.plot_latent_space(args)
+        # vis.plot_scatspec_umap(args)
 
     upload_to_dropbox(args)
