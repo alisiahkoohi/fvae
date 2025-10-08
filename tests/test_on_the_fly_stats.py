@@ -46,10 +46,10 @@ class TestRunningStats(unittest.TestCase):
     def test_compute_stats(self):
 
         for n_workers in [1, 8]:
-            for batchsize  in [25, 100]:
+            for batchsize in [25, 100]:
                 rs = RunningStats(self.shape, self.dtype)
                 samples = torch.tensor([[1, 2, 3], [4, 5, 6]],
-                                    dtype=self.dtype).unsqueeze(0)
+                                       dtype=self.dtype).unsqueeze(0)
                 samples = samples.repeat(100, 1, 1)
                 for i in range(0, samples.shape[0], batchsize):
                     batch = samples[i:i + batchsize, ...]
@@ -60,13 +60,13 @@ class TestRunningStats(unittest.TestCase):
                         torch.isclose(
                             mean,
                             torch.tensor([[1., 2., 3.], [4., 5., 6.]],
-                                        dtype=self.dtype))))
+                                         dtype=self.dtype))))
                 self.assertTrue(
                     torch.all(
                         torch.isclose(
                             std,
                             torch.tensor([[0., 0., 0.], [0., 0., 0.]],
-                                        dtype=self.dtype))))
+                                         dtype=self.dtype))))
 
 
 if __name__ == '__main__':

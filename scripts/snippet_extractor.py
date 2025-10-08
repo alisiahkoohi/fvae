@@ -265,7 +265,7 @@ class SnippetExtractor(object):
                 *window_time_interval
             )
             waveforms.append(
-                np.array([td.data[-int(scale) :] for td in sliced_stream])
+                np.array([td.data[-int(scale):] for td in sliced_stream])
             )
 
         # Return the required subwindow.

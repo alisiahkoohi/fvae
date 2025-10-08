@@ -50,12 +50,12 @@ def get_df_from_quakeml2(quakeMLfilename):
     print(f"Longueur du fichier : {len(event)}")
 
     for i in range(len(event)):
-        #print(event[i])
+        # print(event[i])
         event_dict = {}
         if len(event[i].event_descriptions) > 1:
 
             if str(event[i].event_descriptions[0].text)[0] in ["S", "T"] and \
-                "Elysium" not in str(event[i].event_descriptions[0].text):
+                    "Elysium" not in str(event[i].event_descriptions[0].text):
 
                 event_dict['name'] = str(event[i].event_descriptions[0].text)
             else:

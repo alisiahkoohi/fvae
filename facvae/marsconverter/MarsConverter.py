@@ -68,14 +68,15 @@ from obspy import UTCDateTime
 
 global configfile
 
-#configfile = './landerconfig.xml'
+# configfile = './landerconfig.xml'
 path2marsconverter = os.environ['MARSCONVERTER']
 
 # CONFIG FILE FOR MER A - SPIRIT ROVER
 # configfile = path2marsconverter+'/landerconfigSpirit.xml'
 
 # CONFIG FILE FOR INSIGHT LANDER
-configfile = path2marsconverter+'/landerconfig.xml'
+configfile = path2marsconverter + '/landerconfig.xml'
+
 
 class MarsConverter:
     """
@@ -185,7 +186,7 @@ class MarsConverter:
         """
         Returns the current time in milliseconds since Jan 1 1970
         """
-        return time.time()*self.MMULTIPLIER
+        return time.time() * self.MMULTIPLIER
 
     def julian(self, date=None):
         """
@@ -197,7 +198,7 @@ class MarsConverter:
             dateUTC = UTCDateTime(date)
             millis = dateUTC.timestamp * 1000.0
 
-        return self.JULIAN_UNIX_EPOCH + (millis/self.MILLISECONDS_IN_A_DAY)
+        return self.JULIAN_UNIX_EPOCH + (millis / self.MILLISECONDS_IN_A_DAY)
 
     def utc_to_tt_offset(self, jday=None):
         """
@@ -232,16 +233,16 @@ class MarsConverter:
                        29.0, 30.0, 31.0, 32.0, 33.0,
                        34.0, 35.0, 36.0, 37.0]
 
-        if jday_np <= jday_min+jday_vals[0]:
-            return offset_min+offset_vals[0]
-        elif jday_np >= jday_min+jday_vals[-1]:
-            return offset_min+offset_vals[-1]
+        if jday_np <= jday_min + jday_vals[0]:
+            return offset_min + offset_vals[0]
+        elif jday_np >= jday_min + jday_vals[-1]:
+            return offset_min + offset_vals[-1]
         else:
             for i in range(0, len(offset_vals)):
-                if (jday_min+jday_vals[i] <= jday_np) and \
-                        (jday_min+jday_vals[i+1] > jday_np):
+                if (jday_min + jday_vals[i] <= jday_np) and \
+                        (jday_min + jday_vals[i + 1] > jday_np):
                     break
-            return offset_min+offset_vals[i]
+            return offset_min + offset_vals[i]
 
     def julian_tt(self, jday_utc=None):
         """
@@ -249,7 +250,7 @@ class MarsConverter:
         """
         if jday_utc is None:
             jday_utc = self.julian()
-        jdtt = jday_utc + self.utc_to_tt_offset(jday_utc)/86400.
+        jdtt = jday_utc + self.utc_to_tt_offset(jday_utc) / 86400.
         return jdtt
 
     def j2000_offset_tt(self, jday_tt=None):
@@ -263,7 +264,7 @@ class MarsConverter:
 
     def Mars_Mean_Anomaly(self, j2000_ott=None):
         """
-        Calculates the Mars Mean Anomaly for a givent J2000 julien 
+        Calculates the Mars Mean Anomaly for a givent J2000 julien
         day offset (AM2000, eq. 16)
         """
         if j2000_ott is None:
@@ -297,7 +298,7 @@ class MarsConverter:
 
         pbs = 0
         for (A, tau, phi) in zip(array_A, array_tau, array_phi):
-            pbs += A*np.cos(((0.985626 * j2000_ott/tau) + phi)*np.pi/180.)
+            pbs += A * np.cos(((0.985626 * j2000_ott / tau) + phi) * np.pi / 180.)
         return pbs
 
     def equation_of_center(self, j2000_ott=None):
@@ -316,14 +317,14 @@ class MarsConverter:
         if j2000_ott is None:
             j2000_ott = self.j2000_offset_tt()
 
-        M = self.Mars_Mean_Anomaly(j2000_ott)*np.pi/180.
+        M = self.Mars_Mean_Anomaly(j2000_ott) * np.pi / 180.
         pbs = self.alpha_perturbs(j2000_ott)
 
-        EOC = (10.691 + 3.0e-7 * j2000_ott)*np.sin(M)\
-            + 0.6230 * np.sin(2*M)\
-            + 0.0500 * np.sin(3*M)\
-            + 0.0050 * np.sin(4*M)\
-            + 0.0005 * np.sin(5*M) \
+        EOC = (10.691 + 3.0e-7 * j2000_ott) * np.sin(M)\
+            + 0.6230 * np.sin(2 * M)\
+            + 0.0500 * np.sin(3 * M)\
+            + 0.0050 * np.sin(4 * M)\
+            + 0.0005 * np.sin(5 * M) \
             + pbs
 
         return EOC
@@ -332,7 +333,7 @@ class MarsConverter:
         """
         Returns the Areocentric solar longitude (aka Ls)
         (AM2000, eq. 19)
-        Section B-5. 
+        Section B-5.
         """
         if j2000_ott is None:
             j2000_ott = self.j2000_offset_tt()
@@ -380,11 +381,11 @@ class MarsConverter:
         if j2000_ott is None:
             j2000_ott = self.j2000_offset_tt()
 
-        ls = self.L_s(j2000_ott)*np.pi/180.
+        ls = self.L_s(j2000_ott) * np.pi / 180.
 
-        EOT = 2.861*np.sin(2*ls)\
-            - 0.071 * np.sin(4*ls)\
-            + 0.002 * np.sin(6*ls) - self.equation_of_center(j2000_ott)
+        EOT = 2.861 * np.sin(2 * ls)\
+            - 0.071 * np.sin(4 * ls)\
+            + 0.002 * np.sin(6 * ls) - self.equation_of_center(j2000_ott)
         return EOT
 
     def get_utc_2_eot(self, utc_date=None):
@@ -429,8 +430,8 @@ class MarsConverter:
 
         """
         j2000 = self.j2000_from_Mars_Solar_Date(msd)
-        j2000_ott = self.julian_tt(j2000+self.j2000_epoch())
-        return j2000_ott-self.j2000_epoch()
+        j2000_ott = self.julian_tt(j2000 + self.j2000_epoch())
+        return j2000_ott - self.j2000_epoch()
 
     def Mars_Solar_Date(self, j2000_ott=None):
         """
@@ -440,7 +441,7 @@ class MarsConverter:
             jday_tt = self.julian_tt()
             j2000_ott = self.j2000_offset_tt(jday_tt)
         const = 4.5
-        MSD = (((j2000_ott - const)/self.SOL_RATIO) + self.KNORM - self.K)
+        MSD = (((j2000_ott - const) / self.SOL_RATIO) + self.KNORM - self.K)
         return MSD
 
     def Coordinated_Mars_Time(self, j2000_ott=None):
@@ -454,7 +455,7 @@ class MarsConverter:
         if j2000_ott is None:
             jday_tt = self.julian_tt()
             j2000_ott = self.j2000_offset_tt(jday_tt)
-        MTC = 24 * (((j2000_ott - 4.5)/self.SOL_RATIO) + self.KNORM - self.K)
+        MTC = 24 * (((j2000_ott - 4.5) / self.SOL_RATIO) + self.KNORM - self.K)
         return MTC
 
     def j2000_tt_from_CMT(self, MTC=None):
@@ -462,7 +463,7 @@ class MarsConverter:
         Estimate j2000_ott from Coordinated Mars Time
         from (AM2000, eq. 22, modified)
         """
-        j2000_ott = (((MTC / 24.)+self.K - self.KNORM) * self.SOL_RATIO) + 4.5
+        j2000_ott = (((MTC / 24.) + self.K - self.KNORM) * self.SOL_RATIO) + 4.5
         return j2000_ott
 
     def _LMST(self, longitude=0, j2000_ott=None):
@@ -477,7 +478,7 @@ class MarsConverter:
         MTC = self.Coordinated_Mars_Time(j2000_ott)
         MTCmod = MTC % 24
         # MTCmod = MTC
-        LMST = (MTCmod - longitude * (24./360.)) % 24
+        LMST = (MTCmod - longitude * (24. / 360.)) % 24
         return LMST
 
     def _LTST(self, longitude=0, j2000_ott=None, mod24=True):
@@ -493,15 +494,14 @@ class MarsConverter:
         eot = self.equation_of_time(j2000_ott)
         lmst = self._LMST(longitude, j2000_ott)
         if mod24:
-            ltst = (lmst + eot*(1./15.)) % 24
+            ltst = (lmst + eot * (1. / 15.)) % 24
         else:
-            ltst = (lmst + eot*(1./15.))
+            ltst = (lmst + eot * (1. / 15.))
         return ltst
-
 
     # ------------------------------------------------------------------------
     #     LTST : Local True Solar Time
-    
+
     def get_utc_2_ltst(self, utc_date=None, output="date"):
         """
         Convert UTC date to LTST date.
@@ -551,20 +551,20 @@ class MarsConverter:
         ltst_date = ltst_date % 24
 
         ihour = int(math.modf(ltst_date)[1])
-        min_dec = 60*(math.modf(ltst_date)[0])
+        min_dec = 60 * (math.modf(ltst_date)[0])
         iminutes = floor(min_dec)
-        seconds = (min_dec - iminutes)*60.
+        seconds = (min_dec - iminutes) * 60.
         iseconds = int(math.modf((seconds))[1])
-        milliseconds = int(math.modf((seconds-iseconds))[0]*1000000)
+        milliseconds = int(math.modf((seconds - iseconds))[0] * 1000000)
 
         if output == "decimal":
             ltst_str = ltst_date
         else:
             ltst_str = "{:04}T{:02}:{:02}:{:02}.{:06}".format(nb_sol,
-                                                          ihour,
-                                                          iminutes,
-                                                          iseconds,
-                                                          milliseconds)
+                                                              ihour,
+                                                              iminutes,
+                                                              iseconds,
+                                                              milliseconds)
         return ltst_str
 
     def utcDateTime_to_jdutc(self, date=None):
@@ -586,7 +586,7 @@ class MarsConverter:
         """
 
         millis = (jd_utc - self.JULIAN_UNIX_EPOCH) * self.MILLISECONDS_IN_A_DAY
-        utc_tstamp = millis/1000.
+        utc_tstamp = millis / 1000.
         return UTCDateTime(utc_tstamp)
 
     def get_utc_2_lmst(self, utc_date=None, output="date"):
@@ -630,11 +630,11 @@ class MarsConverter:
         hour_dec = 24 * math.modf(raw_martian_sol)[0]
         ihour = floor(hour_dec)
         # MINUTES
-        min_dec = 60*(hour_dec-ihour)
+        min_dec = 60 * (hour_dec - ihour)
         iminutes = floor(min_dec)
-        seconds = (min_dec - iminutes)*60.
+        seconds = (min_dec - iminutes) * 60.
         iseconds = int(math.modf((seconds))[1])
-        milliseconds = int(math.modf((seconds-iseconds))[0]*1000000)
+        milliseconds = int(math.modf((seconds - iseconds))[0] * 1000000)
 
         if output == "decimal":
             marsDate = raw_martian_sol
@@ -667,7 +667,7 @@ class MarsConverter:
             marsDateTab.append(nbsol)
 
             # extract hour time in a list
-            timepart = marsdate[whereTpos+1:].split(":")
+            timepart = marsdate[whereTpos + 1:].split(":")
 
             if len(timepart) == 2:  # only hh:mm
                 marsDateTab.append(int(timepart[0]))
@@ -711,20 +711,20 @@ class MarsConverter:
                 nbsol = float(date2split[:whereTpos])
 
                 # extract hour time in a list
-                timepart = date2split[whereTpos+1:].split(":")
+                timepart = date2split[whereTpos + 1:].split(":")
 
-                #print(f"value of timepart: {timepart}")
+                # print(f"value of timepart: {timepart}")
 
                 if len(timepart) == 2:  # only hh:mm
-                    hours_in_dec = float(timepart[0]) + float(timepart[1])/60
-                    #print(f"Value of hours in dec (n=2): {hours_in_dec}")
+                    hours_in_dec = float(timepart[0]) + float(timepart[1]) / 60
+                    # print(f"Value of hours in dec (n=2): {hours_in_dec}")
                 elif len(timepart) == 3:  # hh:mm:ss.sssssss
-                    hours_in_dec = float(timepart[0])+float(timepart[1])/60 + \
-                                float(timepart[2])/(60*60)
-                    #print(f"Value of hours in dec (n=3): {hours_in_dec}")
+                    hours_in_dec = float(timepart[0]) + float(timepart[1]) / 60 + \
+                        float(timepart[2]) / (60 * 60)
+                    # print(f"Value of hours in dec (n=3): {hours_in_dec}")
                 else:
                     hours_in_dec = None
-                    #print(f"Value of hours in dec (n=other): {hours_in_dec}")
+                    # print(f"Value of hours in dec (n=other): {hours_in_dec}")
 
                 jd_utc_orig = self.utcDateTime_to_jdutc(self.get_origindate())
                 jd_tt_orig = self.julian_tt(jday_utc=jd_utc_orig)
@@ -734,24 +734,24 @@ class MarsConverter:
                 MTC = self.Coordinated_Mars_Time(jd_ott_orig)
 
                 # Add the number of SOL to the MTC of the origin date
-                MTC += nbsol*24
-                #print(f"in get_lmst_to_utc -> MTC = {MTC}")
+                MTC += nbsol * 24
+                # print(f"in get_lmst_to_utc -> MTC = {MTC}")
                 # Add the number of hours to the MTC of the origin date
                 if hours_in_dec is not None:
                     MTC += hours_in_dec
 
                     # Get back to Delta J2000 (Eq 15)
-                    JD_OTT = (MTC/24 - self.KNORM + self.K)*self.SOL_RATIO+4.5
+                    JD_OTT = (MTC / 24 - self.KNORM + self.K) * self.SOL_RATIO + 4.5
 
                     # Equation A6 from MARS 24
                     # (https://www.giss.nasa.gov/tools/mars24/help/algorithm.html)
                     JD_TT = JD_OTT + self.CONSISTENT_JULIAN_DAY
 
                     # Equation A2 from MARS 24
-                    JD_UT = JD_TT - 69.184/86400
+                    JD_UT = JD_TT - 69.184 / 86400
 
                     # Equation A1 from MARS 24
-                    UTC = (JD_UT - self.JULIAN_UNIX_EPOCH)*self.MILLISECONDS_IN_A_DAY/1000.
+                    UTC = (JD_UT - self.JULIAN_UNIX_EPOCH) * self.MILLISECONDS_IN_A_DAY / 1000.
 
                     return UTCDateTime(UTC)
                 else:
@@ -768,23 +768,23 @@ class MarsConverter:
                 jd_ott_orig = self.j2000_offset_tt(jd_tt_orig)
 
                 MTC = self.Coordinated_Mars_Time(jd_ott_orig)
-                MTC += float(date2split)*24
+                MTC += float(date2split) * 24
 
                 # Get back to Delta J2000 (Eq 15)
-                JD_OTT = (MTC/24 - self.KNORM + self.K)*self.SOL_RATIO + 4.5
+                JD_OTT = (MTC / 24 - self.KNORM + self.K) * self.SOL_RATIO + 4.5
 
                 # Equation A6 from MARS 24
                 # (https://www.giss.nasa.gov/tools/mars24/help/algorithm.html)
                 JD_TT = JD_OTT + self.CONSISTENT_JULIAN_DAY
 
                 # Equation A2 from MARS 24
-                JD_UT = JD_TT - 69.184/86400
+                JD_UT = JD_TT - 69.184 / 86400
 
                 # Equation A1 from MARS 24
-                UTC = (JD_UT - self.JULIAN_UNIX_EPOCH)*self.MILLISECONDS_IN_A_DAY/1000.
+                UTC = (JD_UT - self.JULIAN_UNIX_EPOCH) * self.MILLISECONDS_IN_A_DAY / 1000.
 
                 correction_factor = .466
-                return UTCDateTime(UTC)+correction_factor
+                return UTCDateTime(UTC) + correction_factor
             else:
                 return None
 
@@ -815,8 +815,8 @@ class MarsConverter:
         jd_tt = self.julian_tt(jday_utc=jd_utc)
         jd_ott = self.j2000_offset_tt(jd_tt)
         ls = self.L_s(jd_ott)
-        delta_s = (180/math.pi)*math.asin(0.42565*math.sin(math.pi*ls/180)) \
-            + 0.25 * math.sin(math.pi*ls/180)   # (-> AM1997, eq. D5)
+        delta_s = (180 / math.pi) * math.asin(0.42565 * math.sin(math.pi * ls / 180)) \
+            + 0.25 * math.sin(math.pi * ls / 180)   # (-> AM1997, eq. D5)
         return delta_s
 
     def local_solar_elevation(self, utc_date=None):
@@ -849,15 +849,15 @@ class MarsConverter:
         phi = self.LATITUDE
 
         EOT = self.equation_of_time(j2000_ott=jd_ott)
-        lbda_s = MTC * (360/24) + EOT + 180
+        lbda_s = MTC * (360 / 24) + EOT + 180
         lbda_s = lbda_s % 360
         d2r = math.pi / 180.
         H = lbda - lbda_s
-        Z = (180/math.pi) * math.acos(math.sin(delta_s * d2r)\
-                                      * math.sin(phi*d2r)\
-                                          + math.cos(delta_s*d2r)\
-                                          * math.cos(phi*d2r)\
-                                              * math.cos(H * d2r))
+        Z = (180 / math.pi) * math.acos(math.sin(delta_s * d2r)
+                                        * math.sin(phi * d2r)
+                                        + math.cos(delta_s * d2r)
+                                        * math.cos(phi * d2r)
+                                        * math.cos(H * d2r))
         solar_elevation = 90 - Z
         return solar_elevation
 
@@ -892,15 +892,15 @@ class MarsConverter:
         phi = self.LATITUDE
 
         EOT = self.equation_of_time(j2000_ott=jd_ott)
-        lbda_s = MTC*(360/24) + EOT + 180
+        lbda_s = MTC * (360 / 24) + EOT + 180
         lbda_s = lbda_s % 360
         # print("\t -lbda_s=", lbda_s)
-        d2r = math.pi/180
+        d2r = math.pi / 180
         H = lbda - lbda_s
 
-        A = (180/math.pi) * math.atan(math.sin(H * d2r)/\
-                       (math.cos(phi * d2r) * math.tan(delta_s * d2r)\
-                        - math.sin(phi * d2r) * math.cos(H * d2r)))
+        A = (180 / math.pi) * math.atan(math.sin(H * d2r) /
+                                        (math.cos(phi * d2r) * math.tan(delta_s * d2r)
+                                        - math.sin(phi * d2r) * math.cos(H * d2r)))
         A = A % 360
         return A
 
@@ -926,8 +926,8 @@ if __name__ == '__main__':
         print("Back to UTC: ", mDate.get_lmst_to_utc(lmst_date=marsDateNow))
         print("SOL ", marsDateNow[:posT], "from ",
               str(mDate.get_lmst_to_utc(lmst_date=int(marsDateNow[:posT]))),
-                  " UTC to ", str(mDate.get_lmst_to_utc(
-                      lmst_date=(int(marsDateNow[:posT])+1))))
+              " UTC to ", str(mDate.get_lmst_to_utc(
+                  lmst_date=(int(marsDateNow[:posT]) + 1))))
 
         print("UTC Date Time: {}".format(UTCDate))
         print("From utc to lmst (formated):",
@@ -949,12 +949,12 @@ if __name__ == '__main__':
         print("--------------------------")
 
         print("Another examples...")
-        #UTCDatelist = ["2021-10-23T18:26:43.0", "2021-09-05T05:23:58.0",
+        # UTCDatelist = ["2021-10-23T18:26:43.0", "2021-09-05T05:23:58.0",
         #               "2021-08-31T04:04:01.0", "2021-02-18T19:36:23.0",
         #               "2019-03-08T23:09:34.7",
         #               "2019-03-08T23:09:35.7", "2019-03-08T23:50:38.7",
         #               "2021-12-20T18:44:00.0"]
-        UTCDatelist = ["2019-03-08T23:09:34.750737","2019-03-08T23:09:34.7",
+        UTCDatelist = ["2019-03-08T23:09:34.750737", "2019-03-08T23:09:34.7",
                        "2019-03-08T23:09:35.7", "2019-03-08T23:50:38.7",
                        "2021-12-20T18:44:00.0"]
         for UTCDate in UTCDatelist:
@@ -967,7 +967,7 @@ if __name__ == '__main__':
                   mDate.get_utc_2_ltst(utc_date=UTCDate))
             print("From utc to ltst (decimal): ",
                   mDate.get_utc_2_ltst(utc_date=UTCDate, output="decimal"))
-            print(f"From utc to eot/15: {mDate.get_utc_2_eot(utc_date=UTCDate)/15.}")
+            print(f"From utc to eot/15: {mDate.get_utc_2_eot(utc_date=UTCDate) / 15.}")
             print("From utc to Ls",
                   mDate.get_utc_2_ls(utc_date=UTCDate))
             print("Solar declination: {}".format(
@@ -976,6 +976,6 @@ if __name__ == '__main__':
                 mDate.local_solar_elevation(utc_date=UTCDate)))
             print("Solar azimuth   : {}".format(
                 mDate.local_solar_azimuth(utc_date=UTCDate)))
-            print(4*"-.")
+            print(4 * "-.")
     else:
         sys.exit("No config file found")

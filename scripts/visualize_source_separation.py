@@ -218,7 +218,7 @@ def plot_result(args, experiment_results):
     for key in x_obs.keys():
         i = int(re.search(r"\d+", key).group())
         if len(x_obs[key]) > 0:
-            x_obs_arr[i * args.scale_n[0] : (i + 1) * args.scale_n[0]] = x_obs[
+            x_obs_arr[i * args.scale_n[0]: (i + 1) * args.scale_n[0]] = x_obs[
                 key
             ]
 
@@ -226,7 +226,7 @@ def plot_result(args, experiment_results):
     for key in x_hat.keys():
         i = int(re.search(r"\d+", key).group())
         if len(x_hat[key]) > 0:
-            x_hat_arr[i * args.scale_n[0] : (i + 1) * args.scale_n[0]] = x_hat[
+            x_hat_arr[i * args.scale_n[0]: (i + 1) * args.scale_n[0]] = x_hat[
                 key
             ]
 
@@ -234,7 +234,7 @@ def plot_result(args, experiment_results):
     for key in x_removed.keys():
         i = int(re.search(r"\d+", key).group())
         if len(x_removed[key]) > 0:
-            x_removed_arr[i * args.scale_n[0] : (i + 1) * args.scale_n[0]] = (
+            x_removed_arr[i * args.scale_n[0]: (i + 1) * args.scale_n[0]] = (
                 x_removed[key]
             )
 

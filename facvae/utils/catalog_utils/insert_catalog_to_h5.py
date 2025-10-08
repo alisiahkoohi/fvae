@@ -13,8 +13,7 @@ if __name__ == "__main__":
         '--h5_filename',
         dest='h5_filename',
         type=str,
-        default=
-        'pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true_backup.h5',
+        default='pyramid_full-mission_window_size-65536_q-1-1_j-8-8_use_day_data-1_avgpool_base-4_avgpool_exp-5-6-7-8_model_type-scat+cov_filter_key-true_backup.h5',
         help='h5 file to add events to')
     parser.add_argument(
         '--h5_dataset_name',

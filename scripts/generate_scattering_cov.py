@@ -281,7 +281,7 @@ def compute_scat_cov(args):
                                         y_list[avgpool_idx][b, ...].real,
                                         y_list[avgpool_idx][b, ...].imag
                                     ],
-                                             axis=-1).astype(np.float32))
+                                        axis=-1).astype(np.float32))
 
                             # CASE 2: only keeps the modulus of the scattering
                             # covariance, hence discarding time asymmetry info
@@ -305,7 +305,7 @@ def compute_scat_cov(args):
                             num_windows += 1
                             pb.set_postfix({
                                 'discarded':
-                                f'{discarded_files/(file_idx + 1):.4f}'
+                                f'{discarded_files / (file_idx + 1):.4f}'
                             })
 
                 else:

@@ -34,5 +34,5 @@ def upload_to_dropbox(args, flag: str = '--progress --transfers 8'):
         for command in bash_commands:
             process = subprocess.Popen(command.split())
             process.wait()
-    except:
+    except BaseException:
         print("Could not upload experiment data to Dropbox!")

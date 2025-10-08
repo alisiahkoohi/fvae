@@ -280,7 +280,7 @@ def source_separation_serial_job(gpu_id: int, shared_in: Tuple, j: int) -> None:
         j (int): Index of the job.
     """
     optimize_func, args, snippets, glitch, glitch_time = shared_in
-    g = glitch[j : j + 1 :, :, :]
+    g = glitch[j: j + 1:, :, :]
     g_time = glitch_time[j]
     snippet = snippets[j].astype(np.float64)
     optimize_func(args, snippet, g, j, g_time, gpu_id)

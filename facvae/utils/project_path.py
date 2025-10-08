@@ -39,7 +39,7 @@ def gitdir() -> str:
         git_repo = git.Repo(os.getcwd(), search_parent_directories=True)
         git_root = git_repo.git.rev_parse('--show-toplevel')
         return git_root
-    except:
+    except BaseException:
         return find_project_root()
 
 

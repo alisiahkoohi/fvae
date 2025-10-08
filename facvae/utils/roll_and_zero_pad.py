@@ -2,6 +2,7 @@
 
 import numpy as np
 
+
 def roll_zeropad(a, shift, axis=None):
     """
     Roll array elements along a given axis.
@@ -73,7 +74,8 @@ def roll_zeropad(a, shift, axis=None):
 
     """
     a = np.asanyarray(a)
-    if shift == 0: return a
+    if shift == 0:
+        return a
     if axis is None:
         n = a.size
         reshape = True
@@ -84,16 +86,15 @@ def roll_zeropad(a, shift, axis=None):
         res = np.zeros_like(a)
     elif shift < 0:
         shift += n
-        zeros = np.zeros_like(a.take(np.arange(n-shift), axis))
-        res = np.concatenate((a.take(np.arange(n-shift,n), axis), zeros), axis)
+        zeros = np.zeros_like(a.take(np.arange(n - shift), axis))
+        res = np.concatenate((a.take(np.arange(n - shift, n), axis), zeros), axis)
     else:
-        zeros = np.zeros_like(a.take(np.arange(n-shift,n), axis))
-        res = np.concatenate((zeros, a.take(np.arange(n-shift), axis)), axis)
+        zeros = np.zeros_like(a.take(np.arange(n - shift, n), axis))
+        res = np.concatenate((zeros, a.take(np.arange(n - shift), axis)), axis)
     if reshape:
         return res.reshape(a.shape)
     else:
         return res
-
 
 
 def roll_nanpad(a, shift, axis=None):

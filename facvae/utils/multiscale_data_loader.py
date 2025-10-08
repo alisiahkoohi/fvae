@@ -181,7 +181,7 @@ class MarsMultiscaleDataset:
 
             # Assign file indices to the train, validation and test sets.
             train_idx = idxs[:ntrain]
-            val_idx = idxs[ntrain : ntrain + nval]
+            val_idx = idxs[ntrain: ntrain + nval]
             test_idx = idxs
 
         else:
@@ -198,7 +198,7 @@ class MarsMultiscaleDataset:
 
             # Assign file indices to the train, validation and test sets.
             train_idx = idxs[:ntrain]
-            val_idx = idxs[ntrain : ntrain + nval]
+            val_idx = idxs[ntrain: ntrain + nval]
             test_idx = idxs
 
         return file_idx, train_idx, val_idx, test_idx
@@ -278,7 +278,7 @@ class MarsMultiscaleDataset:
                                     self.idx_converter(
                                         np.sort(
                                             self.train_idx[
-                                                i : i + NORMALIZATION_BATCH_SIZE
+                                                i: i + NORMALIZATION_BATCH_SIZE
                                             ]
                                         )
                                     ),
@@ -322,7 +322,7 @@ class MarsMultiscaleDataset:
                                 self.idx_converter(
                                     np.sort(
                                         self.train_idx[
-                                            i : i + NORMALIZATION_BATCH_SIZE
+                                            i: i + NORMALIZATION_BATCH_SIZE
                                         ]
                                     )
                                 ),
@@ -745,7 +745,7 @@ class SyntheticMultiscaleDataset:
 
         # Assign file indices to the train, validation and test sets.
         train_idx = idxs[:ntrain]
-        val_idx = idxs[ntrain : ntrain + nval]
+        val_idx = idxs[ntrain: ntrain + nval]
         test_idx = idxs
 
         return file_idx, train_idx, val_idx, test_idx
@@ -825,7 +825,7 @@ class SyntheticMultiscaleDataset:
                                     self.idx_converter(
                                         np.sort(
                                             self.train_idx[
-                                                i : i + NORMALIZATION_BATCH_SIZE
+                                                i: i + NORMALIZATION_BATCH_SIZE
                                             ]
                                         )
                                     ),
@@ -869,7 +869,7 @@ class SyntheticMultiscaleDataset:
                                 self.idx_converter(
                                     np.sort(
                                         self.train_idx[
-                                            i : i + NORMALIZATION_BATCH_SIZE
+                                            i: i + NORMALIZATION_BATCH_SIZE
                                         ]
                                     )
                                 ),

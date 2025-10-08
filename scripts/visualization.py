@@ -99,7 +99,7 @@ class Visualization(object):
 
         data_stream = data_stream.slice(*window_time_interval)
 
-        waveform = np.stack([td.data[-int(scale) :] for td in data_stream])
+        waveform = np.stack([td.data[-int(scale):] for td in data_stream])
 
         # Return the required subwindow.
         return waveform.astype(np.float32)
